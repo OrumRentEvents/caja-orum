@@ -2,274 +2,279 @@ const express = require('express');
 const fetch = require('node-fetch');
 const cors = require('cors');
 const path = require('path');
+const crypto = require('crypto');
+const fs = require('fs');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
 
 const RENTMAN_BASE = 'https://api.rentman.net';
+const RENTMAN_TOKEN = process.env.RENTMAN_TOKEN || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpYXQiOjE3NzMxNTM0MjIsIm1lZGV3ZXJrZXIiOjIzNSwiYWNjb3VudCI6InNlcnZpY2lvc3lhbHF1aWxlcnBhcmFldmVudG9zc2wiLCJjbGllbnRfdHlwZSI6Im9wZW5hcGkiLCJjbGllbnQubmFtZSI6Im9wZW5hcGkiLCJleHAiOjIwODg3NzI2MjIsImlzcyI6IntcIm5hbWVcIjpcImJhY2tlbmRcIixcInZlcnNpb25cIjpcIjQuODI4LjAuNlwifSJ9.hyHIfRnBGkLunqFAzG40c95AjpkWJfywelT_RiTcXDs';
 
-// ─── HELPER: fetch all pages from Rentman ───────────────────────────────────
-async function rentmanGetAll(path, token, extraParams = {}) {
-  let offset = 0;
-  const limit = 100;
-  let allItems = [];
+// ─── USUARIOS ─────────────────────────────────────────────────────────────────
+const USUARIOS = {
+  marina:  { password: 'Orum2026#Mar', rol: 'caja' },
+  danilo:  { password: 'Orum2026#Dan', rol: 'caja' },
+  maria:   { password: 'Orum2026#Mia', rol: 'caja' },
+  isabel:  { password: 'Orum2026#Isa', rol: 'contabilidad' },
+  ana:     { password: 'Orum2026#Ana', rol: 'contabilidad' },
+  sergio:  { password: 'Orum2026#Ser', rol: 'admin' }
+};
 
+// ─── SESIONES ─────────────────────────────────────────────────────────────────
+const sesiones = {};
+function generarToken() { return crypto.randomBytes(32).toString('hex'); }
+function getSesion(req) {
+  const t = req.headers['x-session-token'];
+  if (!t || !sesiones[t]) return null;
+  if (Date.now() > sesiones[t].expira) { delete sesiones[t]; return null; }
+  sesiones[t].expira = Date.now() + 8 * 60 * 60 * 1000;
+  return sesiones[t];
+}
+function requireAuth(req, res, next) {
+  if (!getSesion(req)) return res.status(401).json({ error: 'No autenticado' });
+  next();
+}
+function requireContabilidad(req, res, next) {
+  const s = getSesion(req);
+  if (!s) return res.status(401).json({ error: 'No autenticado' });
+  // contabilidad + admin (sergio) pueden acceder
+  if (s.rol !== 'contabilidad' && s.rol !== 'admin') return res.status(403).json({ error: 'Sin permisos' });
+  next();
+}
+
+// ─── PERSISTENCIA TICKS CONTABILIDAD ─────────────────────────────────────────
+const TICKS_FILE = path.join(__dirname, 'data', 'ticks.json');
+function cargarTicks() {
+  try {
+    if (!fs.existsSync(path.join(__dirname, 'data'))) fs.mkdirSync(path.join(__dirname, 'data'));
+    if (!fs.existsSync(TICKS_FILE)) return {};
+    return JSON.parse(fs.readFileSync(TICKS_FILE, 'utf8'));
+  } catch(e) { return {}; }
+}
+function guardarTicks(ticks) {
+  try {
+    if (!fs.existsSync(path.join(__dirname, 'data'))) fs.mkdirSync(path.join(__dirname, 'data'));
+    fs.writeFileSync(TICKS_FILE, JSON.stringify(ticks, null, 2));
+  } catch(e) { console.error('Error guardando ticks:', e.message); }
+}
+let ticksContabilidad = cargarTicks();
+
+// ─── AUTH ENDPOINTS ───────────────────────────────────────────────────────────
+app.post('/api/login', (req, res) => {
+  const { usuario, password } = req.body;
+  const user = (usuario || '').toLowerCase().trim();
+  const u = USUARIOS[user];
+  if (!u || u.password !== password) return res.status(401).json({ error: 'Usuario o contraseña incorrectos' });
+  const token = generarToken();
+  sesiones[token] = { usuario: user, rol: u.rol, expira: Date.now() + 8 * 60 * 60 * 1000 };
+  res.json({ ok: true, token, usuario: user, rol: u.rol });
+});
+
+app.post('/api/logout', (req, res) => {
+  const t = req.headers['x-session-token'];
+  if (t) delete sesiones[t];
+  res.json({ ok: true });
+});
+
+app.get('/api/me', (req, res) => {
+  const s = getSesion(req);
+  if (!s) return res.status(401).json({ error: 'No autenticado' });
+  res.json({ ok: true, usuario: s.usuario, rol: s.rol });
+});
+
+// ─── HELPERS RENTMAN ──────────────────────────────────────────────────────────
+async function rentmanGetAll(endpoint, extraParams = {}) {
+  let offset = 0; const limit = 100; let all = [];
   while (true) {
     const params = new URLSearchParams({ limit, offset, ...extraParams });
-    const url = `${RENTMAN_BASE}${path}?${params}`;
-    const res = await fetch(url, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      }
+    const res = await fetch(`${RENTMAN_BASE}${endpoint}?${params}`, {
+      headers: { 'Authorization': `Bearer ${RENTMAN_TOKEN}`, 'Content-Type': 'application/json' }
     });
-
-    if (!res.ok) {
-      const txt = await res.text();
-      throw new Error(`Rentman API error ${res.status}: ${txt}`);
-    }
-
+    if (!res.ok) { const t = await res.text(); throw new Error(`Rentman ${res.status}: ${t}`); }
     const json = await res.json();
     const items = json.data || [];
-    allItems = allItems.concat(items);
-
+    all = all.concat(items);
     if (items.length < limit) break;
     offset += limit;
   }
-
-  return allItems;
+  return all;
 }
 
-// ─── ENDPOINT: GET /api/pagos ────────────────────────────────────────────────
-// Devuelve todos los pagos (invoicepayments) filtrados por fecha y ubicación
-// Query params: token, fecha (YYYY-MM-DD), ubicacion (marbella|monda|all)
-app.get('/api/pagos', async (req, res) => {
-  const { token, fecha, ubicacion = 'all' } = req.query;
+async function rentmanGet(endpoint) {
+  const res = await fetch(`${RENTMAN_BASE}${endpoint}`, {
+    headers: { 'Authorization': `Bearer ${RENTMAN_TOKEN}`, 'Content-Type': 'application/json' }
+  });
+  if (!res.ok) return null;
+  return (await res.json()).data || null;
+}
 
-  if (!token) return res.status(400).json({ error: 'Token requerido' });
-  if (!fecha) return res.status(400).json({ error: 'Fecha requerida (YYYY-MM-DD)' });
+// ─── DETECCIÓN ABREBOTELLAS ───────────────────────────────────────────────────
+// Busca si un proyecto tiene el equipo /equipment/1600 en algún subproyecto
+async function proyectosConAbrebotellas(projectIds) {
+  // Descarga todos los projectequipment y filtra por equipment path
+  const eq = await rentmanGetAll('/projectequipment');
+  const ABREBOTELLA_PATH = '/equipment/1600';
+  // Agrupar por grupo de equipo
+  const gruposConAbreb = new Set();
+  eq.forEach(e => {
+    if ((e.equipment || '') === ABREBOTELLA_PATH) {
+      gruposConAbreb.add(e.equipment_group);
+    }
+  });
+
+  // Para cada grupo encontrado, buscar el subproyecto y proyecto
+  const projectsConAbreb = new Set();
+  for (const grupPath of gruposConAbreb) {
+    if (!grupPath) continue;
+    const grupId = grupPath.split('/').pop();
+    try {
+      const grup = await rentmanGet(`/projectequipmentgroup/${grupId}`);
+      if (grup && grup.project) {
+        const projId = grup.project.split('/').pop();
+        projectsConAbreb.add(projId);
+      }
+    } catch(e) {}
+  }
+  return projectsConAbreb;
+}
+
+// ─── GET /api/pagos ───────────────────────────────────────────────────────────
+app.get('/api/pagos', requireAuth, async (req, res) => {
+  const { fecha, ubicacion = 'all' } = req.query;
+  if (!fecha) return res.status(400).json({ error: 'Fecha requerida' });
 
   try {
-    // Obtener todos los invoice payments del día
-    const payments = await rentmanGetAll('/invoicepayments', token, {
+    // 1. Métodos de pago
+    const metodosData = await rentmanGetAll('/paymentmethods');
+    const metodoMap = {};
+    metodosData.forEach(m => { metodoMap[m.id] = m.name || m.displayname || ''; });
+
+    // 2. Pagos del día
+    const payments = await rentmanGetAll('/invoicepayments', {
       'paymentdate[gte]': `${fecha} 00:00:00`,
       'paymentdate[lte]': `${fecha} 23:59:59`
     });
 
-    // Métodos de pago ORUM
-    const METODOS = {
-      marbella: {
-        efectivo: 'Efectivo Marbella',
-        tpv: 'TPV Marbella'
-      },
-      monda: {
-        efectivo: 'Efectivo Monda',
-        tpv: 'TPV Monda'
-      }
-    };
-
-    // Para cada pago, necesitamos obtener el nombre del método de pago
-    // invoicepayments tiene: amount, paymentdate, paymentmethod (path like /paymentmethods/3), invoice
-    // Primero cargamos los métodos de pago disponibles
-    const metodosRes = await fetch(`${RENTMAN_BASE}/paymentmethods?limit=100`, {
-      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
-    });
-    const metodosJson = await metodosRes.json();
-    const metodoMap = {};
-    (metodosJson.data || []).forEach(m => {
-      metodoMap[m.id] = m.name || m.displayname || '';
-    });
-
-    // Enriquecer pagos con nombre del método
-    const pagosEnriquecidos = payments.map(p => {
-      // paymentmethod viene como "/paymentmethods/3" → extraer id
+    // 3. Mapear
+    const pagosRaw = payments.map(p => {
       const metodoParts = (p.paymentmethod || '').split('/');
       const metodoId = parseInt(metodoParts[metodoParts.length - 1]);
-      const metodoNombre = metodoMap[metodoId] || p.paymentmethod || '';
-
-      // Determinar ubicación y tipo
-      let ubicPago = null;
-      let tipoPago = null;
-
-      if (metodoNombre === METODOS.marbella.efectivo) { ubicPago = 'marbella'; tipoPago = 'efectivo'; }
-      else if (metodoNombre === METODOS.marbella.tpv) { ubicPago = 'marbella'; tipoPago = 'tpv'; }
-      else if (metodoNombre === METODOS.monda.efectivo) { ubicPago = 'monda'; tipoPago = 'efectivo'; }
-      else if (metodoNombre === METODOS.monda.tpv) { ubicPago = 'monda'; tipoPago = 'tpv'; }
-
-      // Extraer número de factura del path
+      const metodoNombre = metodoMap[metodoId] || '';
+      let ubicPago = null, tipoPago = null;
+      if (metodoNombre === 'Efectivo Marbella') { ubicPago = 'marbella'; tipoPago = 'efectivo'; }
+      else if (metodoNombre === 'TPV Marbella')  { ubicPago = 'marbella'; tipoPago = 'tpv'; }
+      else if (metodoNombre === 'Efectivo Monda') { ubicPago = 'monda';   tipoPago = 'efectivo'; }
+      else if (metodoNombre === 'TPV Monda')      { ubicPago = 'monda';   tipoPago = 'tpv'; }
       const invoiceParts = (p.invoice || '').split('/');
       const invoiceId = invoiceParts[invoiceParts.length - 1];
-
-      return {
-        id: p.id,
-        importe: parseFloat(p.amount) || 0,
-        fecha: p.paymentdate,
-        metodo: metodoNombre,
-        metodoId,
-        ubicacion: ubicPago,
-        tipo: tipoPago,
-        invoiceRef: p.invoice || '',
-        invoiceId,
-        numero_factura: p.invoice_number || invoiceId,
-        cliente: p.customer_displayname || '',
-        proyecto: p.project_number || ''
-      };
+      return { id: p.id, importe: parseFloat(p.amount)||0, fecha: p.paymentdate, metodo: metodoNombre, ubicacion: ubicPago, tipo: tipoPago, invoiceId, numero_factura: invoiceId, cliente: '', proyecto_numero: '', proyecto_nombre: '', proyecto_id: '', importe_base: null, tiene_abrebotellas: false };
     });
 
-    // Filtrar por ubicación si aplica
-    let resultado = pagosEnriquecidos.filter(p => p.ubicacion !== null);
-    if (ubicacion !== 'all') {
-      resultado = resultado.filter(p => p.ubicacion === ubicacion);
-    }
+    let resultado = pagosRaw.filter(p => p.ubicacion !== null);
+    if (ubicacion !== 'all') resultado = resultado.filter(p => p.ubicacion === ubicacion);
 
-    // Para obtener más detalle (cliente, nº proyecto), enriquecer con facturas
-    // Solo si hay pagos - hacemos batch
+    // 4. Enriquecer con datos de factura
     const invoiceIds = [...new Set(resultado.map(p => p.invoiceId).filter(Boolean))];
-    const invoiceDetails = {};
-
+    const invoiceMap = {};
     for (const invId of invoiceIds) {
       try {
-        const invRes = await fetch(`${RENTMAN_BASE}/invoices/${invId}`, {
-          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
-        });
-        if (invRes.ok) {
-          const invJson = await invRes.json();
-          const inv = invJson.data;
-          if (inv) {
-            invoiceDetails[invId] = {
-              numero: inv.number || inv.displayname || invId,
-              cliente: inv.contact ? inv.contact.displayname || '' : (inv.customer_displayname || ''),
-              proyecto_numero: inv.project ? inv.project.number || '' : '',
-              proyecto_nombre: inv.project ? inv.project.name || '' : '',
-              total: parseFloat(inv.total_with_vat) || 0
-            };
-          }
+        const inv = await rentmanGet(`/invoices/${invId}`);
+        if (inv) {
+          invoiceMap[invId] = {
+            numero: inv.number || invId,
+            cliente: inv.contact?.displayname || inv.customer_displayname || '',
+            proyecto_numero: inv.project?.number || '',
+            proyecto_nombre: inv.project?.name || '',
+            proyecto_id: inv.project ? (inv.project.id || inv.project.split?.('/').pop() || '') : '',
+            importe_base: parseFloat(inv.total_without_vat || inv.subtotal || 0),
+            importe_total: parseFloat(inv.total_with_vat || inv.total || 0)
+          };
         }
-      } catch (e) {
-        // ignorar error individual
-      }
+      } catch(e) {}
     }
 
-    // Merge invoice details
-    resultado = resultado.map(p => {
-      const det = invoiceDetails[p.invoiceId] || {};
-      return {
-        ...p,
-        numero_factura: det.numero || p.invoiceId,
-        cliente: det.cliente || p.cliente,
-        proyecto_numero: det.proyecto_numero || p.proyecto,
-        proyecto_nombre: det.proyecto_nombre || '',
-        total_factura: det.total || null
-      };
+    resultado.forEach(p => {
+      const det = invoiceMap[p.invoiceId] || {};
+      p.numero_factura = det.numero || p.invoiceId;
+      p.cliente = det.cliente || '';
+      p.proyecto_numero = det.proyecto_numero || '';
+      p.proyecto_nombre = det.proyecto_nombre || '';
+      p.proyecto_id = det.proyecto_id || '';
+      p.importe_base = det.importe_base || null;
+      p.importe_total = det.importe_total || p.importe;
     });
 
-    // Calcular resumen por caja
+    // 5. Detectar abrebotellas
+    const projectIds = [...new Set(resultado.map(p => p.proyecto_id).filter(Boolean))];
+    let proyectosAbreb = new Set();
+    if (projectIds.length > 0) {
+      try { proyectosAbreb = await proyectosConAbrebotellas(projectIds); } catch(e) { console.error('Error abrebotellas:', e.message); }
+    }
+    resultado.forEach(p => { if (p.proyecto_id && proyectosAbreb.has(p.proyecto_id)) p.tiene_abrebotellas = true; });
+
+    // 6. Añadir estado de tick de contabilidad
+    resultado.forEach(p => {
+      const tickKey = `${fecha}_${p.invoiceId}`;
+      p.tick_contabilidad = ticksContabilidad[tickKey] || null;
+    });
+
+    // 7. Agrupar por caja
     const resumen = {
       marbella: { efectivo: 0, tpv: 0, total: 0, pagos: [] },
-      monda: { efectivo: 0, tpv: 0, total: 0, pagos: [] }
+      monda:    { efectivo: 0, tpv: 0, total: 0, pagos: [] }
     };
-
     resultado.forEach(p => {
-      if (p.ubicacion && resumen[p.ubicacion]) {
-        resumen[p.ubicacion][p.tipo] += p.importe;
-        resumen[p.ubicacion].total += p.importe;
-        resumen[p.ubicacion].pagos.push(p);
-      }
+      resumen[p.ubicacion][p.tipo] += p.importe;
+      resumen[p.ubicacion].total  += p.importe;
+      resumen[p.ubicacion].pagos.push(p);
     });
 
-    res.json({ ok: true, fecha, resumen, pagos: resultado });
+    // 8. Caja abrebotellas: pagos en efectivo de proyectos con abrebotellas, importe base
+    const pagosAbreb = resultado.filter(p => p.tiene_abrebotellas && p.tipo === 'efectivo');
+    const cajaAbrebotellas = {
+      total_base: pagosAbreb.reduce((s, p) => s + (p.importe_base || 0), 0),
+      pagos: pagosAbreb
+    };
 
-  } catch (err) {
+    res.json({ ok: true, fecha, resumen, pagos: resultado, cajaAbrebotellas });
+
+  } catch(err) {
     console.error('Error /api/pagos:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
 
-// ─── ENDPOINT: GET /api/pagos/rango ─────────────────────────────────────────
-// Devuelve pagos en un rango de fechas para histórico
-app.get('/api/pagos/rango', async (req, res) => {
-  const { token, desde, hasta, ubicacion = 'all' } = req.query;
-  if (!token || !desde || !hasta) {
-    return res.status(400).json({ error: 'Token, desde y hasta son requeridos' });
+// ─── TICKS CONTABILIDAD ───────────────────────────────────────────────────────
+app.post('/api/tick', requireContabilidad, (req, res) => {
+  const s = getSesion(req);
+  const { fecha, invoiceId, marcado } = req.body;
+  if (!fecha || !invoiceId) return res.status(400).json({ error: 'fecha e invoiceId requeridos' });
+  const key = `${fecha}_${invoiceId}`;
+  if (marcado) {
+    ticksContabilidad[key] = { usuario: s.usuario, fecha_tick: new Date().toISOString(), invoiceId, fecha };
+  } else {
+    delete ticksContabilidad[key];
   }
+  guardarTicks(ticksContabilidad);
+  res.json({ ok: true, key, marcado, usuario: s.usuario });
+});
 
-  try {
-    const payments = await rentmanGetAll('/invoicepayments', token, {
-      'paymentdate[gte]': `${desde} 00:00:00`,
-      'paymentdate[lte]': `${hasta} 23:59:59`
-    });
-
-    const metodosRes = await fetch(`${RENTMAN_BASE}/paymentmethods?limit=100`, {
-      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
-    });
-    const metodosJson = await metodosRes.json();
-    const metodoMap = {};
-    (metodosJson.data || []).forEach(m => { metodoMap[m.id] = m.name || m.displayname || ''; });
-
-    const NOMBRES_VALIDOS = ['Efectivo Marbella', 'TPV Marbella', 'Efectivo Monda', 'TPV Monda'];
-
-    const resultado = payments.map(p => {
-      const metodoParts = (p.paymentmethod || '').split('/');
-      const metodoId = parseInt(metodoParts[metodoParts.length - 1]);
-      const metodoNombre = metodoMap[metodoId] || '';
-      let ubicPago = null;
-      let tipoPago = null;
-      if (metodoNombre === 'Efectivo Marbella') { ubicPago = 'marbella'; tipoPago = 'efectivo'; }
-      else if (metodoNombre === 'TPV Marbella') { ubicPago = 'marbella'; tipoPago = 'tpv'; }
-      else if (metodoNombre === 'Efectivo Monda') { ubicPago = 'monda'; tipoPago = 'efectivo'; }
-      else if (metodoNombre === 'TPV Monda') { ubicPago = 'monda'; tipoPago = 'tpv'; }
-      const invoiceParts = (p.invoice || '').split('/');
-      return {
-        id: p.id,
-        importe: parseFloat(p.amount) || 0,
-        fecha: (p.paymentdate || '').substring(0, 10),
-        metodo: metodoNombre,
-        ubicacion: ubicPago,
-        tipo: tipoPago,
-        invoiceId: invoiceParts[invoiceParts.length - 1]
-      };
-    }).filter(p => p.ubicacion !== null && (ubicacion === 'all' || p.ubicacion === ubicacion));
-
-    res.json({ ok: true, desde, hasta, pagos: resultado });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+app.get('/api/ticks', requireContabilidad, (req, res) => {
+  const { fecha } = req.query;
+  if (fecha) {
+    const filtrado = {};
+    Object.entries(ticksContabilidad).forEach(([k, v]) => { if (v.fecha === fecha) filtrado[k] = v; });
+    return res.json({ ok: true, ticks: filtrado });
   }
+  res.json({ ok: true, ticks: ticksContabilidad });
 });
 
-// ─── ENDPOINT: POST /api/caja/cierre ────────────────────────────────────────
-// Genera datos del documento de cierre (el PDF se genera en el frontend)
-app.post('/api/caja/cierre', (req, res) => {
-  const { ubicacion, fecha, saldo_inicial, retiradas, pagos_efectivo, pagos_tpv } = req.body;
+// ─── STATIC ───────────────────────────────────────────────────────────────────
+app.use(express.static(path.join(__dirname, 'public')));
+app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 
-  const total_efectivo_esperado = pagos_efectivo + saldo_inicial;
-  const total_retiradas = retiradas.reduce((s, r) => s + r.importe, 0);
-  const saldo_final = total_efectivo_esperado - total_retiradas;
-
-  res.json({
-    ok: true,
-    resumen: {
-      ubicacion,
-      fecha,
-      saldo_inicial,
-      cobros_efectivo: pagos_efectivo,
-      cobros_tpv: pagos_tpv,
-      total_efectivo_esperado,
-      total_retiradas,
-      saldo_final,
-      retiradas
-    }
-  });
-});
-
-// ─── SERVE FRONTEND ──────────────────────────────────────────────────────────
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
-app.listen(PORT, () => {
-  console.log(`🏦 Caja ORUM corriendo en puerto ${PORT}`);
-});
+app.listen(PORT, () => console.log(`Caja ORUM en puerto ${PORT}`));
