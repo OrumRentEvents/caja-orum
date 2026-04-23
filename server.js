@@ -92,7 +92,7 @@ async function rentmanGetAll(endpoint, extraParams = {}) {
   while (true) {
     const params = new URLSearchParams({ limit, offset, ...extraParams });
     const res = await fetch(`${RENTMAN_BASE}${endpoint}?${params}`, {
-      headers: { 'Authorization': `Bearer ${RENTMAN_TOKEN}`, 'Content-Type': 'application/json' }
+      headers: { 'Authorization': 'Bearer ' + RENTMAN_TOKEN.trim(), 'Content-Type': 'application/json' }
     });
     if (!res.ok) { const t = await res.text(); throw new Error(`Rentman ${res.status}: ${t}`); }
     const json = await res.json();
@@ -106,7 +106,7 @@ async function rentmanGetAll(endpoint, extraParams = {}) {
 
 async function rentmanGet(endpoint) {
   const res = await fetch(`${RENTMAN_BASE}${endpoint}`, {
-    headers: { 'Authorization': `Bearer ${RENTMAN_TOKEN}`, 'Content-Type': 'application/json' }
+    headers: { 'Authorization': 'Bearer ' + RENTMAN_TOKEN.trim(), 'Content-Type': 'application/json' }
   });
   if (!res.ok) return null;
   return (await res.json()).data || null;

@@ -4,12 +4,11 @@
   "description": "Sistema de Caja ORUM Rent & Events",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "node server.js"
+    "start": "node server.js"
   },
   "dependencies": {
     "express": "^4.18.2",
-    "node-fetch": "^2.7.0",
+    "node-fetch": "2.6.9",
     "cors": "^2.8.5"
   },
   "engines": {
