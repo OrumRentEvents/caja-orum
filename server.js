@@ -12,7 +12,7 @@ app.use(cors());
 app.use(express.json());
 
 const RENTMAN_BASE = 'https://api.rentman.net';
-const RENTMAN_TOKEN = process.env.RENTMAN_TOKEN || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpYXQiOjE3NzMxNTM0MjIsIm1lZGV3ZXJrZXIiOjIzNSwiYWNjb3VudCI6InNlcnZpY2lvc3lhbHF1aWxlcnBhcmFldmVudG9zc2wiLCJjbGllbnRfdHlwZSI6Im9wZW5hcGkiLCJjbGllbnQubmFtZSI6Im9wZW5hcGkiLCJleHAiOjIwODg3NzI2MjIsImlzcyI6IntcIm5hbWVcIjpcImJhY2tlbmRcIixcInZlcnNpb25cIjpcIjQuODI4LjAuNlwifSJ9.hyHIfRnBGkLunqFAzG40c95AjpkWJfywelT_RiTcXDs';
+const RENTMAN_TOKEN = (process.env.RENTMAN_TOKEN || '').trim();
 
 // ─── USUARIOS ─────────────────────────────────────────────────────────────────
 const USUARIOS = {
@@ -92,7 +92,7 @@ async function rentmanGetAll(endpoint, extraParams = {}) {
   while (true) {
     const params = new URLSearchParams({ limit, offset, ...extraParams });
     const res = await fetch(`${RENTMAN_BASE}${endpoint}?${params}`, {
-      headers: { 'Authorization': 'Bearer ' + RENTMAN_TOKEN.trim(), 'Content-Type': 'application/json' }
+      headers: { 'Authorization': `Bearer ${RENTMAN_TOKEN}`, 'Content-Type': 'application/json' }
     });
     if (!res.ok) { const t = await res.text(); throw new Error(`Rentman ${res.status}: ${t}`); }
     const json = await res.json();
@@ -106,7 +106,7 @@ async function rentmanGetAll(endpoint, extraParams = {}) {
 
 async function rentmanGet(endpoint) {
   const res = await fetch(`${RENTMAN_BASE}${endpoint}`, {
-    headers: { 'Authorization': 'Bearer ' + RENTMAN_TOKEN.trim(), 'Content-Type': 'application/json' }
+    headers: { 'Authorization': `Bearer ${RENTMAN_TOKEN}`, 'Content-Type': 'application/json' }
   });
   if (!res.ok) return null;
   return (await res.json()).data || null;
@@ -277,4 +277,4 @@ app.get('/api/ticks', requireContabilidad, (req, res) => {
 app.use(express.static(path.join(__dirname, 'public')));
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 
-app.listen(PORT, () => console.log(`Caja ORUM en puerto ${PORT}`));
+app.listen(PORT, () => { console.log('Token OK, length=' + RENTMAN_TOKEN.length); console.log(`Caja ORUM en puerto ${PORT}`); });
