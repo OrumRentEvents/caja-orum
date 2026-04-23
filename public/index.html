@@ -1,0 +1,1298 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Caja ORUM</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0a0a0a;
+      --surface: #111111;
+      --surface2: #1a1a1a;
+      --border: #2a2a2a;
+      --border2: #333;
+      --text: #f0f0f0;
+      --muted: #666;
+      --accent: #e8e0d0;
+      --green: #4ade80;
+      --green-dim: #1a3a26;
+      --red: #f87171;
+      --red-dim: #3a1a1a;
+      --yellow: #fbbf24;
+      --yellow-dim: #3a2e0a;
+      --blue: #60a5fa;
+      --blue-dim: #0a1e3a;
+      --mar: #c084fc;
+      --mar-dim: #2a1040;
+      --mon: #34d399;
+      --mon-dim: #0a2a1e;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Syne', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* ── HEADER ── */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 32px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .logo-o {
+      width: 36px;
+      height: 36px;
+      border: 2px solid var(--accent);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 18px;
+      color: var(--accent);
+    }
+
+    .logo-text {
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
+
+    .logo-sub {
+      font-size: 11px;
+      color: var(--muted);
+      letter-spacing: 0.1em;
+      margin-top: 1px;
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .token-display {
+      font-family: 'DM Mono', monospace;
+      font-size: 11px;
+      color: var(--muted);
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      padding: 6px 12px;
+      border-radius: 6px;
+    }
+
+    .btn-config {
+      background: transparent;
+      border: 1px solid var(--border2);
+      color: var(--muted);
+      padding: 6px 14px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-family: 'Syne', sans-serif;
+      font-size: 12px;
+      transition: all .2s;
+    }
+    .btn-config:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* ── MODAL CONFIG ── */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.85);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+
+    .modal {
+      background: var(--surface);
+      border: 1px solid var(--border2);
+      border-radius: 16px;
+      padding: 32px;
+      width: 440px;
+      max-width: 95vw;
+    }
+
+    .modal h2 {
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+
+    .modal p {
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 24px;
+      line-height: 1.5;
+    }
+
+    .form-group {
+      margin-bottom: 16px;
+    }
+
+    .form-group label {
+      display: block;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+
+    .form-group input, .form-group select {
+      width: 100%;
+      background: var(--surface2);
+      border: 1px solid var(--border2);
+      color: var(--text);
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-family: 'DM Mono', monospace;
+      font-size: 13px;
+      transition: border-color .2s;
+    }
+
+    .form-group input:focus, .form-group select:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    .btn-primary {
+      width: 100%;
+      background: var(--accent);
+      color: var(--bg);
+      border: none;
+      padding: 12px;
+      border-radius: 8px;
+      font-family: 'Syne', sans-serif;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: opacity .2s;
+    }
+
+    .btn-primary:hover { opacity: .85; }
+    .btn-primary:disabled { opacity: .4; cursor: not-allowed; }
+
+    /* ── MAIN LAYOUT ── */
+    main {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 32px 24px;
+    }
+
+    /* ── CONTROLS BAR ── */
+    .controls {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 32px;
+      flex-wrap: wrap;
+    }
+
+    .date-input {
+      background: var(--surface);
+      border: 1px solid var(--border2);
+      color: var(--text);
+      padding: 10px 16px;
+      border-radius: 8px;
+      font-family: 'DM Mono', monospace;
+      font-size: 13px;
+      cursor: pointer;
+    }
+
+    .date-input:focus { outline: none; border-color: var(--accent); }
+
+    .btn-cargar {
+      background: var(--surface2);
+      border: 1px solid var(--border2);
+      color: var(--text);
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-family: 'Syne', sans-serif;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all .2s;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn-cargar:hover { background: var(--border2); }
+    .btn-cargar.loading { opacity: .6; pointer-events: none; }
+
+    .spinner {
+      width: 14px;
+      height: 14px;
+      border: 2px solid var(--border2);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .error-bar {
+      background: var(--red-dim);
+      border: 1px solid var(--red);
+      color: var(--red);
+      padding: 10px 16px;
+      border-radius: 8px;
+      font-size: 13px;
+      display: none;
+    }
+
+    /* ── CAJAS GRID ── */
+    .cajas-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      margin-bottom: 32px;
+    }
+
+    @media (max-width: 768px) {
+      .cajas-grid { grid-template-columns: 1fr; }
+    }
+
+    .caja-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      overflow: hidden;
+    }
+
+    .caja-header {
+      padding: 20px 24px 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .caja-titulo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .caja-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+
+    .dot-marbella { background: var(--mar); }
+    .dot-monda { background: var(--mon); }
+
+    .caja-nombre {
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+    }
+
+    .caja-total {
+      font-family: 'DM Mono', monospace;
+      font-size: 22px;
+      font-weight: 500;
+      color: var(--accent);
+    }
+
+    /* ── KPI PILLS ── */
+    .kpi-row {
+      display: flex;
+      gap: 10px;
+      padding: 16px 24px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .kpi-pill {
+      flex: 1;
+      border-radius: 10px;
+      padding: 12px 14px;
+    }
+
+    .kpi-efectivo { background: var(--green-dim); border: 1px solid #2a5a3a; }
+    .kpi-tpv { background: var(--blue-dim); border: 1px solid #1a3a6a; }
+
+    .kpi-label {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+
+    .kpi-value {
+      font-family: 'DM Mono', monospace;
+      font-size: 18px;
+    }
+
+    .kpi-efectivo .kpi-value { color: var(--green); }
+    .kpi-tpv .kpi-value { color: var(--blue); }
+
+    .kpi-count {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
+    /* ── SALDO INICIAL ── */
+    .saldo-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 24px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .saldo-row label {
+      font-size: 12px;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
+    .saldo-input {
+      flex: 1;
+      background: var(--surface2);
+      border: 1px solid var(--border2);
+      color: var(--text);
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-family: 'DM Mono', monospace;
+      font-size: 14px;
+      text-align: right;
+    }
+
+    .saldo-input:focus { outline: none; border-color: var(--yellow); }
+
+    .btn-add-retirada {
+      background: var(--yellow-dim);
+      border: 1px solid #5a4010;
+      color: var(--yellow);
+      padding: 8px 14px;
+      border-radius: 6px;
+      font-family: 'Syne', sans-serif;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all .2s;
+      white-space: nowrap;
+    }
+
+    .btn-add-retirada:hover { background: #4a3508; }
+
+    /* ── RETIRADAS ── */
+    .retiradas-list {
+      padding: 0 24px;
+    }
+
+    .retirada-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .retirada-item:last-child { border-bottom: none; }
+
+    .retirada-concepto {
+      flex: 1;
+      background: transparent;
+      border: none;
+      color: var(--text);
+      font-family: 'Syne', sans-serif;
+      font-size: 13px;
+      padding: 4px 0;
+    }
+
+    .retirada-concepto:focus { outline: none; }
+    .retirada-concepto::placeholder { color: var(--muted); }
+
+    .retirada-importe {
+      width: 100px;
+      background: var(--surface2);
+      border: 1px solid var(--border2);
+      color: var(--red);
+      padding: 4px 8px;
+      border-radius: 5px;
+      font-family: 'DM Mono', monospace;
+      font-size: 13px;
+      text-align: right;
+    }
+
+    .retirada-importe:focus { outline: none; border-color: var(--red); }
+
+    .btn-remove {
+      background: none;
+      border: none;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 16px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      transition: color .2s;
+    }
+
+    .btn-remove:hover { color: var(--red); }
+
+    /* ── SALDO FINAL ── */
+    .saldo-final-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 24px;
+      background: var(--surface2);
+      border-top: 1px solid var(--border);
+    }
+
+    .saldo-final-label {
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .saldo-final-value {
+      font-family: 'DM Mono', monospace;
+      font-size: 20px;
+      font-weight: 500;
+      color: var(--yellow);
+    }
+
+    /* ── TABLA PAGOS ── */
+    .pagos-section {
+      padding: 16px 24px;
+    }
+
+    .pagos-toggle {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      user-select: none;
+      padding: 4px 0;
+    }
+
+    .pagos-toggle-label {
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .pagos-toggle-arrow {
+      color: var(--muted);
+      transition: transform .2s;
+      font-size: 14px;
+    }
+
+    .pagos-toggle.open .pagos-toggle-arrow { transform: rotate(180deg); }
+
+    .pagos-table-wrap {
+      display: none;
+      margin-top: 12px;
+    }
+
+    .pagos-table-wrap.visible { display: block; }
+
+    .pagos-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+
+    .pagos-table th {
+      text-align: left;
+      color: var(--muted);
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 6px 8px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .pagos-table td {
+      padding: 8px 8px;
+      border-bottom: 1px solid var(--border);
+      font-family: 'DM Mono', monospace;
+      vertical-align: middle;
+    }
+
+    .pagos-table tr:last-child td { border-bottom: none; }
+    .pagos-table tr:hover td { background: var(--surface2); }
+
+    .tag-efectivo {
+      background: var(--green-dim);
+      color: var(--green);
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: 600;
+    }
+
+    .tag-tpv {
+      background: var(--blue-dim);
+      color: var(--blue);
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: 600;
+    }
+
+    .importe-cell {
+      text-align: right;
+      color: var(--accent);
+    }
+
+    /* ── ACCIONES CIERRE ── */
+    .acciones-bar {
+      display: flex;
+      gap: 12px;
+      margin-top: 32px;
+      flex-wrap: wrap;
+    }
+
+    .btn-cierre {
+      flex: 1;
+      min-width: 180px;
+      padding: 14px 20px;
+      border-radius: 10px;
+      font-family: 'Syne', sans-serif;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all .2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .btn-cierre-mar {
+      background: var(--mar-dim);
+      border: 1px solid #6030a0;
+      color: var(--mar);
+    }
+
+    .btn-cierre-mar:hover { background: #3a1860; }
+
+    .btn-cierre-mon {
+      background: var(--mon-dim);
+      border: 1px solid #106040;
+      color: var(--mon);
+    }
+
+    .btn-cierre-mon:hover { background: #0a3828; }
+
+    .btn-cierre-all {
+      background: var(--surface);
+      border: 1px solid var(--border2);
+      color: var(--accent);
+    }
+
+    .btn-cierre-all:hover { background: var(--surface2); }
+
+    /* ── PRINT MODAL ── */
+    .print-modal {
+      background: var(--surface);
+      border: 1px solid var(--border2);
+      border-radius: 16px;
+      padding: 0;
+      width: 600px;
+      max-width: 95vw;
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+
+    .print-header {
+      padding: 24px 28px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .print-header h2 { font-size: 16px; font-weight: 700; }
+
+    .print-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .btn-print {
+      background: var(--accent);
+      color: var(--bg);
+      border: none;
+      padding: 8px 16px;
+      border-radius: 6px;
+      font-family: 'Syne', sans-serif;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .btn-close {
+      background: var(--surface2);
+      color: var(--muted);
+      border: 1px solid var(--border2);
+      padding: 8px 16px;
+      border-radius: 6px;
+      font-family: 'Syne', sans-serif;
+      font-size: 13px;
+      cursor: pointer;
+    }
+
+    /* ── CIERRE DOCUMENT ── */
+    #cierre-doc {
+      padding: 28px;
+      font-family: 'DM Mono', monospace;
+    }
+
+    .doc-logo-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 24px;
+    }
+
+    .doc-empresa {
+      font-family: 'Syne', sans-serif;
+      font-size: 20px;
+      font-weight: 800;
+      letter-spacing: 0.1em;
+      color: var(--accent);
+    }
+
+    .doc-subtitle {
+      font-family: 'Syne', sans-serif;
+      font-size: 11px;
+      color: var(--muted);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .doc-fecha {
+      font-size: 12px;
+      color: var(--muted);
+      text-align: right;
+    }
+
+    .doc-title {
+      font-family: 'Syne', sans-serif;
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 8px;
+      margin-bottom: 16px;
+    }
+
+    .doc-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 6px 0;
+      font-size: 13px;
+      border-bottom: 1px dashed var(--border);
+    }
+
+    .doc-row:last-child { border-bottom: none; }
+    .doc-row .label { color: var(--muted); }
+    .doc-row .value { color: var(--text); }
+    .doc-row.total .label { color: var(--accent); font-weight: 600; }
+    .doc-row.total .value { color: var(--accent); font-size: 16px; }
+
+    .doc-section { margin-bottom: 24px; }
+
+    .doc-separator { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
+
+    .doc-firma {
+      margin-top: 40px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 32px;
+    }
+
+    .doc-firma-box {
+      border-top: 1px solid var(--border2);
+      padding-top: 8px;
+      font-size: 11px;
+      color: var(--muted);
+      text-align: center;
+    }
+
+    /* ── EMPTY STATE ── */
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--muted);
+    }
+
+    .empty-icon { font-size: 40px; margin-bottom: 12px; }
+    .empty-text { font-size: 14px; }
+
+    /* ── PRINT ── */
+    @media print {
+      body { background: white; color: black; }
+      #cierre-doc { color: black; }
+      .doc-empresa { color: black; }
+      .print-actions, header, .controls, .cajas-grid, .acciones-bar { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header>
+  <div class="logo">
+    <div class="logo-o">Ō</div>
+    <div>
+      <div class="logo-text">ORUM</div>
+      <div class="logo-sub">Sistema de Caja</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="token-display" id="token-display">Sin configurar</div>
+    <button class="btn-config" onclick="openConfig()">⚙ Configurar</button>
+  </div>
+</header>
+
+<!-- MODAL CONFIGURACIÓN -->
+<div class="modal-overlay" id="modal-config">
+  <div class="modal">
+    <h2>Configuración</h2>
+    <p>Introduce tu token de Rentman para conectar con los datos de pagos. El token se guarda en este navegador.</p>
+    <div class="form-group">
+      <label>Token Rentman (JWT)</label>
+      <input type="password" id="input-token" placeholder="eyJhbGci..." />
+    </div>
+    <button class="btn-primary" onclick="guardarToken()">Guardar y conectar</button>
+  </div>
+</div>
+
+<!-- MAIN -->
+<main>
+
+  <!-- CONTROLS -->
+  <div class="controls">
+    <input type="date" class="date-input" id="fecha-input" />
+    <button class="btn-cargar" id="btn-cargar" onclick="cargarDatos()">
+      <span id="cargar-icon">↻</span>
+      <span id="cargar-text">Cargar cobros</span>
+    </button>
+    <div class="error-bar" id="error-bar"></div>
+  </div>
+
+  <!-- CAJAS GRID -->
+  <div class="cajas-grid" id="cajas-container">
+    <div class="empty-state" style="grid-column:1/-1">
+      <div class="empty-icon">🏦</div>
+      <div class="empty-text">Selecciona una fecha y carga los cobros</div>
+    </div>
+  </div>
+
+  <!-- ACCIONES CIERRE -->
+  <div class="acciones-bar" id="acciones-bar" style="display:none">
+    <button class="btn-cierre btn-cierre-mar" onclick="generarCierre('marbella')">
+      ◉ Cierre Marbella
+    </button>
+    <button class="btn-cierre btn-cierre-mon" onclick="generarCierre('monda')">
+      ◉ Cierre Monda
+    </button>
+    <button class="btn-cierre btn-cierre-all" onclick="generarCierre('all')">
+      ⊞ Cierre Global
+    </button>
+  </div>
+
+</main>
+
+<!-- MODAL CIERRE / IMPRESIÓN -->
+<div class="modal-overlay" id="modal-cierre" style="display:none">
+  <div class="print-modal">
+    <div class="print-header">
+      <h2>Documento de Cierre</h2>
+      <div class="print-actions">
+        <button class="btn-print" onclick="imprimirCierre()">🖨 Imprimir / PDF</button>
+        <button class="btn-close" onclick="closeCierre()">Cerrar</button>
+      </div>
+    </div>
+    <div id="cierre-doc"></div>
+  </div>
+</div>
+
+<script>
+// ──────────────────────────────────────────────
+// STATE
+// ──────────────────────────────────────────────
+let token = localStorage.getItem('orum_caja_token') || '';
+let datosActuales = null; // { fecha, resumen, pagos }
+
+const cajaState = {
+  marbella: { saldo_inicial: 0, retiradas: [] },
+  monda: { saldo_inicial: 0, retiradas: [] }
+};
+
+// ──────────────────────────────────────────────
+// INIT
+// ──────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  // Fecha hoy
+  const hoy = new Date().toISOString().split('T')[0];
+  document.getElementById('fecha-input').value = hoy;
+
+  if (token) {
+    actualizarHeaderToken();
+    document.getElementById('modal-config').style.display = 'none';
+  }
+});
+
+// ──────────────────────────────────────────────
+// CONFIG TOKEN
+// ──────────────────────────────────────────────
+function openConfig() {
+  document.getElementById('input-token').value = token;
+  document.getElementById('modal-config').style.display = 'flex';
+}
+
+function guardarToken() {
+  const t = document.getElementById('input-token').value.trim();
+  if (!t) return;
+  token = t;
+  localStorage.setItem('orum_caja_token', t);
+  actualizarHeaderToken();
+  document.getElementById('modal-config').style.display = 'none';
+}
+
+function actualizarHeaderToken() {
+  const disp = document.getElementById('token-display');
+  if (token) {
+    disp.textContent = '● Conectado — ' + token.substring(0, 12) + '...';
+    disp.style.color = 'var(--green)';
+  } else {
+    disp.textContent = 'Sin configurar';
+    disp.style.color = 'var(--muted)';
+  }
+}
+
+// ──────────────────────────────────────────────
+// CARGAR DATOS
+// ──────────────────────────────────────────────
+async function cargarDatos() {
+  if (!token) { openConfig(); return; }
+
+  const fecha = document.getElementById('fecha-input').value;
+  if (!fecha) { mostrarError('Selecciona una fecha'); return; }
+
+  setLoading(true);
+  ocultarError();
+
+  try {
+    const res = await fetch(`/api/pagos?token=${encodeURIComponent(token)}&fecha=${fecha}`);
+    const data = await res.json();
+
+    if (!data.ok) throw new Error(data.error || 'Error desconocido');
+
+    datosActuales = data;
+    renderCajas(data);
+    document.getElementById('acciones-bar').style.display = 'flex';
+
+  } catch (err) {
+    mostrarError('Error: ' + err.message);
+    console.error(err);
+  } finally {
+    setLoading(false);
+  }
+}
+
+function setLoading(v) {
+  const btn = document.getElementById('btn-cargar');
+  const icon = document.getElementById('cargar-icon');
+  const text = document.getElementById('cargar-text');
+  if (v) {
+    btn.classList.add('loading');
+    icon.innerHTML = '<div class="spinner"></div>';
+    text.textContent = 'Cargando...';
+  } else {
+    btn.classList.remove('loading');
+    icon.textContent = '↻';
+    text.textContent = 'Cargar cobros';
+  }
+}
+
+function mostrarError(msg) {
+  const bar = document.getElementById('error-bar');
+  bar.textContent = msg;
+  bar.style.display = 'block';
+}
+
+function ocultarError() {
+  document.getElementById('error-bar').style.display = 'none';
+}
+
+// ──────────────────────────────────────────────
+// RENDER CAJAS
+// ──────────────────────────────────────────────
+function renderCajas(data) {
+  const container = document.getElementById('cajas-container');
+  container.innerHTML = '';
+
+  ['marbella', 'monda'].forEach(ub => {
+    const r = data.resumen[ub];
+    const state = cajaState[ub];
+    const card = crearCajaCard(ub, r, state);
+    container.appendChild(card);
+  });
+}
+
+function crearCajaCard(ubicacion, resumen, state) {
+  const card = document.createElement('div');
+  card.className = 'caja-card';
+  card.id = `card-${ubicacion}`;
+
+  const nombre = ubicacion === 'marbella' ? 'Marbella' : 'Monda';
+  const dotClass = ubicacion === 'marbella' ? 'dot-marbella' : 'dot-monda';
+  const numPagos = resumen.pagos.length;
+  const numEfectivo = resumen.pagos.filter(p => p.tipo === 'efectivo').length;
+  const numTpv = resumen.pagos.filter(p => p.tipo === 'tpv').length;
+
+  card.innerHTML = `
+    <!-- HEADER -->
+    <div class="caja-header">
+      <div class="caja-titulo">
+        <div class="caja-dot ${dotClass}"></div>
+        <div class="caja-nombre">Caja ${nombre}</div>
+      </div>
+      <div class="caja-total">${fmt(resumen.total)}</div>
+    </div>
+
+    <!-- KPIs -->
+    <div class="kpi-row">
+      <div class="kpi-pill kpi-efectivo">
+        <div class="kpi-label">Efectivo</div>
+        <div class="kpi-value">${fmt(resumen.efectivo)}</div>
+        <div class="kpi-count">${numEfectivo} cobro${numEfectivo !== 1 ? 's' : ''}</div>
+      </div>
+      <div class="kpi-pill kpi-tpv">
+        <div class="kpi-label">TPV</div>
+        <div class="kpi-value">${fmt(resumen.tpv)}</div>
+        <div class="kpi-count">${numTpv} cobro${numTpv !== 1 ? 's' : ''}</div>
+      </div>
+    </div>
+
+    <!-- SALDO INICIAL -->
+    <div class="saldo-row">
+      <label>Saldo inicial (€)</label>
+      <input type="number" class="saldo-input" id="saldo-${ubicacion}"
+        value="${state.saldo_inicial}" min="0" step="0.01"
+        oninput="actualizarSaldo('${ubicacion}', this.value)" />
+      <button class="btn-add-retirada" onclick="addRetirada('${ubicacion}')">+ Retirada</button>
+    </div>
+
+    <!-- RETIRADAS -->
+    <div class="retiradas-list" id="retiradas-${ubicacion}"></div>
+
+    <!-- SALDO FINAL -->
+    <div class="saldo-final-row">
+      <div class="saldo-final-label">Saldo en caja</div>
+      <div class="saldo-final-value" id="saldo-final-${ubicacion}">${fmt(resumen.efectivo + state.saldo_inicial)}</div>
+    </div>
+
+    <!-- PAGOS DETALLE -->
+    <div class="pagos-section">
+      <div class="pagos-toggle" onclick="togglePagos('${ubicacion}', this)">
+        <span class="pagos-toggle-label">Ver ${numPagos} cobro${numPagos !== 1 ? 's' : ''}</span>
+        <span class="pagos-toggle-arrow">▼</span>
+      </div>
+      <div class="pagos-table-wrap" id="tabla-${ubicacion}">
+        ${renderTablaPagos(resumen.pagos)}
+      </div>
+    </div>
+  `;
+
+  renderRetiradas(ubicacion, state.retiradas);
+  return card;
+}
+
+function renderTablaPagos(pagos) {
+  if (!pagos.length) return '<p style="color:var(--muted);font-size:12px;padding:12px 0">Sin cobros este día</p>';
+
+  const rows = pagos.map(p => `
+    <tr>
+      <td>${(p.fecha || '').substring(11, 16)}</td>
+      <td>${p.numero_factura || '-'}</td>
+      <td style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.cliente || '-'}</td>
+      <td><span class="tag-${p.tipo}">${p.tipo === 'efectivo' ? 'Efectivo' : 'TPV'}</span></td>
+      <td class="importe-cell">${fmt(p.importe)}</td>
+    </tr>
+  `).join('');
+
+  return `
+    <table class="pagos-table">
+      <thead>
+        <tr>
+          <th>Hora</th>
+          <th>Factura</th>
+          <th>Cliente</th>
+          <th>Método</th>
+          <th style="text-align:right">Importe</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+  `;
+}
+
+function togglePagos(ubicacion, el) {
+  const tabla = document.getElementById(`tabla-${ubicacion}`);
+  tabla.classList.toggle('visible');
+  el.classList.toggle('open');
+}
+
+// ──────────────────────────────────────────────
+// SALDO Y RETIRADAS
+// ──────────────────────────────────────────────
+function actualizarSaldo(ubicacion, val) {
+  cajaState[ubicacion].saldo_inicial = parseFloat(val) || 0;
+  recalcularSaldoFinal(ubicacion);
+}
+
+function addRetirada(ubicacion) {
+  cajaState[ubicacion].retiradas.push({ id: Date.now(), concepto: '', importe: 0 });
+  renderRetiradas(ubicacion, cajaState[ubicacion].retiradas);
+  recalcularSaldoFinal(ubicacion);
+}
+
+function removeRetirada(ubicacion, id) {
+  cajaState[ubicacion].retiradas = cajaState[ubicacion].retiradas.filter(r => r.id !== id);
+  renderRetiradas(ubicacion, cajaState[ubicacion].retiradas);
+  recalcularSaldoFinal(ubicacion);
+}
+
+function updateRetirada(ubicacion, id, field, val) {
+  const r = cajaState[ubicacion].retiradas.find(r => r.id === id);
+  if (r) {
+    r[field] = field === 'importe' ? (parseFloat(val) || 0) : val;
+    if (field === 'importe') recalcularSaldoFinal(ubicacion);
+  }
+}
+
+function renderRetiradas(ubicacion, retiradas) {
+  const container = document.getElementById(`retiradas-${ubicacion}`);
+  if (!container) return;
+
+  if (!retiradas.length) {
+    container.innerHTML = '';
+    return;
+  }
+
+  container.innerHTML = retiradas.map(r => `
+    <div class="retirada-item" id="retirada-${r.id}">
+      <input class="retirada-concepto" type="text" placeholder="Concepto retirada..."
+        value="${r.concepto}"
+        oninput="updateRetirada('${ubicacion}', ${r.id}, 'concepto', this.value)" />
+      <input class="retirada-importe" type="number" placeholder="0.00"
+        value="${r.importe || ''}" min="0" step="0.01"
+        oninput="updateRetirada('${ubicacion}', ${r.id}, 'importe', this.value)" />
+      <button class="btn-remove" onclick="removeRetirada('${ubicacion}', ${r.id})">×</button>
+    </div>
+  `).join('');
+}
+
+function recalcularSaldoFinal(ubicacion) {
+  if (!datosActuales) return;
+  const r = datosActuales.resumen[ubicacion];
+  const state = cajaState[ubicacion];
+  const totalRetiradas = state.retiradas.reduce((s, r) => s + r.importe, 0);
+  const saldoFinal = r.efectivo + state.saldo_inicial - totalRetiradas;
+  const el = document.getElementById(`saldo-final-${ubicacion}`);
+  if (el) el.textContent = fmt(saldoFinal);
+}
+
+// ──────────────────────────────────────────────
+// CIERRE DOCUMENT
+// ──────────────────────────────────────────────
+function generarCierre(scope) {
+  if (!datosActuales) return;
+
+  const fecha = datosActuales.fecha;
+  const fechaFmt = formatFecha(fecha);
+
+  let html = `
+    <div class="doc-logo-row">
+      <div>
+        <div class="doc-empresa">ORUM</div>
+        <div class="doc-subtitle">Rent & Events — Arqueo de Caja</div>
+      </div>
+      <div class="doc-fecha">
+        <div style="font-size:14px;color:var(--text)">${fechaFmt}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px">Generado ${new Date().toLocaleTimeString('es-ES', {hour:'2-digit',minute:'2-digit'})}</div>
+      </div>
+    </div>
+  `;
+
+  const ubicaciones = scope === 'all' ? ['marbella', 'monda'] : [scope];
+
+  ubicaciones.forEach((ub, idx) => {
+    const r = datosActuales.resumen[ub];
+    const state = cajaState[ub];
+    const nombre = ub === 'marbella' ? 'MARBELLA' : 'MONDA';
+    const totalRetiradas = state.retiradas.reduce((s, r) => s + r.importe, 0);
+    const saldoFinal = r.efectivo + state.saldo_inicial - totalRetiradas;
+
+    if (idx > 0) html += '<hr class="doc-separator">';
+
+    html += `
+      <div class="doc-section">
+        <div class="doc-title">Caja ${nombre}</div>
+        <div class="doc-row">
+          <span class="label">Saldo inicial</span>
+          <span class="value">+ ${fmt(state.saldo_inicial)}</span>
+        </div>
+        <div class="doc-row">
+          <span class="label">Cobros en efectivo</span>
+          <span class="value" style="color:var(--green)">+ ${fmt(r.efectivo)}</span>
+        </div>
+        <div class="doc-row">
+          <span class="label">Cobros por TPV</span>
+          <span class="value" style="color:var(--blue)">+ ${fmt(r.tpv)}</span>
+        </div>
+    `;
+
+    if (state.retiradas.length) {
+      state.retiradas.forEach(ret => {
+        html += `
+          <div class="doc-row">
+            <span class="label">Retirada: ${ret.concepto || 'Sin concepto'}</span>
+            <span class="value" style="color:var(--red)">− ${fmt(ret.importe)}</span>
+          </div>
+        `;
+      });
+    }
+
+    html += `
+        <div class="doc-row total">
+          <span class="label">SALDO EN CAJA (EFECTIVO)</span>
+          <span class="value">${fmt(saldoFinal)}</span>
+        </div>
+      </div>
+    `;
+
+    // Detalle de pagos
+    if (r.pagos.length) {
+      html += `
+        <div class="doc-section">
+          <div class="doc-title">Detalle de cobros — ${nombre}</div>
+          <table class="pagos-table" style="margin-top:8px">
+            <thead>
+              <tr>
+                <th>Hora</th>
+                <th>Factura</th>
+                <th>Cliente</th>
+                <th>Método</th>
+                <th style="text-align:right">Importe</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${r.pagos.map(p => `
+                <tr>
+                  <td>${(p.fecha || '').substring(11, 16)}</td>
+                  <td>${p.numero_factura || '-'}</td>
+                  <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.cliente || '-'}</td>
+                  <td><span class="tag-${p.tipo}">${p.tipo === 'efectivo' ? 'Efectivo' : 'TPV'}</span></td>
+                  <td class="importe-cell">${fmt(p.importe)}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      `;
+    }
+  });
+
+  // Si global, mostrar resumen total
+  if (scope === 'all') {
+    const totalEfec = ubicaciones.reduce((s, ub) => s + datosActuales.resumen[ub].efectivo, 0);
+    const totalTpv = ubicaciones.reduce((s, ub) => s + datosActuales.resumen[ub].tpv, 0);
+    const totalRet = ubicaciones.reduce((s, ub) => s + cajaState[ub].retiradas.reduce((a, r) => a + r.importe, 0), 0);
+    const totalSaldoIni = ubicaciones.reduce((s, ub) => s + cajaState[ub].saldo_inicial, 0);
+
+    html += `
+      <hr class="doc-separator">
+      <div class="doc-section">
+        <div class="doc-title">Resumen Global</div>
+        <div class="doc-row"><span class="label">Total cobros efectivo</span><span class="value" style="color:var(--green)">${fmt(totalEfec)}</span></div>
+        <div class="doc-row"><span class="label">Total cobros TPV</span><span class="value" style="color:var(--blue)">${fmt(totalTpv)}</span></div>
+        <div class="doc-row"><span class="label">Total retiradas</span><span class="value" style="color:var(--red)">− ${fmt(totalRet)}</span></div>
+        <div class="doc-row total"><span class="label">TOTAL COBRADO HOY</span><span class="value">${fmt(totalEfec + totalTpv)}</span></div>
+        <div class="doc-row total"><span class="label">EFECTIVO EN CAJAS</span><span class="value">${fmt(totalEfec + totalSaldoIni - totalRet)}</span></div>
+      </div>
+    `;
+  }
+
+  // Firma
+  const firmantes = scope === 'marbella' ? ['Marina Rodríguez', 'Danilo Castellano'] :
+                    scope === 'monda'     ? ['Marina Rodríguez', 'Danilo Castellano'] :
+                    ['Marina Rodríguez', 'Danilo Castellano'];
+
+  html += `
+    <div class="doc-firma">
+      <div class="doc-firma-box">Firma: ${firmantes[0]}</div>
+      <div class="doc-firma-box">Firma: ${firmantes[1]}</div>
+    </div>
+  `;
+
+  document.getElementById('cierre-doc').innerHTML = html;
+  document.getElementById('modal-cierre').style.display = 'flex';
+}
+
+function closeCierre() {
+  document.getElementById('modal-cierre').style.display = 'none';
+}
+
+function imprimirCierre() {
+  window.print();
+}
+
+// ──────────────────────────────────────────────
+// HELPERS
+// ──────────────────────────────────────────────
+function fmt(n) {
+  return (parseFloat(n) || 0).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+}
+
+function formatFecha(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr + 'T12:00:00');
+  return d.toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+}
+</script>
+
+</body>
+</html>
