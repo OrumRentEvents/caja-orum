@@ -10,10 +10,7 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
-// Token de Rentman — se envía al frontend al hacer login para que llame directamente
-const RENTMAN_TOKEN = (process.env.RENTMAN_TOKEN || '').trim();
-
-// ─── USUARIOS ─────────────────────────────────────────────────────────────────
+// ─── USUARIOS ─────────────────────────────────────────────────
 const USUARIOS = {
   marina:  { password: 'Orum2026#Mar', rol: 'caja' },
   danilo:  { password: 'Orum2026#Dan', rol: 'caja' },
@@ -23,7 +20,7 @@ const USUARIOS = {
   sergio:  { password: 'Orum2026#Ser', rol: 'admin' }
 };
 
-// ─── SESIONES ─────────────────────────────────────────────────────────────────
+// ─── SESIONES ─────────────────────────────────────────────────
 const sesiones = {};
 function generarToken() { return crypto.randomBytes(32).toString('hex'); }
 function getSesion(req) {
@@ -44,7 +41,7 @@ function requireContabilidad(req, res, next) {
   next();
 }
 
-// ─── AUTH ─────────────────────────────────────────────────────────────────────
+// ─── AUTH ─────────────────────────────────────────────────────
 app.post('/api/login', (req, res) => {
   const { usuario, password } = req.body;
   const user = (usuario || '').toLowerCase().trim();
@@ -52,8 +49,7 @@ app.post('/api/login', (req, res) => {
   if (!u || u.password !== password) return res.status(401).json({ error: 'Usuario o contraseña incorrectos' });
   const token = generarToken();
   sesiones[token] = { usuario: user, rol: u.rol, expira: Date.now() + 8 * 60 * 60 * 1000 };
-  // Enviamos el token de Rentman al frontend para que llame directamente
-  res.json({ ok: true, token, usuario: user, rol: u.rol, rentmanToken: RENTMAN_TOKEN });
+  res.json({ ok: true, token, usuario: user, rol: u.rol });
 });
 
 app.post('/api/logout', (req, res) => {
@@ -65,10 +61,10 @@ app.post('/api/logout', (req, res) => {
 app.get('/api/me', (req, res) => {
   const s = getSesion(req);
   if (!s) return res.status(401).json({ error: 'No autenticado' });
-  res.json({ ok: true, usuario: s.usuario, rol: s.rol, rentmanToken: RENTMAN_TOKEN });
+  res.json({ ok: true, usuario: s.usuario, rol: s.rol });
 });
 
-// ─── PERSISTENCIA TICKS ───────────────────────────────────────────────────────
+// ─── TICKS CONTABILIDAD ───────────────────────────────────────
 const TICKS_FILE = path.join(__dirname, 'data', 'ticks.json');
 function cargarTicks() {
   try {
@@ -100,17 +96,19 @@ app.post('/api/tick', requireContabilidad, (req, res) => {
 });
 
 app.get('/api/ticks', requireAuth, (req, res) => {
-  const { fecha } = req.query;
-  if (fecha) {
+  const { desde, hasta } = req.query;
+  if (desde && hasta) {
     const filtrado = {};
-    Object.entries(ticksContabilidad).forEach(([k, v]) => { if (v.fecha === fecha) filtrado[k] = v; });
+    Object.entries(ticksContabilidad).forEach(([k, v]) => {
+      if (v.fecha >= desde && v.fecha <= hasta) filtrado[k] = v;
+    });
     return res.json({ ok: true, ticks: filtrado });
   }
   res.json({ ok: true, ticks: ticksContabilidad });
 });
 
-// ─── STATIC ───────────────────────────────────────────────────────────────────
+// ─── STATIC ───────────────────────────────────────────────────
 app.use(express.static(path.join(__dirname, 'public')));
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 
-app.listen(PORT, () => console.log(`Caja ORUM en puerto ${PORT} — Token: ${RENTMAN_TOKEN.length} chars`));
+app.listen(PORT, () => console.log(`Caja ORUM en puerto ${PORT}`));

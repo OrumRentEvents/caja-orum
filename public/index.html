@@ -50,12 +50,10 @@
     .btn-logout:hover{border-color:var(--red-brd);color:var(--red);background:var(--red-bg);}
     .nav-tabs{display:flex;gap:4px;padding:0 28px;background:var(--surface);border-bottom:1px solid var(--border);}
     .nav-tab{padding:10px 18px;font-size:13px;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;transition:all .2s;background:none;border-top:none;border-left:none;border-right:none;font-family:'Plus Jakarta Sans',sans-serif;}
-    .nav-tab:hover{color:var(--text);}
     .nav-tab.active{color:var(--accent);border-bottom-color:var(--accent);}
     .nav-tab.tab-contab.active{color:var(--orange);border-bottom-color:var(--orange);}
     main{max-width:1100px;margin:0 auto;padding:26px 20px;}
-    .panel{display:none;}
-    .panel.active{display:block;}
+    .panel{display:none;}.panel.active{display:block;}
     .controls{display:flex;align-items:center;gap:10px;margin-bottom:24px;flex-wrap:wrap;}
     .controls-label{font-size:13px;font-weight:600;color:var(--muted);}
     .date-input{background:var(--surface);border:1.5px solid var(--border2);color:var(--text);padding:9px 14px;border-radius:10px;font-family:'DM Mono',monospace;font-size:13px;box-shadow:var(--shadow);}
@@ -72,8 +70,7 @@
     .caja-header{padding:16px 22px 13px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
     .caja-titulo{display:flex;align-items:center;gap:9px;}
     .caja-icono{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;}
-    .icono-marbella{background:var(--mar-bg);}
-    .icono-monda{background:var(--mon-bg);}
+    .icono-marbella{background:var(--mar-bg);}.icono-monda{background:var(--mon-bg);}
     .caja-nombre{font-size:15px;font-weight:700;}
     .caja-total{font-family:'DM Mono',monospace;font-size:20px;font-weight:500;color:var(--accent);}
     .kpi-row{display:flex;gap:10px;padding:13px 22px;border-bottom:1px solid var(--border);}
@@ -82,8 +79,7 @@
     .kpi-tpv{background:var(--blue-bg);border:1px solid var(--blue-brd);}
     .kpi-label{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:3px;}
     .kpi-value{font-family:'DM Mono',monospace;font-size:17px;font-weight:500;}
-    .kpi-efectivo .kpi-value{color:var(--green);}
-    .kpi-tpv .kpi-value{color:var(--blue);}
+    .kpi-efectivo .kpi-value{color:var(--green);}.kpi-tpv .kpi-value{color:var(--blue);}
     .kpi-count{font-size:11px;color:var(--muted);margin-top:2px;}
     .saldo-row{display:flex;align-items:center;gap:10px;padding:11px 22px;border-bottom:1px solid var(--border);background:var(--yellow-bg);}
     .saldo-row label{font-size:12px;font-weight:600;color:var(--yellow);white-space:nowrap;}
@@ -110,8 +106,7 @@
     .pagos-toggle-label{font-size:12px;font-weight:600;color:var(--muted);}
     .pagos-toggle-arrow{color:var(--muted);transition:transform .2s;font-size:11px;}
     .pagos-toggle.open .pagos-toggle-arrow{transform:rotate(180deg);}
-    .pagos-table-wrap{display:none;margin-top:12px;}
-    .pagos-table-wrap.visible{display:block;}
+    .pagos-table-wrap{display:none;margin-top:12px;}.pagos-table-wrap.visible{display:block;}
     .pagos-table{width:100%;border-collapse:collapse;font-size:12px;}
     .pagos-table th{text-align:left;color:var(--muted);font-weight:600;letter-spacing:.06em;text-transform:uppercase;padding:5px 6px;border-bottom:1px solid var(--border);font-size:10px;}
     .pagos-table td{padding:7px 6px;border-bottom:1px solid var(--border);font-family:'DM Mono',monospace;}
@@ -120,7 +115,6 @@
     .tag{padding:2px 7px;border-radius:4px;font-size:10px;font-weight:700;font-family:'Plus Jakarta Sans',sans-serif;}
     .tag-efectivo{background:var(--green-bg);color:var(--green);border:1px solid var(--green-brd);}
     .tag-tpv{background:var(--blue-bg);color:var(--blue);border:1px solid var(--blue-brd);}
-    .tag-abreb{background:var(--orange-bg);color:var(--orange);border:1px solid var(--orange-brd);}
     .importe-cell{text-align:right;color:var(--accent);font-weight:500;}
     .abreb-section{margin-bottom:24px;}
     .abreb-card{background:var(--surface);border:1.5px solid var(--orange-brd);border-radius:16px;overflow:hidden;box-shadow:var(--shadow);}
@@ -143,28 +137,48 @@
     .empty-state{text-align:center;padding:60px 20px;color:var(--muted);grid-column:1/-1;}
     .empty-icon{font-size:36px;margin-bottom:10px;}
     .empty-text{font-size:14px;}
-    .contab-header-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px;}
+
+    /* CONTABILIDAD */
+    .contab-top{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:16px;}
     .contab-title{font-size:18px;font-weight:800;color:var(--accent);}
     .contab-subtitle{font-size:13px;color:var(--muted);margin-top:3px;}
-    .contab-progress{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px 20px;margin-bottom:20px;display:flex;align-items:center;gap:20px;box-shadow:var(--shadow);}
-    .progress-bar-wrap{flex:1;height:8px;background:var(--border);border-radius:4px;overflow:hidden;}
+    .rango-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+    .rango-label{font-size:12px;font-weight:600;color:var(--muted);}
+    .contab-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px;}
+    .stat-card{background:var(--surface);border:1.5px solid var(--border);border-radius:12px;padding:16px 18px;box-shadow:var(--shadow);}
+    .stat-label{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:6px;}
+    .stat-value{font-family:'DM Mono',monospace;font-size:20px;font-weight:500;color:var(--accent);}
+    .stat-sub{font-size:11px;color:var(--muted);margin-top:3px;}
+    .stat-card.green{background:var(--green-bg);border-color:var(--green-brd);}
+    .stat-card.green .stat-value{color:var(--green);}
+    .stat-card.orange{background:var(--orange-bg);border-color:var(--orange-brd);}
+    .stat-card.orange .stat-value{color:var(--orange);}
+    .progress-wrap{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 18px;margin-bottom:20px;display:flex;align-items:center;gap:16px;box-shadow:var(--shadow);}
+    .progress-bar-bg{flex:1;height:8px;background:var(--border);border-radius:4px;overflow:hidden;}
     .progress-bar-fill{height:100%;background:var(--green);border-radius:4px;transition:width .4s;}
-    .progress-text{font-size:13px;font-weight:600;color:var(--text);white-space:nowrap;}
-    .progress-sub{font-size:11px;color:var(--muted);}
-    .contab-badge{background:var(--orange-bg);border:1px solid var(--orange-brd);color:var(--orange);padding:5px 14px;border-radius:20px;font-size:12px;font-weight:700;}
-    .contab-table-wrap{background:var(--surface);border:1.5px solid var(--border);border-radius:16px;overflow:hidden;box-shadow:var(--shadow);}
-    .contab-table{width:100%;border-collapse:collapse;font-size:13px;}
-    .contab-table th{text-align:left;color:var(--muted);font-weight:600;font-size:11px;letter-spacing:.07em;text-transform:uppercase;padding:10px 16px;border-bottom:1px solid var(--border);background:var(--surface2);}
-    .contab-table td{padding:11px 16px;border-bottom:1px solid var(--border);font-family:'DM Mono',monospace;font-size:12px;vertical-align:middle;}
+    .progress-text{font-size:13px;font-weight:600;white-space:nowrap;}
+    .progress-badge{padding:4px 12px;border-radius:20px;font-size:12px;font-weight:700;background:var(--orange-bg);border:1px solid var(--orange-brd);color:var(--orange);}
+    .progress-badge.done{background:var(--green-bg);border-color:var(--green-brd);color:var(--green);}
+
+    /* TABLA CONTAB */
+    .contab-table-card{background:var(--surface);border:1.5px solid var(--border);border-radius:16px;overflow:hidden;box-shadow:var(--shadow);}
+    .contab-table-header{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:var(--surface2);}
+    .contab-table-title{font-size:13px;font-weight:700;color:var(--accent);}
+    .contab-table{width:100%;border-collapse:collapse;font-size:12px;}
+    .contab-table th{text-align:left;color:var(--muted);font-weight:600;font-size:10px;letter-spacing:.08em;text-transform:uppercase;padding:8px 14px;border-bottom:1px solid var(--border);background:var(--surface2);}
+    .contab-table td{padding:10px 14px;border-bottom:1px solid var(--border);vertical-align:middle;}
     .contab-table tr:last-child td{border-bottom:none;}
     .contab-table tr.marcado td{background:var(--green-bg);}
     .contab-table tr:hover td{background:var(--surface2);}
     .contab-table tr.marcado:hover td{background:#daf1e5;}
-    .tick-btn{width:28px;height:28px;border-radius:7px;border:2px solid var(--border2);background:var(--surface);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:15px;transition:all .2s;flex-shrink:0;}
+    .tick-btn{width:26px;height:26px;border-radius:6px;border:2px solid var(--border2);background:var(--surface);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:13px;transition:all .2s;}
     .tick-btn:hover{border-color:var(--green);background:var(--green-bg);}
     .tick-btn.ticked{background:var(--green);border-color:var(--green);color:#fff;}
-    .tick-info{font-size:10px;color:var(--muted);margin-top:3px;font-family:'Plus Jakarta Sans',sans-serif;}
+    .tick-info{font-size:9px;color:var(--muted);margin-top:2px;font-family:'Plus Jakarta Sans',sans-serif;line-height:1.2;}
+    .fecha-chip{display:inline-block;background:var(--surface2);border:1px solid var(--border);padding:1px 7px;border-radius:4px;font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);}
     .contab-empty{text-align:center;padding:40px;color:var(--muted);font-size:13px;}
+
+    /* MODAL */
     .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;z-index:1000;}
     .print-modal{background:var(--surface);border:1px solid var(--border);border-radius:18px;width:640px;max-width:96vw;max-height:90vh;overflow-y:auto;box-shadow:var(--shadow-lg);}
     .print-header{padding:16px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:var(--surface);z-index:2;}
@@ -173,26 +187,25 @@
     .btn-print{background:var(--accent);color:#fff;border:none;padding:8px 16px;border-radius:8px;font-family:'Plus Jakarta Sans',sans-serif;font-size:13px;font-weight:600;cursor:pointer;}
     .btn-close-modal{background:var(--surface2);color:var(--muted);border:1px solid var(--border2);padding:8px 16px;border-radius:8px;font-family:'Plus Jakarta Sans',sans-serif;font-size:13px;cursor:pointer;}
     #cierre-doc{padding:28px 30px 36px;}
-    .doc-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:26px;padding-bottom:18px;border-bottom:2px solid var(--border);}
+    .doc-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;padding-bottom:16px;border-bottom:2px solid var(--border);}
     .doc-empresa{font-size:24px;font-weight:800;letter-spacing:.05em;color:var(--accent);}
     .doc-subtitle{font-size:11px;color:var(--muted);margin-top:3px;letter-spacing:.08em;}
     .doc-meta{text-align:right;font-size:12px;color:var(--muted);font-family:'DM Mono',monospace;line-height:1.6;}
     .doc-meta strong{color:var(--text);display:block;font-size:13px;font-weight:700;}
-    .doc-section{margin-bottom:22px;}
-    .doc-section-title{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);border-bottom:1.5px solid var(--border);padding-bottom:6px;margin-bottom:12px;}
+    .doc-section{margin-bottom:20px;}
+    .doc-section-title{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);border-bottom:1.5px solid var(--border);padding-bottom:6px;margin-bottom:10px;}
     .doc-row{display:flex;justify-content:space-between;padding:5px 0;font-size:13px;border-bottom:1px dashed var(--border);}
     .doc-row:last-child{border-bottom:none;}
     .doc-row .lbl{color:var(--muted);}
     .doc-row .val{font-family:'DM Mono',monospace;color:var(--text);}
-    .doc-row.total{padding-top:10px;margin-top:4px;}
     .doc-row.total .lbl{font-weight:700;color:var(--accent);}
-    .doc-row.total .val{font-weight:600;font-size:16px;color:var(--accent);}
-    .doc-sep{border:none;border-top:2px solid var(--border);margin:22px 0;}
-    .doc-firma-section{margin-top:40px;padding-top:20px;border-top:1.5px solid var(--border);}
-    .doc-firma-title{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:20px;}
-    .doc-firma-grid{display:grid;grid-template-columns:1fr 1fr;gap:32px;}
+    .doc-row.total .val{font-weight:600;font-size:15px;color:var(--accent);}
+    .doc-sep{border:none;border-top:2px solid var(--border);margin:20px 0;}
+    .doc-firma-section{margin-top:36px;padding-top:18px;border-top:1.5px solid var(--border);}
+    .doc-firma-title{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:18px;}
+    .doc-firma-grid{display:grid;grid-template-columns:1fr 1fr;gap:28px;}
     .doc-firma-box{text-align:center;}
-    .doc-firma-line{height:50px;border-bottom:1.5px solid var(--border2);margin-bottom:8px;}
+    .doc-firma-line{height:48px;border-bottom:1.5px solid var(--border2);margin-bottom:7px;}
     .doc-firma-name{font-size:12px;color:var(--text);font-weight:600;}
     .doc-firma-role{font-size:10px;color:var(--muted);margin-top:2px;}
     .doc-firma-fecha{font-size:10px;color:var(--muted);margin-top:2px;font-family:'DM Mono',monospace;}
@@ -207,6 +220,7 @@
 </head>
 <body>
 
+<!-- LOGIN -->
 <div id="login-screen">
   <div class="login-card">
     <div class="login-logo">
@@ -214,7 +228,7 @@
       <div><div class="login-brand">ORUM Rent & Events</div><div class="login-brand-sub">Sistema de Caja 2026</div></div>
     </div>
     <div class="login-heading">Acceder</div>
-    <div class="login-desc">Introduce tus credenciales para acceder al sistema de caja.</div>
+    <div class="login-desc">Introduce tus credenciales para acceder al sistema.</div>
     <div class="form-field"><label>Usuario</label><input type="text" id="login-user" placeholder="Tu usuario" autocomplete="username" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()"/></div>
     <div class="form-field"><label>Contraseña</label><input type="password" id="login-pass" placeholder="••••••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()"/></div>
     <button class="btn-login" id="btn-login" onclick="doLogin()">Entrar</button>
@@ -222,6 +236,7 @@
   </div>
 </div>
 
+<!-- APP -->
 <div id="app-screen">
   <header>
     <div class="logo">
@@ -240,6 +255,7 @@
   </div>
 
   <main>
+    <!-- PANEL CAJA -->
     <div id="panel-caja" class="panel active">
       <div class="controls">
         <span class="controls-label">Fecha</span>
@@ -263,27 +279,51 @@
       </div>
     </div>
 
+    <!-- PANEL CONTABILIDAD -->
     <div id="panel-contabilidad" class="panel">
-      <div class="contab-header-row">
-        <div><div class="contab-title">Control de Efectivo</div><div class="contab-subtitle">Marca cada factura de efectivo como controlada y recogida</div></div>
-        <div style="display:flex;align-items:center;gap:10px;">
-          <span class="controls-label">Fecha</span>
-          <input type="date" class="date-input" id="fecha-contab"/>
-          <button class="btn-cargar" onclick="cargarContabilidad()"><span>↻</span> Cargar</button>
+      <div class="contab-top">
+        <div>
+          <div class="contab-title">Control de Efectivo</div>
+          <div class="contab-subtitle">Selecciona el rango de fechas y marca las facturas cuando recojas el dinero</div>
+        </div>
+        <div class="rango-row">
+          <span class="rango-label">Desde</span>
+          <input type="date" class="date-input" id="contab-desde"/>
+          <span class="rango-label">Hasta</span>
+          <input type="date" class="date-input" id="contab-hasta"/>
+          <button class="btn-cargar" id="btn-contab" onclick="cargarContabilidad()">
+            <span id="contab-icon">↻</span><span id="contab-text">Cargar</span>
+          </button>
         </div>
       </div>
-      <div class="contab-progress" id="contab-progress" style="display:none">
-        <div><div class="progress-text" id="progress-text">0 / 0 controladas</div><div class="progress-sub" id="progress-sub">0,00 € verificado</div></div>
-        <div class="progress-bar-wrap"><div class="progress-bar-fill" id="progress-bar" style="width:0%"></div></div>
-        <div class="contab-badge" id="contab-badge">Pendiente</div>
+
+      <div id="contab-resumen" style="display:none">
+        <div class="contab-stats">
+          <div class="stat-card"><div class="stat-label">Total efectivo período</div><div class="stat-value" id="stat-total">0,00 €</div><div class="stat-sub" id="stat-facturas">0 facturas</div></div>
+          <div class="stat-card green"><div class="stat-label">Verificado y recogido</div><div class="stat-value" id="stat-verificado">0,00 €</div><div class="stat-sub" id="stat-verificado-n">0 facturas</div></div>
+          <div class="stat-card orange"><div class="stat-label">Pendiente de recoger</div><div class="stat-value" id="stat-pendiente">0,00 €</div><div class="stat-sub" id="stat-pendiente-n">0 facturas</div></div>
+        </div>
+        <div class="progress-wrap">
+          <div class="progress-text" id="progress-text">0 / 0</div>
+          <div class="progress-bar-bg"><div class="progress-bar-fill" id="progress-bar" style="width:0%"></div></div>
+          <div class="progress-badge" id="progress-badge">Pendiente</div>
+        </div>
       </div>
-      <div class="contab-table-wrap" id="contab-table-wrap">
-        <div class="contab-empty">Selecciona una fecha y carga las facturas de efectivo</div>
+
+      <div class="contab-table-card" id="contab-table-card">
+        <div class="contab-table-header">
+          <div class="contab-table-title">Facturas de efectivo</div>
+          <div style="font-size:12px;color:var(--muted)" id="contab-rango-label"></div>
+        </div>
+        <div id="contab-table-body">
+          <div class="contab-empty">Selecciona un rango de fechas y pulsa Cargar</div>
+        </div>
       </div>
     </div>
   </main>
 </div>
 
+<!-- MODAL CIERRE -->
 <div class="modal-overlay" id="modal-cierre" style="display:none" onclick="closeCierre(event)">
   <div class="print-modal" onclick="event.stopPropagation()">
     <div class="print-header">
@@ -298,33 +338,36 @@
 </div>
 
 <script>
-const RENTMAN_BASE = 'https://api.rentman.net';
+// ─── CONFIG ──────────────────────────────────────────────────
+// URL del Apps Script — reemplazar cuando esté desplegado
+const AS_URL = 'https://script.google.com/macros/s/AKfycbxAzjPQMRO3LhBr2C3e85buV4GUOgib297s9QvmvcXrc305dbu5A_lc0Rzd7okV51npvA/exec';
+const AS_TOKEN = 'ORUMx2026#Caja$Stats';
+
+// ─── STATE ───────────────────────────────────────────────────
 let sessionToken = sessionStorage.getItem('orum_session');
 let usuarioActual = sessionStorage.getItem('orum_user');
 let rolActual = sessionStorage.getItem('orum_rol');
-let rentmanToken = sessionStorage.getItem('orum_rt');
 let datosActuales = null;
 let contabData = [];
 const cajaState = {
-  marbella: { saldo_inicial: 0, retiradas: [] },
-  monda:    { saldo_inicial: 0, retiradas: [] },
+  marbella:     { saldo_inicial: 0, retiradas: [] },
+  monda:        { saldo_inicial: 0, retiradas: [] },
   abrebotellas: { saldo_inicial: 0, retiradas: [] }
 };
 
+// ─── INIT ────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
   const hoy = new Date().toISOString().split('T')[0];
   document.getElementById('fecha-input').value = hoy;
-  document.getElementById('fecha-contab').value = hoy;
+  // Rango contabilidad: últimos 7 días por defecto
+  const hace7 = new Date(); hace7.setDate(hace7.getDate()-7);
+  document.getElementById('contab-desde').value = hace7.toISOString().split('T')[0];
+  document.getElementById('contab-hasta').value = hoy;
+
   if (sessionToken) {
     try {
       const r = await fetch('/api/me', { headers: { 'x-session-token': sessionToken } });
-      if (r.ok) {
-        const d = await r.json();
-        rentmanToken = d.rentmanToken;
-        sessionStorage.setItem('orum_rt', rentmanToken);
-        mostrarApp(d.usuario, d.rol);
-        return;
-      }
+      if (r.ok) { const d = await r.json(); mostrarApp(d.usuario, d.rol); return; }
     } catch(e) {}
   }
   mostrarLogin();
@@ -357,11 +400,10 @@ async function doLogin() {
     const r = await fetch('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ usuario, password }) });
     const d = await r.json();
     if (!r.ok) throw new Error(d.error || 'Error');
-    sessionToken = d.token; rolActual = d.rol; rentmanToken = d.rentmanToken;
+    sessionToken = d.token; rolActual = d.rol;
     sessionStorage.setItem('orum_session', d.token);
     sessionStorage.setItem('orum_user', d.usuario);
     sessionStorage.setItem('orum_rol', d.rol);
-    sessionStorage.setItem('orum_rt', d.rentmanToken);
     mostrarApp(d.usuario, d.rol);
   } catch(e) { errEl.textContent = e.message; errEl.style.display = 'block'; }
   finally { btn.disabled = false; btn.textContent = 'Entrar'; }
@@ -382,68 +424,50 @@ function switchTab(tab, el) {
   document.getElementById('panel-' + tab).classList.add('active');
 }
 
-// ─── RENTMAN API (llamadas desde el navegador directamente) ───────────────────
-async function rmGetAll(endpoint, params = {}) {
-  let offset = 0; const limit = 100; let all = [];
-  while (true) {
-    const p = new URLSearchParams({ limit, offset, ...params });
-    const r = await fetch(`${RENTMAN_BASE}${endpoint}?${p}`, {
-      headers: { 'Authorization': 'Bearer ' + rentmanToken, 'Content-Type': 'application/json' }
-    });
-    if (!r.ok) { const t = await r.text(); throw new Error(`Rentman ${r.status}: ${t}`); }
-    const json = await r.json();
-    const items = json.data || [];
-    all = all.concat(items);
-    if (items.length < limit) break;
-    offset += limit;
-  }
-  return all;
+// ─── APPS SCRIPT HELPER ──────────────────────────────────────
+async function asGet(params) {
+  const url = AS_URL + '?' + new URLSearchParams({ token: AS_TOKEN, ...params });
+  const r = await fetch(url);
+  const json = await r.json();
+  return json.data;
 }
 
-async function rmGet(endpoint) {
-  const r = await fetch(`${RENTMAN_BASE}${endpoint}`, {
-    headers: { 'Authorization': 'Bearer ' + rentmanToken, 'Content-Type': 'application/json' }
-  });
-  if (!r.ok) return null;
-  return (await r.json()).data || null;
-}
-
-// ─── CARGAR DATOS ─────────────────────────────────────────────────────────────
+// ─── CARGAR DATOS CAJA ───────────────────────────────────────
 async function cargarDatos() {
   const fecha = document.getElementById('fecha-input').value;
   if (!fecha) { mostrarError('Selecciona una fecha'); return; }
   setLoading(true); ocultarError();
   try {
-    const metodosData = await rmGetAll('/paymentmethods');
+    // 1. Métodos de pago
+    const metodos = await asGet({ action: 'paymentmethods' });
     const metodoMap = {};
-    metodosData.forEach(m => { metodoMap[m.id] = m.name || m.displayname || ''; });
+    (metodos || []).forEach(m => { metodoMap[m.id] = m.name || m.displayname || ''; });
 
-    const payments = await rmGetAll('/invoicepayments', {
-      'paymentdate[gte]': fecha + ' 00:00:00',
-      'paymentdate[lte]': fecha + ' 23:59:59'
-    });
+    // 2. Pagos del día
+    const payments = await asGet({ action: 'invoicepayments', desde: fecha, hasta: fecha });
 
-    const pagosRaw = payments.map(p => {
+    // 3. Mapear
+    const pagosRaw = (payments || []).map(p => {
       const mid = parseInt((p.paymentmethod||'').split('/').pop());
       const mn = metodoMap[mid] || '';
       let ub = null, tp = null;
-      if (mn === 'Efectivo Marbella') { ub = 'marbella'; tp = 'efectivo'; }
-      else if (mn === 'TPV Marbella')  { ub = 'marbella'; tp = 'tpv'; }
-      else if (mn === 'Efectivo Monda') { ub = 'monda';   tp = 'efectivo'; }
-      else if (mn === 'TPV Monda')      { ub = 'monda';   tp = 'tpv'; }
+      if (mn==='Efectivo Marbella'){ub='marbella';tp='efectivo';}
+      else if(mn==='TPV Marbella'){ub='marbella';tp='tpv';}
+      else if(mn==='Efectivo Monda'){ub='monda';tp='efectivo';}
+      else if(mn==='TPV Monda'){ub='monda';tp='tpv';}
       const invId = (p.invoice||'').split('/').pop();
-      return { id: p.id, importe: parseFloat(p.amount)||0, fecha: p.paymentdate, metodo: mn, ubicacion: ub, tipo: tp, invoiceId: invId, numero_factura: invId, cliente: '', proyecto_numero: '', proyecto_nombre: '', proyecto_id: '', importe_base: null, tiene_abrebotellas: false, tick_contabilidad: null };
+      return { id: p.id, importe: parseFloat(p.amount)||0, fecha: p.paymentdate, metodo: mn, ubicacion: ub, tipo: tp, invoiceId: invId, numero_factura: invId, cliente:'', proyecto_id:'', proyecto_nombre:'', proyecto_numero:'', importe_base: null, tiene_abrebotellas: false };
     });
 
     let resultado = pagosRaw.filter(p => p.ubicacion !== null);
 
-    // Enriquecer con facturas
-    const invoiceIds = [...new Set(resultado.map(p => p.invoiceId).filter(Boolean))];
-    for (const invId of invoiceIds) {
+    // 4. Enriquecer facturas en paralelo
+    const invoiceIds = [...new Set(resultado.map(p=>p.invoiceId).filter(Boolean))];
+    await Promise.all(invoiceIds.map(async invId => {
       try {
-        const inv = await rmGet('/invoices/' + invId);
+        const inv = await asGet({ action: 'invoice', id: invId });
         if (inv) {
-          const projId = inv.project ? (inv.project.id || (inv.project+'').split('/').pop() || '') : '';
+          const projId = inv.project ? (inv.project+'').split('/').pop() : '';
           resultado.forEach(p => {
             if (p.invoiceId === invId) {
               p.numero_factura = inv.number || invId;
@@ -457,38 +481,26 @@ async function cargarDatos() {
           });
         }
       } catch(e) {}
-    }
+    }));
 
-    // Detectar abrebotellas
+    // 5. Detectar abrebotellas
     try {
-      const eq = await rmGetAll('/projectequipment');
+      const eq = await asGet({ action: 'projectequipment' });
       const gruposAbreb = new Set();
-      eq.forEach(e => { if ((e.equipment||'') === '/equipment/1600') gruposAbreb.add(e.equipment_group); });
+      (eq||[]).forEach(e => { if((e.equipment||'')===('/equipment/1600')) gruposAbreb.add(e.equipment_group); });
       const projsAbreb = new Set();
-      for (const gp of gruposAbreb) {
-        if (!gp) continue;
-        const g = await rmGet('/projectequipmentgroup/' + gp.split('/').pop());
+      await Promise.all([...gruposAbreb].map(async gp => {
+        if (!gp) return;
+        const g = await asGet({ action: 'equipmentgroup', id: gp.split('/').pop() });
         if (g?.project) projsAbreb.add((g.project+'').split('/').pop());
-      }
-      resultado.forEach(p => { if (p.proyecto_id && projsAbreb.has(p.proyecto_id)) p.tiene_abrebotellas = true; });
-    } catch(e) { console.warn('Abrebotellas error:', e.message); }
+      }));
+      resultado.forEach(p => { if(p.proyecto_id && projsAbreb.has(p.proyecto_id)) p.tiene_abrebotellas = true; });
+    } catch(e) { console.warn('Abrebotellas:', e.message); }
 
-    // Ticks contabilidad
-    try {
-      const tr = await fetch('/api/ticks?fecha=' + fecha, { headers: { 'x-session-token': sessionToken } });
-      if (tr.ok) {
-        const td = await tr.json();
-        resultado.forEach(p => {
-          const k = fecha + '_' + p.invoiceId;
-          p.tick_contabilidad = td.ticks[k] || null;
-        });
-      }
-    } catch(e) {}
-
-    // Agrupar
+    // 6. Agrupar
     const resumen = {
-      marbella: { efectivo: 0, tpv: 0, total: 0, pagos: [] },
-      monda:    { efectivo: 0, tpv: 0, total: 0, pagos: [] }
+      marbella: { efectivo:0, tpv:0, total:0, pagos:[] },
+      monda:    { efectivo:0, tpv:0, total:0, pagos:[] }
     };
     resultado.forEach(p => {
       resumen[p.ubicacion][p.tipo] += p.importe;
@@ -496,7 +508,7 @@ async function cargarDatos() {
       resumen[p.ubicacion].pagos.push(p);
     });
 
-    const pagosAbreb = resultado.filter(p => p.tiene_abrebotellas && p.tipo === 'efectivo');
+    const pagosAbreb = resultado.filter(p => p.tiene_abrebotellas && p.tipo==='efectivo');
     const cajaAbrebotellas = { total_base: pagosAbreb.reduce((s,p)=>s+(p.importe_base||0),0), pagos: pagosAbreb };
 
     datosActuales = { fecha, resumen, pagos: resultado, cajaAbrebotellas };
@@ -513,9 +525,10 @@ function setLoading(v) {
   document.getElementById('cargar-text').textContent = v ? 'Cargando...' : 'Cargar cobros';
   document.getElementById('btn-cargar').classList.toggle('loading', v);
 }
-function mostrarError(msg) { const b = document.getElementById('error-bar'); b.textContent = msg; b.style.display = 'block'; }
-function ocultarError() { document.getElementById('error-bar').style.display = 'none'; }
+function mostrarError(msg) { const b=document.getElementById('error-bar'); b.textContent=msg; b.style.display='block'; }
+function ocultarError() { document.getElementById('error-bar').style.display='none'; }
 
+// ─── RENDER CAJAS ────────────────────────────────────────────
 function renderCajas(data) {
   const c = document.getElementById('cajas-container');
   c.innerHTML = '';
@@ -550,7 +563,7 @@ function renderAbrebotellas(data) {
   const sec = document.getElementById('abreb-section');
   const card = document.getElementById('abreb-card');
   const state = cajaState.abrebotellas;
-  if (!data?.pagos?.length) { sec.style.display = 'none'; return; }
+  if (!data?.pagos?.length) { sec.style.display='none'; return; }
   sec.style.display = 'block';
   card.innerHTML = `
     <div class="abreb-header"><div class="abreb-title"><div class="abreb-icon">🍾</div><div><div class="abreb-nombre">Caja Abrebotellas</div><div class="abreb-subtitle">Importe base sin IVA · ${data.pagos.length} proyecto${data.pagos.length!==1?'s':''}</div></div></div><div class="abreb-total">${fmt(data.total_base)}</div></div>
@@ -574,133 +587,221 @@ function renderTablaPagos(pagos) {
 }
 
 function togglePagos(id, el) { document.getElementById('tabla-'+id).classList.toggle('visible'); el.classList.toggle('open'); }
-
-function actualizarSaldo(ub, val) { cajaState[ub].saldo_inicial = parseFloat(val)||0; recalc(ub); }
-function addRetirada(ub) { cajaState[ub].retiradas.push({ id: Date.now(), concepto: '', importe: 0 }); renderRetiradas(ub, cajaState[ub].retiradas); recalc(ub); }
-function removeRetirada(ub, id) { cajaState[ub].retiradas = cajaState[ub].retiradas.filter(r=>r.id!==id); renderRetiradas(ub, cajaState[ub].retiradas); recalc(ub); }
-function updateRetirada(ub, id, field, val) { const r = cajaState[ub].retiradas.find(r=>r.id===id); if(r) r[field]=field==='importe'?(parseFloat(val)||0):val; if(field==='importe') recalc(ub); }
-
+function actualizarSaldo(ub, val) { cajaState[ub].saldo_inicial=parseFloat(val)||0; recalc(ub); }
+function addRetirada(ub) { cajaState[ub].retiradas.push({id:Date.now(),concepto:'',importe:0}); renderRetiradas(ub,cajaState[ub].retiradas); recalc(ub); }
+function removeRetirada(ub, id) { cajaState[ub].retiradas=cajaState[ub].retiradas.filter(r=>r.id!==id); renderRetiradas(ub,cajaState[ub].retiradas); recalc(ub); }
+function updateRetirada(ub, id, field, val) { const r=cajaState[ub].retiradas.find(r=>r.id===id); if(r) r[field]=field==='importe'?(parseFloat(val)||0):val; if(field==='importe') recalc(ub); }
 function renderRetiradas(ub, retiradas) {
-  const c = document.getElementById('retiradas-'+ub);
-  if (!c) return;
-  c.innerHTML = retiradas.map(r=>`<div class="retirada-item"><div class="retirada-dot"></div><input class="retirada-concepto" type="text" placeholder="Concepto..." value="${r.concepto}" oninput="updateRetirada('${ub}',${r.id},'concepto',this.value)"/><input class="retirada-importe" type="number" placeholder="0.00" value="${r.importe||''}" min="0" step="0.01" oninput="updateRetirada('${ub}',${r.id},'importe',this.value)"/><button class="btn-remove" onclick="removeRetirada('${ub}',${r.id})">×</button></div>`).join('');
+  const c=document.getElementById('retiradas-'+ub); if(!c) return;
+  c.innerHTML=retiradas.map(r=>`<div class="retirada-item"><div class="retirada-dot"></div><input class="retirada-concepto" type="text" placeholder="Concepto..." value="${r.concepto}" oninput="updateRetirada('${ub}',${r.id},'concepto',this.value)"/><input class="retirada-importe" type="number" placeholder="0.00" value="${r.importe||''}" min="0" step="0.01" oninput="updateRetirada('${ub}',${r.id},'importe',this.value)"/><button class="btn-remove" onclick="removeRetirada('${ub}',${r.id})">×</button></div>`).join('');
 }
-
 function recalc(ub) {
-  if (!datosActuales) return;
+  if(!datosActuales) return;
   const base = ub==='abrebotellas' ? datosActuales.cajaAbrebotellas.total_base : datosActuales.resumen[ub].efectivo;
-  const s = cajaState[ub];
-  const totalRet = s.retiradas.reduce((a,r)=>a+r.importe,0);
-  const el = document.getElementById('saldo-final-'+ub);
-  if (el) el.textContent = fmt(base + s.saldo_inicial - totalRet);
+  const s=cajaState[ub]; const totalRet=s.retiradas.reduce((a,r)=>a+r.importe,0);
+  const el=document.getElementById('saldo-final-'+ub);
+  if(el) el.textContent=fmt(base+s.saldo_inicial-totalRet);
 }
 
-// ─── CONTABILIDAD ─────────────────────────────────────────────────────────────
+// ─── CONTABILIDAD ────────────────────────────────────────────
 async function cargarContabilidad() {
-  const fecha = document.getElementById('fecha-contab').value;
-  if (!fecha) return;
+  const desde = document.getElementById('contab-desde').value;
+  const hasta  = document.getElementById('contab-hasta').value;
+  if (!desde || !hasta) { alert('Selecciona un rango de fechas'); return; }
+  if (desde > hasta) { alert('La fecha de inicio debe ser anterior a la fecha final'); return; }
+
+  // Loading
+  const btn = document.getElementById('btn-contab');
+  document.getElementById('contab-icon').innerHTML = '<div class="spinner"></div>';
+  document.getElementById('contab-text').textContent = 'Cargando...';
+  btn.classList.add('loading');
+
   try {
-    const metodosData = await rmGetAll('/paymentmethods');
+    const metodos = await asGet({ action: 'paymentmethods' });
     const metodoMap = {};
-    metodosData.forEach(m => { metodoMap[m.id] = m.name || m.displayname || ''; });
-    const payments = await rmGetAll('/invoicepayments', { 'paymentdate[gte]': fecha+' 00:00:00', 'paymentdate[lte]': fecha+' 23:59:59' });
-    let pagos = payments.map(p => {
+    (metodos||[]).forEach(m => { metodoMap[m.id] = m.name||m.displayname||''; });
+
+    const payments = await asGet({ action: 'invoicepayments', desde, hasta });
+
+    let pagos = (payments||[]).map(p => {
       const mid = parseInt((p.paymentmethod||'').split('/').pop());
       const mn = metodoMap[mid] || '';
-      let ub = null, tp = null;
-      if (mn==='Efectivo Marbella'){ub='marbella';tp='efectivo';}
-      else if(mn==='Efectivo Monda'){ub='monda';tp='efectivo';}
+      let ub = null;
+      if (mn==='Efectivo Marbella') ub='marbella';
+      else if (mn==='Efectivo Monda') ub='monda';
+      if (!ub) return null;
       const invId = (p.invoice||'').split('/').pop();
-      return { id: p.id, importe: parseFloat(p.amount)||0, fecha: p.paymentdate, metodo: mn, ubicacion: ub, tipo: tp, invoiceId: invId, numero_factura: invId, cliente: '', tick_contabilidad: null };
-    }).filter(p => p.tipo==='efectivo' && p.ubicacion);
+      const fechaPago = (p.paymentdate||'').substring(0,10);
+      return { id: p.id, importe: parseFloat(p.amount)||0, fecha: fechaPago, metodo: mn, ubicacion: ub, invoiceId: invId, numero_factura: invId, cliente:'', tick_contabilidad: null };
+    }).filter(Boolean);
 
+    // Enriquecer facturas en paralelo
     const invoiceIds = [...new Set(pagos.map(p=>p.invoiceId).filter(Boolean))];
-    for (const invId of invoiceIds) {
-      try { const inv = await rmGet('/invoices/'+invId); if(inv){ pagos.forEach(p=>{ if(p.invoiceId===invId){ p.numero_factura=inv.number||invId; p.cliente=inv.contact?.displayname||inv.customer_displayname||''; } }); } } catch(e){}
-    }
+    await Promise.all(invoiceIds.map(async invId => {
+      try {
+        const inv = await asGet({ action: 'invoice', id: invId });
+        if (inv) { pagos.forEach(p => { if(p.invoiceId===invId){ p.numero_factura=inv.number||invId; p.cliente=inv.contact?.displayname||inv.customer_displayname||''; } }); }
+      } catch(e) {}
+    }));
 
-    const tr = await fetch('/api/ticks?fecha='+fecha, { headers: { 'x-session-token': sessionToken } });
-    if (tr.ok) { const td = await tr.json(); pagos.forEach(p => { const k=fecha+'_'+p.invoiceId; p.tick_contabilidad=td.ticks[k]||null; }); }
+    // Cargar ticks
+    try {
+      const tr = await fetch(`/api/ticks?desde=${desde}&hasta=${hasta}`, { headers: { 'x-session-token': sessionToken } });
+      if (tr.ok) {
+        const td = await tr.json();
+        pagos.forEach(p => { const k=p.fecha+'_'+p.invoiceId; p.tick_contabilidad=td.ticks[k]||null; });
+      }
+    } catch(e) {}
+
+    // Ordenar por fecha desc
+    pagos.sort((a,b) => b.fecha.localeCompare(a.fecha));
 
     contabData = pagos;
-    renderContabilidad(fecha);
-  } catch(e) { alert('Error: '+e.message); }
+    renderContabilidad(desde, hasta);
+  } catch(e) {
+    alert('Error: ' + e.message);
+  } finally {
+    document.getElementById('contab-icon').textContent = '↻';
+    document.getElementById('contab-text').textContent = 'Cargar';
+    btn.classList.remove('loading');
+  }
 }
 
-function renderContabilidad(fecha) {
-  const wrap = document.getElementById('contab-table-wrap');
-  const progress = document.getElementById('contab-progress');
-  if (!contabData.length) { wrap.innerHTML='<div class="contab-empty">No hay cobros en efectivo para esta fecha</div>'; progress.style.display='none'; return; }
+function renderContabilidad(desde, hasta) {
+  const resumen = document.getElementById('contab-resumen');
+  const body = document.getElementById('contab-table-body');
+  const rangoLabel = document.getElementById('contab-rango-label');
+
+  const fmtFecha = d => new Date(d+'T12:00:00').toLocaleDateString('es-ES',{day:'2-digit',month:'short'});
+  rangoLabel.textContent = fmtFecha(desde) + ' — ' + fmtFecha(hasta);
+
+  if (!contabData.length) {
+    resumen.style.display = 'none';
+    body.innerHTML = '<div class="contab-empty">No hay cobros en efectivo en este período</div>';
+    return;
+  }
+
   const total = contabData.length;
   const marcados = contabData.filter(p=>p.tick_contabilidad).length;
-  const importeMarcado = contabData.filter(p=>p.tick_contabilidad).reduce((s,p)=>s+p.importe,0);
-  const pct = total>0?Math.round((marcados/total)*100):0;
-  progress.style.display='flex';
-  document.getElementById('progress-text').textContent=`${marcados} / ${total} controladas`;
-  document.getElementById('progress-sub').textContent=`${fmt(importeMarcado)} verificado`;
-  document.getElementById('progress-bar').style.width=pct+'%';
-  const badge = document.getElementById('contab-badge');
-  if(marcados===total&&total>0){badge.textContent='✓ Completo';badge.style.background='var(--green-bg)';badge.style.borderColor='var(--green-brd)';badge.style.color='var(--green)';}
-  else{badge.textContent=pct+'% verificado';badge.style.background='var(--orange-bg)';badge.style.borderColor='var(--orange-brd)';badge.style.color='var(--orange)';}
-  const canTick = rolActual==='contabilidad'||rolActual==='admin';
-  wrap.innerHTML=`<table class="contab-table"><thead><tr><th style="width:40px">✓</th><th>Factura</th><th>Cliente</th><th>Ubicación</th><th>Hora</th><th style="text-align:right">Importe</th><th>Verificado por</th></tr></thead><tbody>
-    ${contabData.map(p=>{const tick=p.tick_contabilidad;const ticked=!!tick;const hora=(p.fecha||'').substring(11,16);const ub=p.ubicacion==='marbella'?'🏖 Marbella':'🏡 Monda';
-    return `<tr class="${ticked?'marcado':''}" id="row-${p.invoiceId}">
-      <td>${canTick?`<button class="tick-btn ${ticked?'ticked':''}" onclick="toggleTick('${fecha}','${p.invoiceId}',${!ticked})">${ticked?'✓':''}</button>`:`<span style="color:${ticked?'var(--green)':'var(--border2)'};font-size:18px">${ticked?'✓':'○'}</span>`}${ticked&&tick.usuario?`<div class="tick-info">${tick.usuario}</div>`:''}</td>
-      <td>${p.numero_factura||'-'}</td>
-      <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.cliente||'-'}</td>
-      <td style="font-family:'Plus Jakarta Sans',sans-serif">${ub}</td>
-      <td>${hora}</td>
-      <td class="importe-cell">${fmt(p.importe)}</td>
-      <td style="font-family:'Plus Jakarta Sans',sans-serif;font-size:11px;color:var(--muted)">${tick?`${tick.usuario}<br><span style="font-size:10px">${new Date(tick.fecha_tick).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'})}</span>`:'—'}</td>
-    </tr>`}).join('')}
-  </tbody></table>`;
+  const importeTotal = contabData.reduce((s,p)=>s+p.importe,0);
+  const importeVerif = contabData.filter(p=>p.tick_contabilidad).reduce((s,p)=>s+p.importe,0);
+  const importePend  = importeTotal - importeVerif;
+  const pct = total>0 ? Math.round((marcados/total)*100) : 0;
+
+  resumen.style.display = 'block';
+  document.getElementById('stat-total').textContent = fmt(importeTotal);
+  document.getElementById('stat-facturas').textContent = total + ' factura' + (total!==1?'s':'');
+  document.getElementById('stat-verificado').textContent = fmt(importeVerif);
+  document.getElementById('stat-verificado-n').textContent = marcados + ' factura' + (marcados!==1?'s':'');
+  document.getElementById('stat-pendiente').textContent = fmt(importePend);
+  document.getElementById('stat-pendiente-n').textContent = (total-marcados) + ' factura' + ((total-marcados)!==1?'s':'');
+  document.getElementById('progress-text').textContent = marcados + ' / ' + total + ' verificadas';
+  document.getElementById('progress-bar').style.width = pct + '%';
+  const badge = document.getElementById('progress-badge');
+  if (marcados===total && total>0) { badge.textContent='✓ Completo'; badge.className='progress-badge done'; }
+  else { badge.textContent=pct+'% verificado'; badge.className='progress-badge'; }
+
+  const canTick = rolActual==='contabilidad' || rolActual==='admin';
+
+  // Agrupar por fecha para mostrar separadores
+  const porFecha = {};
+  contabData.forEach(p => { if(!porFecha[p.fecha]) porFecha[p.fecha]=[]; porFecha[p.fecha].push(p); });
+
+  let html = `<table class="contab-table">
+    <thead><tr><th style="width:36px">✓</th><th>Fecha</th><th>Factura</th><th>Cliente</th><th>Ubicación</th><th style="text-align:right">Importe</th><th>Verificado por</th></tr></thead>
+    <tbody>`;
+
+  Object.keys(porFecha).sort((a,b)=>b.localeCompare(a)).forEach(fecha => {
+    porFecha[fecha].forEach(p => {
+      const tick = p.tick_contabilidad;
+      const ticked = !!tick;
+      const ub = p.ubicacion==='marbella'?'🏖 Marbella':'🏡 Monda';
+      const fechaDisplay = new Date(fecha+'T12:00:00').toLocaleDateString('es-ES',{weekday:'short',day:'2-digit',month:'short'});
+      html += `<tr class="${ticked?'marcado':''}">
+        <td>${canTick
+          ? `<button class="tick-btn ${ticked?'ticked':''}" onclick="toggleTick('${fecha}','${p.invoiceId}',${!ticked})" title="${ticked?'Desmarcar':'Marcar como recogido'}">${ticked?'✓':''}</button>`
+          : `<span style="color:${ticked?'var(--green)':'var(--border2)'};font-size:16px">${ticked?'✓':'○'}</span>`
+        }${ticked&&tick.usuario?`<div class="tick-info">${tick.usuario}</div>`:''}</td>
+        <td><span class="fecha-chip">${fechaDisplay}</span></td>
+        <td style="font-family:'DM Mono',monospace;font-size:12px">${p.numero_factura||'-'}</td>
+        <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:'DM Mono',monospace;font-size:12px">${p.cliente||'-'}</td>
+        <td style="font-size:12px">${ub}</td>
+        <td class="importe-cell" style="font-family:'DM Mono',monospace">${fmt(p.importe)}</td>
+        <td style="font-size:11px;color:var(--muted)">${tick?`${tick.usuario}<br><span style="font-size:10px">${new Date(tick.fecha_tick).toLocaleDateString('es-ES',{day:'2-digit',month:'short'})}</span>`:'—'}</td>
+      </tr>`;
+    });
+  });
+
+  html += '</tbody></table>';
+  body.innerHTML = html;
 }
 
 async function toggleTick(fecha, invoiceId, marcado) {
   try {
     const r = await fetch('/api/tick', { method:'POST', headers:{'Content-Type':'application/json','x-session-token':sessionToken}, body:JSON.stringify({fecha,invoiceId,marcado}) });
     if (!r.ok) throw new Error('Error al guardar');
-    const p = contabData.find(x=>x.invoiceId===invoiceId);
-    if (p) p.tick_contabilidad = marcado ? { usuario: usuarioActual, fecha_tick: new Date().toISOString(), invoiceId, fecha } : null;
-    renderContabilidad(fecha);
+    const p = contabData.find(x=>x.invoiceId===invoiceId && x.fecha===fecha);
+    if (p) p.tick_contabilidad = marcado ? { usuario:usuarioActual, fecha_tick:new Date().toISOString(), invoiceId, fecha } : null;
+    const desde = document.getElementById('contab-desde').value;
+    const hasta  = document.getElementById('contab-hasta').value;
+    renderContabilidad(desde, hasta);
   } catch(e) { alert('Error: '+e.message); }
 }
 
-// ─── CIERRE ───────────────────────────────────────────────────────────────────
+// ─── CIERRE ──────────────────────────────────────────────────
 function generarCierre(scope) {
   if (!datosActuales) return;
   const fecha = datosActuales.fecha;
   const fechaFmt = new Date(fecha+'T12:00:00').toLocaleDateString('es-ES',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
   const ahora = new Date().toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'});
   const nombreUsuario = usuarioActual.charAt(0).toUpperCase()+usuarioActual.slice(1);
+
   let html = `<div class="doc-top"><div><div class="doc-empresa">ORUM</div><div class="doc-subtitle">Rent & Events · Arqueo de Caja</div></div><div class="doc-meta"><strong>${fechaFmt}</strong>Cierre: ${ahora}<br>Por: ${nombreUsuario}</div></div>`;
 
   if (scope==='abrebotellas') {
-    const abData=datosActuales.cajaAbrebotellas;const s=cajaState.abrebotellas;
-    const totalRet=s.retiradas.reduce((a,r)=>a+r.importe,0);const saldoFinal=abData.total_base+s.saldo_inicial-totalRet;
-    html+=`<div class="doc-section"><div class="doc-section-title">Caja Abrebotellas — Base sin IVA</div><div class="doc-row"><span class="lbl">Saldo inicial</span><span class="val">+ ${fmt(s.saldo_inicial)}</span></div><div class="doc-row"><span class="lbl">Total base s/IVA</span><span class="val" style="color:var(--orange)">+ ${fmt(abData.total_base)}</span></div>${s.retiradas.map(r=>`<div class="doc-row"><span class="lbl">Retirada: ${r.concepto||'Sin concepto'}</span><span class="val" style="color:var(--red)">− ${fmt(r.importe)}</span></div>`).join('')}<div class="doc-row total"><span class="lbl">EFECTIVO EN CAJA</span><span class="val">${fmt(saldoFinal)}</span></div></div>`;
+    const ab=datosActuales.cajaAbrebotellas; const s=cajaState.abrebotellas;
+    const tRet=s.retiradas.reduce((a,r)=>a+r.importe,0);
+    html+=`<div class="doc-section"><div class="doc-section-title">Caja Abrebotellas — Base sin IVA</div>
+      <div class="doc-row"><span class="lbl">Saldo inicial</span><span class="val">+ ${fmt(s.saldo_inicial)}</span></div>
+      <div class="doc-row"><span class="lbl">Total base s/IVA</span><span class="val" style="color:var(--orange)">+ ${fmt(ab.total_base)}</span></div>
+      ${s.retiradas.map(r=>`<div class="doc-row"><span class="lbl">Retirada: ${r.concepto||'Sin concepto'}</span><span class="val" style="color:var(--red)">− ${fmt(r.importe)}</span></div>`).join('')}
+      <div class="doc-row total"><span class="lbl">EFECTIVO EN CAJA</span><span class="val">${fmt(ab.total_base+s.saldo_inicial-tRet)}</span></div></div>`;
   } else {
     const ubs = scope==='all'?['marbella','monda']:[scope];
-    ubs.forEach((ub,idx)=>{
-      const r=datosActuales.resumen[ub];const s=cajaState[ub];
+    ubs.forEach((ub,idx) => {
+      const r=datosActuales.resumen[ub]; const s=cajaState[ub];
       const nombre=ub==='marbella'?'MARBELLA':'MONDA';
-      const totalRet=s.retiradas.reduce((a,r)=>a+r.importe,0);const saldoFinal=r.efectivo+s.saldo_inicial-totalRet;
+      const tRet=s.retiradas.reduce((a,r)=>a+r.importe,0);
       if(idx>0) html+='<hr class="doc-sep">';
-      html+=`<div class="doc-section"><div class="doc-section-title">Caja ${nombre}</div><div class="doc-row"><span class="lbl">Saldo inicial</span><span class="val">+ ${fmt(s.saldo_inicial)}</span></div><div class="doc-row"><span class="lbl">Cobros efectivo</span><span class="val" style="color:var(--green)">+ ${fmt(r.efectivo)}</span></div><div class="doc-row"><span class="lbl">Cobros TPV</span><span class="val" style="color:var(--blue)">+ ${fmt(r.tpv)}</span></div>${s.retiradas.map(ret=>`<div class="doc-row"><span class="lbl">Retirada: ${ret.concepto||'Sin concepto'}</span><span class="val" style="color:var(--red)">− ${fmt(ret.importe)}</span></div>`).join('')}<div class="doc-row total"><span class="lbl">EFECTIVO EN CAJA</span><span class="val">${fmt(saldoFinal)}</span></div></div>`;
-      if(r.pagos.length) html+=`<div class="doc-section"><div class="doc-section-title">Detalle · ${nombre}</div><table class="pagos-table"><thead><tr><th>Hora</th><th>Factura</th><th>Cliente</th><th>Método</th><th style="text-align:right">Importe</th></tr></thead><tbody>${r.pagos.map(p=>`<tr><td>${(p.fecha||'').substring(11,16)}</td><td>${p.numero_factura||'-'}</td><td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.cliente||'-'}</td><td><span class="tag tag-${p.tipo}">${p.tipo==='efectivo'?'Efectivo':'TPV'}</span></td><td class="importe-cell">${fmt(p.importe)}</td></tr>`).join('')}</tbody></table></div>`;
+      html+=`<div class="doc-section"><div class="doc-section-title">Caja ${nombre}</div>
+        <div class="doc-row"><span class="lbl">Saldo inicial</span><span class="val">+ ${fmt(s.saldo_inicial)}</span></div>
+        <div class="doc-row"><span class="lbl">Cobros efectivo</span><span class="val" style="color:var(--green)">+ ${fmt(r.efectivo)}</span></div>
+        <div class="doc-row"><span class="lbl">Cobros TPV</span><span class="val" style="color:var(--blue)">+ ${fmt(r.tpv)}</span></div>
+        ${s.retiradas.map(ret=>`<div class="doc-row"><span class="lbl">Retirada: ${ret.concepto||'Sin concepto'}</span><span class="val" style="color:var(--red)">− ${fmt(ret.importe)}</span></div>`).join('')}
+        <div class="doc-row total"><span class="lbl">EFECTIVO EN CAJA</span><span class="val">${fmt(r.efectivo+s.saldo_inicial-tRet)}</span></div></div>`;
+      if(r.pagos.length) html+=`<div class="doc-section"><div class="doc-section-title">Detalle · ${nombre}</div>
+        <table class="pagos-table"><thead><tr><th>Hora</th><th>Factura</th><th>Cliente</th><th>Método</th><th style="text-align:right">Importe</th></tr></thead>
+        <tbody>${r.pagos.map(p=>`<tr><td>${(p.fecha||'').substring(11,16)}</td><td>${p.numero_factura||'-'}</td><td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.cliente||'-'}</td><td><span class="tag tag-${p.tipo}">${p.tipo==='efectivo'?'Efectivo':'TPV'}</span></td><td class="importe-cell">${fmt(p.importe)}</td></tr>`).join('')}</tbody></table></div>`;
     });
     if(scope==='all'){
       const tEf=['marbella','monda'].reduce((s,ub)=>s+datosActuales.resumen[ub].efectivo,0);
       const tTpv=['marbella','monda'].reduce((s,ub)=>s+datosActuales.resumen[ub].tpv,0);
       const tRet=['marbella','monda'].reduce((s,ub)=>s+cajaState[ub].retiradas.reduce((a,r)=>a+r.importe,0),0);
       const tSi=['marbella','monda'].reduce((s,ub)=>s+cajaState[ub].saldo_inicial,0);
-      const abBase=datosActuales.cajaAbrebotellas?.total_base||0;
-      html+=`<hr class="doc-sep"><div class="doc-section"><div class="doc-section-title">Resumen Global</div><div class="doc-row"><span class="lbl">Total efectivo</span><span class="val" style="color:var(--green)">${fmt(tEf)}</span></div><div class="doc-row"><span class="lbl">Total TPV</span><span class="val" style="color:var(--blue)">${fmt(tTpv)}</span></div><div class="doc-row"><span class="lbl">Total retiradas</span><span class="val" style="color:var(--red)">− ${fmt(tRet)}</span></div><div class="doc-row"><span class="lbl">Caja Abrebotellas (base)</span><span class="val" style="color:var(--orange)">${fmt(abBase)}</span></div><div class="doc-row total"><span class="lbl">TOTAL COBRADO</span><span class="val">${fmt(tEf+tTpv)}</span></div><div class="doc-row total"><span class="lbl">EFECTIVO EN CAJAS</span><span class="val">${fmt(tEf+tSi-tRet)}</span></div></div>`;
+      html+=`<hr class="doc-sep"><div class="doc-section"><div class="doc-section-title">Resumen Global</div>
+        <div class="doc-row"><span class="lbl">Total efectivo</span><span class="val" style="color:var(--green)">${fmt(tEf)}</span></div>
+        <div class="doc-row"><span class="lbl">Total TPV</span><span class="val" style="color:var(--blue)">${fmt(tTpv)}</span></div>
+        <div class="doc-row"><span class="lbl">Total retiradas</span><span class="val" style="color:var(--red)">− ${fmt(tRet)}</span></div>
+        <div class="doc-row total"><span class="lbl">TOTAL COBRADO</span><span class="val">${fmt(tEf+tTpv)}</span></div>
+        <div class="doc-row total"><span class="lbl">EFECTIVO EN CAJAS</span><span class="val">${fmt(tEf+tSi-tRet)}</span></div></div>`;
     }
   }
 
-  html+=`<div class="doc-firma-section"><div class="doc-firma-title">Firma del responsable</div><div class="doc-firma-grid"><div class="doc-firma-box"><div class="doc-firma-line"></div><div class="doc-firma-name">${nombreUsuario}</div><div class="doc-firma-role">Responsable de caja</div><div class="doc-firma-fecha">${fechaFmt} · ${ahora}</div></div><div class="doc-firma-box"><div class="doc-firma-line"></div><div class="doc-firma-name">Supervisión</div><div class="doc-firma-role">Gerencia / Contabilidad</div><div class="doc-firma-fecha"> </div></div></div></div>`;
+  html+=`<div class="doc-firma-section"><div class="doc-firma-title">Firma del responsable</div>
+    <div class="doc-firma-grid">
+      <div class="doc-firma-box"><div class="doc-firma-line"></div><div class="doc-firma-name">${nombreUsuario}</div><div class="doc-firma-role">Responsable de caja</div><div class="doc-firma-fecha">${fechaFmt} · ${ahora}</div></div>
+      <div class="doc-firma-box"><div class="doc-firma-line"></div><div class="doc-firma-name">Supervisión</div><div class="doc-firma-role">Gerencia / Contabilidad</div><div class="doc-firma-fecha"> </div></div>
+    </div></div>`;
 
   document.getElementById('cierre-doc').innerHTML = html;
   document.getElementById('modal-cierre').style.display = 'flex';
