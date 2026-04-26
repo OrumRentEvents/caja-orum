@@ -133,6 +133,8 @@
     .btn-cierre-abreb{background:var(--orange-bg);border:1.5px solid var(--orange-brd);color:var(--orange);}
     .btn-cierre-abreb:hover{background:#fde8c8;}
     .btn-cierre-all{background:var(--surface);border:1.5px solid var(--border2);color:var(--accent);}
+    .btn-cierre-pend{background:var(--red-bg);border:1.5px solid var(--red-brd);color:var(--red);}
+    .btn-cierre-pend:hover{background:#fce8e8;}
     .btn-cierre-all:hover{background:var(--surface2);}
     .empty-state{text-align:center;padding:60px 20px;color:var(--muted);grid-column:1/-1;}
     .empty-icon{font-size:36px;margin-bottom:10px;}
@@ -258,8 +260,10 @@
     <!-- PANEL CAJA -->
     <div id="panel-caja" class="panel active">
       <div class="controls">
-        <span class="controls-label">Fecha</span>
-        <input type="date" class="date-input" id="fecha-input"/>
+        <span class="controls-label">Desde</span>
+        <input type="date" class="date-input" id="fecha-desde"/>
+        <span class="controls-label">Hasta</span>
+        <input type="date" class="date-input" id="fecha-hasta"/>
         <button class="btn-cargar" id="btn-cargar" onclick="cargarDatos()">
           <span id="cargar-icon">↻</span><span id="cargar-text">Cargar cobros</span>
         </button>
@@ -274,7 +278,7 @@
       <div class="acciones-bar" id="acciones-bar" style="display:none">
         <button class="btn-cierre btn-cierre-mar" onclick="generarCierre('marbella')">🟣 Cierre Marbella</button>
         <button class="btn-cierre btn-cierre-mon" onclick="generarCierre('monda')">🟢 Cierre Monda</button>
-        <button class="btn-cierre btn-cierre-abreb" onclick="generarCierre('abrebotellas')">🍾 Cierre Abrebotellas</button>
+        <button class="btn-cierre btn-cierre-abreb" onclick="generarCierre('abrebotellas')">📋 No Confirmados</button>
         <button class="btn-cierre btn-cierre-all" onclick="generarCierre('all')">📋 Cierre Global</button>
       </div>
     </div>
@@ -358,7 +362,8 @@ const cajaState = {
 // ─── INIT ────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
   const hoy = new Date().toISOString().split('T')[0];
-  document.getElementById('fecha-input').value = hoy;
+  document.getElementById('fecha-desde').value = hoy;
+  document.getElementById('fecha-hasta').value = hoy;
   // Rango contabilidad: últimos 7 días por defecto
   const hace7 = new Date(); hace7.setDate(hace7.getDate()-7);
   document.getElementById('contab-desde').value = hace7.toISOString().split('T')[0];
@@ -434,8 +439,11 @@ async function asGet(params) {
 
 // ─── CARGAR DATOS CAJA ───────────────────────────────────────
 async function cargarDatos() {
-  const fecha = document.getElementById('fecha-input').value;
-  if (!fecha) { mostrarError('Selecciona una fecha'); return; }
+  const desde = document.getElementById('fecha-desde').value;
+  const hasta  = document.getElementById('fecha-hasta').value;
+  if (!desde || !hasta) { mostrarError('Selecciona las fechas'); return; }
+  if (desde > hasta) { mostrarError('La fecha inicio debe ser anterior a la final'); return; }
+  const fecha = desde; // Para compatibilidad con cierre
   setLoading(true); ocultarError();
   try {
     // 1. Métodos de pago
@@ -444,7 +452,7 @@ async function cargarDatos() {
     (metodos || []).forEach(m => { metodoMap[m.id] = m.name || m.displayname || ''; });
 
     // 2. Pagos del día
-    const payments = await asGet({ action: 'invoicepayments', desde: fecha, hasta: fecha });
+    const payments = await asGet({ action: 'invoicepayments', desde: desde, hasta: hasta });
 
     // 3. Mapear
     const pagosRaw = (payments || []).map(p => {
@@ -511,7 +519,7 @@ async function cargarDatos() {
     const pagosAbreb = resultado.filter(p => p.tiene_abrebotellas && p.tipo==='efectivo');
     const cajaAbrebotellas = { total_base: pagosAbreb.reduce((s,p)=>s+(p.importe_base||0),0), pagos: pagosAbreb };
 
-    datosActuales = { fecha, resumen, pagos: resultado, cajaAbrebotellas };
+    datosActuales = { fecha: desde, hasta, resumen, pagos: resultado, cajaAbrebotellas };
     renderCajas(datosActuales);
     renderAbrebotellas(cajaAbrebotellas);
     document.getElementById('acciones-bar').style.display = 'flex';
@@ -752,7 +760,11 @@ async function toggleTick(fecha, invoiceId, marcado) {
 function generarCierre(scope) {
   if (!datosActuales) return;
   const fecha = datosActuales.fecha;
-  const fechaFmt = new Date(fecha+'T12:00:00').toLocaleDateString('es-ES',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+  const hasta = datosActuales.hasta || fecha;
+  const esPeriodo = fecha !== hasta;
+  const fechaFmt = esPeriodo
+    ? new Date(fecha+'T12:00:00').toLocaleDateString('es-ES',{day:'2-digit',month:'long'}) + ' — ' + new Date(hasta+'T12:00:00').toLocaleDateString('es-ES',{day:'2-digit',month:'long',year:'numeric'})
+    : new Date(fecha+'T12:00:00').toLocaleDateString('es-ES',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
   const ahora = new Date().toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'});
   const nombreUsuario = usuarioActual.charAt(0).toUpperCase()+usuarioActual.slice(1);
 
