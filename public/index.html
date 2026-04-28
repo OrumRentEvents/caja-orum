@@ -202,6 +202,7 @@
       <input type="date" id="fecha-desde" onchange="guardarFiltros()">
       <label>Hasta</label>
       <input type="date" id="fecha-hasta" onchange="guardarFiltros()">
+      <button style="padding:8px 14px;border:1.5px solid var(--gray-light);background:var(--white);border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;" onclick="setHoy()">📅 Hoy</button>
       <button class="btn-cargar" onclick="cargarCobros()" id="btn-cargar">↻ Cargar cobros</button>
       <input type="text" class="inp-buscar" id="buscador" placeholder="🔍 Buscar cliente, factura..." oninput="filtrarTabla()" style="display:none">
     </div>
@@ -279,8 +280,8 @@ function iniciarApp() {
   if (['contabilidad','admin'].includes(userInfo.rol)) document.getElementById('tab-contabilidad').style.display='';
   const hoy = new Date().toISOString().substring(0,10);
   const primerDia = hoy.substring(0,8)+'01';
-  document.getElementById('fecha-desde').value = localStorage.getItem('caja-desde')||primerDia;
-  document.getElementById('fecha-hasta').value = localStorage.getItem('caja-hasta')||hoy;
+  document.getElementById('fecha-desde').value = hoy;
+  document.getElementById('fecha-hasta').value = hoy;
   document.getElementById('contab-desde').value = primerDia;
   document.getElementById('contab-hasta').value = hoy;
 }
@@ -625,6 +626,14 @@ async function toggleTick(key, el) {
 }
 
 function fmt(n) { return (parseFloat(n)||0).toLocaleString('es-ES',{minimumFractionDigits:2,maximumFractionDigits:2})+' €'; }
+
+function setHoy() {
+  const hoy = new Date().toISOString().substring(0,10);
+  document.getElementById('fecha-desde').value = hoy;
+  document.getElementById('fecha-hasta').value = hoy;
+  guardarFiltros();
+  cargarCobros();
+}
 
 checkSession();
 </script>
