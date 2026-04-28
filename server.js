@@ -189,12 +189,35 @@ const NC_AS_URL = 'https://script.google.com/macros/s/AKfycbx1ayolXUAmk95s8M2bUS
 
 app.get('/api/noconfirmados', auth, async (req, res) => {
   const { desde, hasta } = req.query;
+  console.log(`[NC] Cargando desde=${desde} hasta=${hasta}`);
   try {
-    const url = `${NC_AS_URL}?token=ORUMx2026CajaStats&action=registros&desde=${desde}&hasta=${hasta}`;
-    const r = await fetch(url, { redirect: 'follow' });
-    const data = await r.json();
+    const url = `${NC_AS_URL}?token=ORUMx2026CajaStats&action=registros&desde=${encodeURIComponent(desde)}&hasta=${encodeURIComponent(hasta)}`;
+    console.log(`[NC] URL: ${url}`);
+    
+    // Apps Script redirige — seguimos manualmente hasta obtener JSON
+    let finalUrl = url;
+    let r;
+    for (let i = 0; i < 5; i++) {
+      r = await fetch(finalUrl, { redirect: 'manual' });
+      console.log(`[NC] Status: ${r.status}, Location: ${r.headers.get('location') || 'none'}`);
+      if (r.status === 301 || r.status === 302 || r.status === 307 || r.status === 308) {
+        finalUrl = r.headers.get('location');
+        if (!finalUrl) break;
+      } else {
+        break;
+      }
+    }
+    
+    const text = await r.text();
+    console.log(`[NC] Respuesta (primeros 200): ${text.substring(0, 200)}`);
+    
+    let data;
+    try { data = JSON.parse(text); }
+    catch(pe) { return res.status(500).json({ error: 'Respuesta no es JSON', raw: text.substring(0, 500) }); }
+    
     res.json(data);
   } catch(e) {
+    console.error(`[NC] Error: ${e.message}`);
     res.status(500).json({ error: e.message });
   }
 });
