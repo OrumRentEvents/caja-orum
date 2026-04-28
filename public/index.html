@@ -232,6 +232,7 @@ tr:hover td{background:var(--gray-bg)}
 
 <script>
 const API = 'https://orum-api.dashboardorum.workers.dev';
+const NC_URL = 'https://script.google.com/macros/s/AKfycbx1ayolXUAmk95s8M2bUS_46O7HQrM4gmQgh1mQF9zOCuOvEQfp59K94TnDYpopE73QmA/exec';
 
 const METODOS = [
   {id:'efectivo-marbella',label:'💵 Ef. Marbella',ubicacion:'marbella',tipo:'efectivo',nombre:'Efectivo Marbella',esTpv:false},
@@ -682,13 +683,32 @@ async function cargarNoConf(){
   if(!desde||!hasta)return;
   document.getElementById('noconf-content').innerHTML='<div class="loading"><div class="spinner"></div><p>Cargando...</p></div>';
   try{
-    const[rF,rR]=await Promise.all([
-      fetch(`${API}/caja/facturas?desde=${desde}&hasta=${hasta}`).then(r=>r.json()),
-      fetch(`/api/caja/registros?desde=${desde}&hasta=${hasta}`).then(r=>r.json())
-    ]);
-    noConfs=rF.no_confirmados||[];
-    Object.entries(rR||{}).forEach(([id,reg])=>{if(reg.metodo_pago&&reg.es_abrebotellas)estado[id]={metodo:reg.metodo_pago,numOp:''};});
-    enriquecerClientes(noConfs);
+    // Leer del Apps Script de No Confirmados
+    const r = await fetch(NC_URL, {
+      method: 'POST',
+      body: JSON.stringify({ token: 'ORUMx2026CajaStats', desde, hasta })
+    }).then(r=>r.json());
+
+    noConfs = (r.registros||[]).map(reg => ({
+      id: reg.id,
+      numero: reg.numero_proyecto,
+      cliente: reg.cliente,
+      proyecto_numero: reg.numero_proyecto,
+      importe: reg.importe,
+      total_pagado: reg.importe,
+      fecha_pago: reg.fecha,
+      metodo_guardado: reg.metodo,
+      email: reg.email,
+    }));
+
+    // Aplicar métodos guardados
+    noConfs.forEach(f => {
+      if (f.metodo_guardado) {
+        const mid = f.metodo_guardado === 'Efectivo Marbella' ? 'efectivo-marbella' : 'efectivo-monda';
+        estado[String(f.id)] = { metodo: mid, numOp: '' };
+      }
+    });
+
     renderNoConf();
   }catch(e){document.getElementById('noconf-content').innerHTML=`<div class="empty-state"><p>Error: ${e.message}</p></div>`;}
 }
