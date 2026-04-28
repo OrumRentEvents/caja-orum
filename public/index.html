@@ -485,14 +485,25 @@ async function cargarCobros() {
   document.getElementById('caja-content').innerHTML = '<div class="loading"><div class="spinner"></div><p>Cargando facturas de Rentman...</p></div>';
 
   try {
-    // Cargar facturas del worker
-    const [rFacturas, rRegistros] = await Promise.all([
+    // Cargar facturas del worker y contactos en paralelo
+    const [rFacturas, rRegistros, rContactos] = await Promise.all([
       fetch(`${API_WORKER}/caja/facturas?desde=${desde}&hasta=${hasta}`).then(r=>r.json()),
-      fetch(`/api/caja/registros?desde=${desde}&hasta=${hasta}`).then(r=>r.json())
+      fetch(`/api/caja/registros?desde=${desde}&hasta=${hasta}`).then(r=>r.json()),
+      fetch(`${API_WORKER}/contactos`).then(r=>r.json())
     ]);
 
-    facturasActuales = rFacturas.facturas || [];
-    noConfirmadosActuales = rFacturas.no_confirmados || [];
+    // Mapa de contactos id -> nombre
+    const mapaContactos = {};
+    (rContactos.data || []).forEach(c => { mapaContactos[String(c.id)] = c.displayname || ''; });
+
+    // Enriquecer nombres
+    const enrichNames = (arr) => arr.map(f => ({
+      ...f,
+      cliente: (f.cliente_id && mapaContactos[f.cliente_id]) ? mapaContactos[f.cliente_id] : (f.cliente || '—')
+    }));
+
+    facturasActuales = enrichNames(rFacturas.facturas || []);
+    noConfirmadosActuales = enrichNames(rFacturas.no_confirmados || []);
     registrosGuardados = rRegistros || {};
 
     // Aplicar registros guardados
