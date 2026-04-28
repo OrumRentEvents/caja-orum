@@ -1,224 +1,300 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Caja ORUM</title>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <style>
-    :root {
-      --bg:#f5f3ef;--surface:#fff;--surface2:#faf9f7;--border:#e8e4dc;--border2:#d4cfc4;
-      --text:#1a1714;--muted:#8a8075;--accent:#2a2420;
-      --green:#2d7a4f;--green-bg:#edf7f1;--green-brd:#b8dfc9;
-      --blue:#2456a4;--blue-bg:#edf2fb;--blue-brd:#b3c9ef;
-      --red:#b83232;--red-bg:#fdf0f0;--red-brd:#ebbaba;
-      --yellow:#8a6200;--yellow-bg:#fdf6e3;--yellow-brd:#e8d08a;
-      --mar:#7c3aed;--mar-bg:#f3eeff;--mar-brd:#c9b0f5;
-      --mon:#0f766e;--mon-bg:#ecfdf5;--mon-brd:#99e6d8;
-      --orange:#b45309;--orange-bg:#fff7ed;--orange-brd:#fed7aa;
-      --shadow:0 1px 3px rgba(0,0,0,.06),0 4px 16px rgba(0,0,0,.04);
-      --shadow-lg:0 4px 24px rgba(0,0,0,.12);
-    }
-    *{box-sizing:border-box;margin:0;padding:0;}
-    body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;}
-    #login-screen{min-height:100vh;display:flex;align-items:center;justify-content:center;}
-    .login-card{background:var(--surface);border:1.5px solid var(--border);border-radius:20px;padding:40px 36px;width:380px;max-width:95vw;box-shadow:var(--shadow-lg);}
-    .login-logo{display:flex;align-items:center;gap:12px;margin-bottom:28px;}
-    .login-badge{width:44px;height:44px;background:var(--accent);border-radius:12px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:20px;}
-    .login-brand{font-size:17px;font-weight:700;color:var(--accent);}
-    .login-brand-sub{font-size:11px;color:var(--muted);margin-top:2px;}
-    .login-heading{font-size:22px;font-weight:800;margin-bottom:6px;}
-    .login-desc{font-size:13px;color:var(--muted);margin-bottom:28px;line-height:1.5;}
-    .form-field{margin-bottom:16px;}
-    .form-field label{display:block;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:6px;}
-    .form-field input{width:100%;background:var(--surface2);border:1.5px solid var(--border2);color:var(--text);padding:11px 14px;border-radius:10px;font-family:'Plus Jakarta Sans',sans-serif;font-size:14px;transition:border-color .2s;}
-    .form-field input:focus{outline:none;border-color:var(--accent);background:#fff;}
-    .btn-login{width:100%;background:var(--accent);color:#fff;border:none;padding:13px;border-radius:10px;font-family:'Plus Jakarta Sans',sans-serif;font-size:14px;font-weight:700;cursor:pointer;transition:opacity .2s;}
-    .btn-login:hover{opacity:.85;}
-    .btn-login:disabled{opacity:.5;cursor:not-allowed;}
-    .login-error{background:var(--red-bg);border:1px solid var(--red-brd);color:var(--red);padding:10px 14px;border-radius:8px;font-size:13px;margin-top:14px;display:none;text-align:center;}
-    #app-screen{display:none;}
-    header{background:var(--surface);border-bottom:1px solid var(--border);padding:12px 28px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;box-shadow:var(--shadow);}
-    .logo{display:flex;align-items:center;gap:10px;}
-    .logo-badge{width:32px;height:32px;background:var(--accent);border-radius:8px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:15px;}
-    .logo-name{font-size:14px;font-weight:700;color:var(--accent);}
-    .logo-sub{font-size:11px;color:var(--muted);margin-top:1px;}
-    .header-right{display:flex;align-items:center;gap:10px;}
-    .user-chip{display:flex;align-items:center;gap:7px;background:var(--surface2);border:1px solid var(--border2);padding:5px 12px;border-radius:20px;font-size:13px;font-weight:600;}
-    .user-avatar{width:24px;height:24px;background:var(--accent);border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:700;}
-    .btn-logout{background:transparent;border:1px solid var(--border2);color:var(--muted);padding:6px 12px;border-radius:8px;font-family:'Plus Jakarta Sans',sans-serif;font-size:12px;cursor:pointer;transition:all .2s;}
-    .btn-logout:hover{border-color:var(--red-brd);color:var(--red);background:var(--red-bg);}
-    .nav-tabs{display:flex;gap:4px;padding:0 28px;background:var(--surface);border-bottom:1px solid var(--border);}
-    .nav-tab{padding:10px 18px;font-size:13px;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;transition:all .2s;background:none;border-top:none;border-left:none;border-right:none;font-family:'Plus Jakarta Sans',sans-serif;}
-    .nav-tab.active{color:var(--accent);border-bottom-color:var(--accent);}
-    .nav-tab.tab-contab.active{color:var(--orange);border-bottom-color:var(--orange);}
-    main{max-width:1100px;margin:0 auto;padding:26px 20px;}
-    .panel{display:none;}.panel.active{display:block;}
-    .controls{display:flex;align-items:center;gap:10px;margin-bottom:24px;flex-wrap:wrap;}
-    .controls-label{font-size:13px;font-weight:600;color:var(--muted);}
-    .date-input{background:var(--surface);border:1.5px solid var(--border2);color:var(--text);padding:9px 14px;border-radius:10px;font-family:'DM Mono',monospace;font-size:13px;box-shadow:var(--shadow);}
-    .date-input:focus{outline:none;border-color:var(--accent);}
-    .btn-cargar{background:var(--accent);border:none;color:#fff;padding:9px 20px;border-radius:10px;font-family:'Plus Jakarta Sans',sans-serif;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:7px;box-shadow:var(--shadow);transition:opacity .2s;}
-    .btn-cargar:hover{opacity:.85;}
-    .btn-cargar.loading{opacity:.5;pointer-events:none;}
-    .spinner{width:13px;height:13px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;}
-    @keyframes spin{to{transform:rotate(360deg);}}
-    .error-bar{background:var(--red-bg);border:1px solid var(--red-brd);color:var(--red);padding:9px 14px;border-radius:10px;font-size:12px;display:none;flex:1;}
-    .cajas-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:24px;}
-    @media(max-width:720px){.cajas-grid{grid-template-columns:1fr;}}
-    .caja-card{background:var(--surface);border:1.5px solid var(--border);border-radius:16px;overflow:hidden;box-shadow:var(--shadow);}
-    .caja-header{padding:16px 22px 13px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
-    .caja-titulo{display:flex;align-items:center;gap:9px;}
-    .caja-icono{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;}
-    .icono-marbella{background:var(--mar-bg);}.icono-monda{background:var(--mon-bg);}
-    .caja-nombre{font-size:15px;font-weight:700;}
-    .caja-total{font-family:'DM Mono',monospace;font-size:20px;font-weight:500;color:var(--accent);}
-    .kpi-row{display:flex;gap:10px;padding:13px 22px;border-bottom:1px solid var(--border);}
-    .kpi-pill{flex:1;border-radius:10px;padding:10px 14px;}
-    .kpi-efectivo{background:var(--green-bg);border:1px solid var(--green-brd);}
-    .kpi-tpv{background:var(--blue-bg);border:1px solid var(--blue-brd);}
-    .kpi-label{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:3px;}
-    .kpi-value{font-family:'DM Mono',monospace;font-size:17px;font-weight:500;}
-    .kpi-efectivo .kpi-value{color:var(--green);}.kpi-tpv .kpi-value{color:var(--blue);}
-    .kpi-count{font-size:11px;color:var(--muted);margin-top:2px;}
-    .saldo-row{display:flex;align-items:center;gap:10px;padding:11px 22px;border-bottom:1px solid var(--border);background:var(--yellow-bg);}
-    .saldo-row label{font-size:12px;font-weight:600;color:var(--yellow);white-space:nowrap;}
-    .saldo-input{flex:1;background:var(--surface);border:1.5px solid var(--yellow-brd);color:var(--text);padding:7px 10px;border-radius:7px;font-family:'DM Mono',monospace;font-size:13px;text-align:right;}
-    .saldo-input:focus{outline:none;border-color:var(--yellow);}
-    .btn-add-retirada{background:var(--surface);border:1.5px solid var(--red-brd);color:var(--red);padding:7px 12px;border-radius:7px;font-family:'Plus Jakarta Sans',sans-serif;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;}
-    .btn-add-retirada:hover{background:var(--red-bg);}
-    .retiradas-list{padding:0 22px;}
-    .retirada-item{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border);}
-    .retirada-item:last-child{border-bottom:none;}
-    .retirada-dot{width:6px;height:6px;background:var(--red-brd);border-radius:50%;flex-shrink:0;}
-    .retirada-concepto{flex:1;background:transparent;border:none;color:var(--text);font-family:'Plus Jakarta Sans',sans-serif;font-size:13px;padding:2px 0;}
-    .retirada-concepto:focus{outline:none;}
-    .retirada-concepto::placeholder{color:var(--muted);}
-    .retirada-importe{width:90px;background:var(--red-bg);border:1px solid var(--red-brd);color:var(--red);padding:4px 8px;border-radius:6px;font-family:'DM Mono',monospace;font-size:12px;text-align:right;}
-    .retirada-importe:focus{outline:none;border-color:var(--red);}
-    .btn-remove{background:none;border:none;color:var(--muted);cursor:pointer;font-size:15px;padding:2px 5px;}
-    .btn-remove:hover{color:var(--red);}
-    .saldo-final-row{display:flex;justify-content:space-between;align-items:center;padding:13px 22px;background:var(--green-bg);border-top:1px solid var(--border);}
-    .saldo-final-label{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--green);}
-    .saldo-final-value{font-family:'DM Mono',monospace;font-size:18px;font-weight:500;color:var(--green);}
-    .pagos-section{padding:13px 22px;}
-    .pagos-toggle{display:flex;align-items:center;justify-content:space-between;cursor:pointer;user-select:none;}
-    .pagos-toggle-label{font-size:12px;font-weight:600;color:var(--muted);}
-    .pagos-toggle-arrow{color:var(--muted);transition:transform .2s;font-size:11px;}
-    .pagos-toggle.open .pagos-toggle-arrow{transform:rotate(180deg);}
-    .pagos-table-wrap{display:none;margin-top:12px;}.pagos-table-wrap.visible{display:block;}
-    .pagos-table{width:100%;border-collapse:collapse;font-size:12px;}
-    .pagos-table th{text-align:left;color:var(--muted);font-weight:600;letter-spacing:.06em;text-transform:uppercase;padding:5px 6px;border-bottom:1px solid var(--border);font-size:10px;}
-    .pagos-table td{padding:7px 6px;border-bottom:1px solid var(--border);font-family:'DM Mono',monospace;}
-    .pagos-table tr:last-child td{border-bottom:none;}
-    .pagos-table tr:hover td{background:var(--surface2);}
-    .tag{padding:2px 7px;border-radius:4px;font-size:10px;font-weight:700;font-family:'Plus Jakarta Sans',sans-serif;}
-    .tag-efectivo{background:var(--green-bg);color:var(--green);border:1px solid var(--green-brd);}
-    .tag-tpv{background:var(--blue-bg);color:var(--blue);border:1px solid var(--blue-brd);}
-    .importe-cell{text-align:right;color:var(--accent);font-weight:500;}
-    .abreb-section{margin-bottom:24px;}
-    .abreb-card{background:var(--surface);border:1.5px solid var(--orange-brd);border-radius:16px;overflow:hidden;box-shadow:var(--shadow);}
-    .abreb-header{padding:16px 22px 13px;border-bottom:1px solid var(--orange-brd);display:flex;align-items:center;justify-content:space-between;background:var(--orange-bg);}
-    .abreb-title{display:flex;align-items:center;gap:9px;}
-    .abreb-icon{width:32px;height:32px;border-radius:8px;background:var(--orange-bg);border:1px solid var(--orange-brd);display:flex;align-items:center;justify-content:center;font-size:16px;}
-    .abreb-nombre{font-size:15px;font-weight:700;color:var(--orange);}
-    .abreb-subtitle{font-size:11px;color:var(--muted);margin-top:1px;}
-    .abreb-total{font-family:'DM Mono',monospace;font-size:20px;font-weight:500;color:var(--orange);}
-    .acciones-bar{display:flex;gap:10px;margin-top:4px;flex-wrap:wrap;}
-    .btn-cierre{flex:1;min-width:155px;padding:11px 16px;border-radius:12px;font-family:'Plus Jakarta Sans',sans-serif;font-size:13px;font-weight:700;cursor:pointer;transition:all .15s;display:flex;align-items:center;justify-content:center;gap:7px;box-shadow:var(--shadow);}
-    .btn-cierre-mar{background:var(--mar-bg);border:1.5px solid var(--mar-brd);color:var(--mar);}
-    .btn-cierre-mar:hover{background:#ede0ff;}
-    .btn-cierre-mon{background:var(--mon-bg);border:1.5px solid var(--mon-brd);color:var(--mon);}
-    .btn-cierre-mon:hover{background:#d4f7ee;}
-    .btn-cierre-abreb{background:var(--orange-bg);border:1.5px solid var(--orange-brd);color:var(--orange);}
-    .btn-cierre-abreb:hover{background:#fde8c8;}
-    .btn-cierre-all{background:var(--surface);border:1.5px solid var(--border2);color:var(--accent);}
-    .btn-cierre-pend{background:var(--red-bg);border:1.5px solid var(--red-brd);color:var(--red);}
-    .btn-cierre-pend:hover{background:#fce8e8;}
-    .btn-cierre-all:hover{background:var(--surface2);}
-    .empty-state{text-align:center;padding:60px 20px;color:var(--muted);grid-column:1/-1;}
-    .empty-icon{font-size:36px;margin-bottom:10px;}
-    .empty-text{font-size:14px;}
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Caja ORUM</title>
+<style>
+  :root {
+    --bg: #f5f5f0;
+    --white: #ffffff;
+    --black: #111111;
+    --gray: #6b7280;
+    --gray-light: #e5e7eb;
+    --gray-bg: #f9fafb;
+    --green: #16a34a;
+    --green-bg: #f0fdf4;
+    --green-brd: #bbf7d0;
+    --blue: #2563eb;
+    --blue-bg: #eff6ff;
+    --blue-brd: #bfdbfe;
+    --orange: #ea580c;
+    --orange-bg: #fff7ed;
+    --orange-brd: #fed7aa;
+    --purple: #7c3aed;
+    --purple-bg: #f5f3ff;
+    --purple-brd: #ddd6fe;
+    --red: #dc2626;
+    --red-bg: #fef2f2;
+    --red-brd: #fecaca;
+    --yellow-bg: #fefce8;
+    --yellow-brd: #fef08a;
+    --radius: 12px;
+    --shadow: 0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.05);
+    --shadow-md: 0 4px 6px rgba(0,0,0,.07), 0 2px 4px rgba(0,0,0,.05);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--black); min-height: 100vh; }
 
-    /* CONTABILIDAD */
-    .contab-top{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:16px;}
-    .contab-title{font-size:18px;font-weight:800;color:var(--accent);}
-    .contab-subtitle{font-size:13px;color:var(--muted);margin-top:3px;}
-    .rango-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
-    .rango-label{font-size:12px;font-weight:600;color:var(--muted);}
-    .contab-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px;}
-    .stat-card{background:var(--surface);border:1.5px solid var(--border);border-radius:12px;padding:16px 18px;box-shadow:var(--shadow);}
-    .stat-label{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:6px;}
-    .stat-value{font-family:'DM Mono',monospace;font-size:20px;font-weight:500;color:var(--accent);}
-    .stat-sub{font-size:11px;color:var(--muted);margin-top:3px;}
-    .stat-card.green{background:var(--green-bg);border-color:var(--green-brd);}
-    .stat-card.green .stat-value{color:var(--green);}
-    .stat-card.orange{background:var(--orange-bg);border-color:var(--orange-brd);}
-    .stat-card.orange .stat-value{color:var(--orange);}
-    .progress-wrap{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 18px;margin-bottom:20px;display:flex;align-items:center;gap:16px;box-shadow:var(--shadow);}
-    .progress-bar-bg{flex:1;height:8px;background:var(--border);border-radius:4px;overflow:hidden;}
-    .progress-bar-fill{height:100%;background:var(--green);border-radius:4px;transition:width .4s;}
-    .progress-text{font-size:13px;font-weight:600;white-space:nowrap;}
-    .progress-badge{padding:4px 12px;border-radius:20px;font-size:12px;font-weight:700;background:var(--orange-bg);border:1px solid var(--orange-brd);color:var(--orange);}
-    .progress-badge.done{background:var(--green-bg);border-color:var(--green-brd);color:var(--green);}
+  /* ── LOGIN ── */
+  #login-screen {
+    min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px;
+  }
+  .login-card {
+    background: var(--white); border-radius: 20px; padding: 40px; width: 100%; max-width: 380px;
+    box-shadow: 0 8px 32px rgba(0,0,0,.10);
+  }
+  .login-logo { text-align: center; margin-bottom: 28px; }
+  .login-logo img { height: 48px; }
+  .login-title { font-size: 22px; font-weight: 700; text-align: center; margin-bottom: 6px; }
+  .login-sub { color: var(--gray); font-size: 13px; text-align: center; margin-bottom: 28px; }
+  .form-group { margin-bottom: 16px; }
+  .form-group label { display: block; font-size: 13px; font-weight: 500; margin-bottom: 6px; color: var(--gray); }
+  .form-group input {
+    width: 100%; padding: 11px 14px; border: 1.5px solid var(--gray-light); border-radius: 8px;
+    font-size: 14px; outline: none; transition: border-color .2s;
+  }
+  .form-group input:focus { border-color: var(--black); }
+  .btn-login {
+    width: 100%; padding: 12px; background: var(--black); color: #fff; border: none;
+    border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; transition: opacity .2s;
+  }
+  .btn-login:hover { opacity: .85; }
+  .login-error { color: var(--red); font-size: 13px; text-align: center; margin-top: 12px; }
 
-    /* TABLA CONTAB */
-    .contab-table-card{background:var(--surface);border:1.5px solid var(--border);border-radius:16px;overflow:hidden;box-shadow:var(--shadow);}
-    .contab-table-header{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:var(--surface2);}
-    .contab-table-title{font-size:13px;font-weight:700;color:var(--accent);}
-    .contab-table{width:100%;border-collapse:collapse;font-size:12px;}
-    .contab-table th{text-align:left;color:var(--muted);font-weight:600;font-size:10px;letter-spacing:.08em;text-transform:uppercase;padding:8px 14px;border-bottom:1px solid var(--border);background:var(--surface2);}
-    .contab-table td{padding:10px 14px;border-bottom:1px solid var(--border);vertical-align:middle;}
-    .contab-table tr:last-child td{border-bottom:none;}
-    .contab-table tr.marcado td{background:var(--green-bg);}
-    .contab-table tr:hover td{background:var(--surface2);}
-    .contab-table tr.marcado:hover td{background:#daf1e5;}
-    .tick-btn{width:26px;height:26px;border-radius:6px;border:2px solid var(--border2);background:var(--surface);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:13px;transition:all .2s;}
-    .tick-btn:hover{border-color:var(--green);background:var(--green-bg);}
-    .tick-btn.ticked{background:var(--green);border-color:var(--green);color:#fff;}
-    .tick-info{font-size:9px;color:var(--muted);margin-top:2px;font-family:'Plus Jakarta Sans',sans-serif;line-height:1.2;}
-    .fecha-chip{display:inline-block;background:var(--surface2);border:1px solid var(--border);padding:1px 7px;border-radius:4px;font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);}
-    .contab-empty{text-align:center;padding:40px;color:var(--muted);font-size:13px;}
+  /* ── APP ── */
+  #app { display: none; }
+  .topbar {
+    background: var(--white); border-bottom: 1px solid var(--gray-light);
+    padding: 0 24px; height: 56px; display: flex; align-items: center; justify-content: space-between;
+    position: sticky; top: 0; z-index: 100; box-shadow: var(--shadow);
+  }
+  .topbar-left { display: flex; align-items: center; gap: 16px; }
+  .topbar-logo { font-size: 18px; font-weight: 800; letter-spacing: -0.5px; }
+  .topbar-subtitle { font-size: 12px; color: var(--gray); }
+  .topbar-right { display: flex; align-items: center; gap: 12px; }
+  .user-badge {
+    display: flex; align-items: center; gap: 8px; padding: 6px 12px;
+    background: var(--gray-bg); border-radius: 20px; font-size: 13px; font-weight: 500;
+  }
+  .user-avatar {
+    width: 28px; height: 28px; background: var(--black); color: #fff;
+    border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 700;
+  }
+  .btn-salir {
+    padding: 6px 14px; border: 1.5px solid var(--gray-light); background: var(--white);
+    border-radius: 8px; font-size: 13px; cursor: pointer; transition: all .2s;
+  }
+  .btn-salir:hover { background: var(--gray-bg); }
 
-    /* MODAL */
-    .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;z-index:1000;}
-    .print-modal{background:var(--surface);border:1px solid var(--border);border-radius:18px;width:640px;max-width:96vw;max-height:90vh;overflow-y:auto;box-shadow:var(--shadow-lg);}
-    .print-header{padding:16px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:var(--surface);z-index:2;}
-    .print-header h2{font-size:15px;font-weight:700;}
-    .print-actions{display:flex;gap:8px;}
-    .btn-print{background:var(--accent);color:#fff;border:none;padding:8px 16px;border-radius:8px;font-family:'Plus Jakarta Sans',sans-serif;font-size:13px;font-weight:600;cursor:pointer;}
-    .btn-close-modal{background:var(--surface2);color:var(--muted);border:1px solid var(--border2);padding:8px 16px;border-radius:8px;font-family:'Plus Jakarta Sans',sans-serif;font-size:13px;cursor:pointer;}
-    #cierre-doc{padding:28px 30px 36px;}
-    .doc-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;padding-bottom:16px;border-bottom:2px solid var(--border);}
-    .doc-empresa{font-size:24px;font-weight:800;letter-spacing:.05em;color:var(--accent);}
-    .doc-subtitle{font-size:11px;color:var(--muted);margin-top:3px;letter-spacing:.08em;}
-    .doc-meta{text-align:right;font-size:12px;color:var(--muted);font-family:'DM Mono',monospace;line-height:1.6;}
-    .doc-meta strong{color:var(--text);display:block;font-size:13px;font-weight:700;}
-    .doc-section{margin-bottom:20px;}
-    .doc-section-title{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);border-bottom:1.5px solid var(--border);padding-bottom:6px;margin-bottom:10px;}
-    .doc-row{display:flex;justify-content:space-between;padding:5px 0;font-size:13px;border-bottom:1px dashed var(--border);}
-    .doc-row:last-child{border-bottom:none;}
-    .doc-row .lbl{color:var(--muted);}
-    .doc-row .val{font-family:'DM Mono',monospace;color:var(--text);}
-    .doc-row.total .lbl{font-weight:700;color:var(--accent);}
-    .doc-row.total .val{font-weight:600;font-size:15px;color:var(--accent);}
-    .doc-sep{border:none;border-top:2px solid var(--border);margin:20px 0;}
-    .doc-firma-section{margin-top:36px;padding-top:18px;border-top:1.5px solid var(--border);}
-    .doc-firma-title{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:18px;}
-    .doc-firma-grid{display:grid;grid-template-columns:1fr 1fr;gap:28px;}
-    .doc-firma-box{text-align:center;}
-    .doc-firma-line{height:48px;border-bottom:1.5px solid var(--border2);margin-bottom:7px;}
-    .doc-firma-name{font-size:12px;color:var(--text);font-weight:600;}
-    .doc-firma-role{font-size:10px;color:var(--muted);margin-top:2px;}
-    .doc-firma-fecha{font-size:10px;color:var(--muted);margin-top:2px;font-family:'DM Mono',monospace;}
-    @media print{
-      body{background:white;}
-      #login-screen{display:none!important;}
-      header,.nav-tabs,.controls,.cajas-grid,.abreb-section,.acciones-bar,.print-actions,#panel-contabilidad{display:none!important;}
-      .modal-overlay{position:static;background:none;}
-      .print-modal{box-shadow:none;border:none;max-height:none;overflow:visible;}
-    }
-  </style>
+  /* ── TABS ── */
+  .tabs {
+    background: var(--white); border-bottom: 1px solid var(--gray-light);
+    padding: 0 24px; display: flex; gap: 0;
+  }
+  .tab {
+    padding: 14px 20px; font-size: 14px; font-weight: 500; color: var(--gray);
+    border-bottom: 2px solid transparent; cursor: pointer; transition: all .2s;
+    white-space: nowrap;
+  }
+  .tab.active { color: var(--black); border-bottom-color: var(--black); }
+  .tab:hover:not(.active) { color: var(--black); background: var(--gray-bg); }
+
+  /* ── MAIN CONTENT ── */
+  .main { padding: 24px; max-width: 1400px; margin: 0 auto; }
+
+  /* ── FILTROS ── */
+  .filtros-bar {
+    background: var(--white); border-radius: var(--radius); padding: 16px 20px;
+    display: flex; align-items: center; gap: 16px; margin-bottom: 20px;
+    box-shadow: var(--shadow); flex-wrap: wrap;
+  }
+  .filtros-bar label { font-size: 13px; color: var(--gray); font-weight: 500; }
+  .filtros-bar input[type="date"] {
+    padding: 8px 12px; border: 1.5px solid var(--gray-light); border-radius: 8px;
+    font-size: 14px; outline: none;
+  }
+  .filtros-bar input[type="date"]:focus { border-color: var(--black); }
+  .btn-cargar {
+    padding: 9px 20px; background: var(--black); color: #fff; border: none;
+    border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer;
+    display: flex; align-items: center; gap: 8px; transition: opacity .2s;
+  }
+  .btn-cargar:hover { opacity: .85; }
+  .btn-cargar:disabled { opacity: .5; cursor: not-allowed; }
+
+  /* ── KPI CARDS ── */
+  .kpi-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px; margin-bottom: 24px;
+  }
+  .kpi-card {
+    background: var(--white); border-radius: var(--radius); padding: 20px;
+    box-shadow: var(--shadow);
+  }
+  .kpi-label { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; color: var(--gray); margin-bottom: 8px; }
+  .kpi-value { font-size: 28px; font-weight: 800; letter-spacing: -1px; }
+  .kpi-sub { font-size: 12px; color: var(--gray); margin-top: 4px; }
+  .kpi-efectivo .kpi-value { color: var(--green); }
+  .kpi-tpv .kpi-value { color: var(--blue); }
+  .kpi-transferencia .kpi-value { color: var(--purple); }
+  .kpi-total .kpi-value { color: var(--black); }
+
+  /* ── SECCIÓN CAJAS ── */
+  .cajas-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px; }
+  @media (max-width: 900px) { .cajas-grid { grid-template-columns: 1fr; } }
+
+  .caja-card {
+    background: var(--white); border-radius: var(--radius); padding: 20px;
+    box-shadow: var(--shadow);
+  }
+  .caja-header {
+    display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;
+  }
+  .caja-title { font-size: 16px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+  .caja-total { font-size: 22px; font-weight: 800; }
+  .caja-marbella .caja-total { color: var(--purple); }
+  .caja-monda .caja-total { color: var(--green); }
+
+  .caja-desglose { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+  .desglose-item {
+    padding: 12px; border-radius: 8px; text-align: center;
+  }
+  .desglose-item.efectivo { background: var(--green-bg); border: 1px solid var(--green-brd); }
+  .desglose-item.tpv { background: var(--blue-bg); border: 1px solid var(--blue-brd); }
+  .desglose-label { font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--gray); }
+  .desglose-value { font-size: 20px; font-weight: 700; margin-top: 2px; }
+  .desglose-item.efectivo .desglose-value { color: var(--green); }
+  .desglose-item.tpv .desglose-value { color: var(--blue); }
+  .desglose-count { font-size: 11px; color: var(--gray); }
+
+  /* Saldo inicial */
+  .saldo-row {
+    display: flex; align-items: center; gap: 10px; padding: 10px 0;
+    border-top: 1px solid var(--gray-light); margin-top: 8px;
+  }
+  .saldo-row label { font-size: 12px; color: var(--gray); font-weight: 500; flex: 1; }
+  .saldo-input {
+    width: 100px; padding: 6px 10px; border: 1.5px solid var(--gray-light);
+    border-radius: 6px; font-size: 14px; font-weight: 600; text-align: right;
+  }
+  .btn-retirada {
+    padding: 6px 12px; border: 1.5px solid var(--red-brd); background: var(--red-bg);
+    color: var(--red); border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer;
+  }
+  .efectivo-total {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 10px 0; border-top: 1px solid var(--gray-light);
+    font-weight: 700; font-size: 14px;
+  }
+
+  /* ── TABLA FACTURAS ── */
+  .tabla-section { background: var(--white); border-radius: var(--radius); box-shadow: var(--shadow); margin-bottom: 20px; overflow: hidden; }
+  .tabla-header {
+    padding: 16px 20px; border-bottom: 1px solid var(--gray-light);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .tabla-title { font-size: 15px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+  .badge {
+    display: inline-flex; align-items: center; padding: 3px 10px;
+    border-radius: 20px; font-size: 12px; font-weight: 600;
+  }
+  .badge-gray { background: var(--gray-light); color: var(--gray); }
+  .badge-orange { background: var(--orange-bg); color: var(--orange); border: 1px solid var(--orange-brd); }
+
+  table { width: 100%; border-collapse: collapse; }
+  th { padding: 10px 16px; text-align: left; font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--gray); background: var(--gray-bg); border-bottom: 1px solid var(--gray-light); }
+  td { padding: 12px 16px; font-size: 13px; border-bottom: 1px solid var(--gray-light); vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--gray-bg); }
+
+  .importe { font-weight: 700; font-size: 14px; }
+  .importe.positivo { color: var(--green); }
+  .importe.negativo { color: var(--red); }
+
+  /* ── SELECTOR MÉTODO PAGO ── */
+  .metodo-selector { display: flex; gap: 4px; flex-wrap: wrap; }
+  .btn-metodo {
+    padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 600;
+    cursor: pointer; border: 1.5px solid var(--gray-light); background: var(--white);
+    color: var(--gray); transition: all .15s; white-space: nowrap;
+  }
+  .btn-metodo:hover { border-color: var(--black); color: var(--black); }
+  .btn-metodo.selected-efectivo-marbella { background: var(--green-bg); border-color: var(--green); color: var(--green); }
+  .btn-metodo.selected-tpv-marbella { background: var(--blue-bg); border-color: var(--blue); color: var(--blue); }
+  .btn-metodo.selected-efectivo-monda { background: #f0fdf4; border-color: #15803d; color: #15803d; }
+  .btn-metodo.selected-tpv-monda { background: #eff6ff; border-color: #1d4ed8; color: #1d4ed8; }
+  .btn-metodo.selected-transferencia { background: var(--purple-bg); border-color: var(--purple); color: var(--purple); }
+  .btn-metodo.selected-factura0 { background: var(--gray-bg); border-color: var(--gray); color: var(--gray); }
+
+  /* ── BOTONES CIERRE ── */
+  .cierres-row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 24px; }
+  .btn-cierre {
+    padding: 11px 22px; border-radius: 10px; font-size: 14px; font-weight: 600;
+    cursor: pointer; border: 1.5px solid; transition: all .2s; display: flex; align-items: center; gap: 8px;
+  }
+  .btn-cierre-marbella { background: var(--purple-bg); border-color: var(--purple-brd); color: var(--purple); }
+  .btn-cierre-monda { background: var(--green-bg); border-color: var(--green-brd); color: var(--green); }
+  .btn-cierre-noconf { background: var(--orange-bg); border-color: var(--orange-brd); color: var(--orange); }
+  .btn-cierre-global { background: var(--gray-bg); border-color: var(--gray-light); color: var(--black); }
+
+  /* ── EMPTY STATE ── */
+  .empty-state { padding: 48px; text-align: center; color: var(--gray); }
+  .empty-state .icon { font-size: 40px; margin-bottom: 12px; }
+  .empty-state p { font-size: 14px; }
+
+  /* ── LOADING ── */
+  .loading { padding: 48px; text-align: center; color: var(--gray); }
+  .spinner { width: 32px; height: 32px; border: 3px solid var(--gray-light); border-top-color: var(--black); border-radius: 50%; animation: spin .7s linear infinite; margin: 0 auto 12px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── CONTABILIDAD ── */
+  .contab-header { display: flex; align-items: center; gap: 16px; margin-bottom: 20px; flex-wrap: wrap; }
+  .tick-circle {
+    width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--gray-light);
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    font-size: 14px; transition: all .2s; background: var(--white);
+  }
+  .tick-circle.checked { background: var(--green); border-color: var(--green); color: #fff; }
+
+  /* ── MODAL CIERRE ── */
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,.5); display: flex;
+    align-items: center; justify-content: center; z-index: 1000; padding: 20px;
+  }
+  .modal {
+    background: var(--white); border-radius: 16px; width: 100%; max-width: 680px;
+    max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,.2);
+  }
+  .modal-header {
+    padding: 20px 24px; border-bottom: 1px solid var(--gray-light);
+    display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; background: var(--white);
+  }
+  .modal-title { font-size: 16px; font-weight: 700; }
+  .btn-close { background: none; border: none; font-size: 20px; cursor: pointer; color: var(--gray); padding: 4px; }
+  .modal-body { padding: 24px; }
+  .cierre-empresa { text-align: center; margin-bottom: 20px; }
+  .cierre-empresa strong { font-size: 18px; font-weight: 800; }
+  .cierre-empresa p { font-size: 12px; color: var(--gray); margin-top: 2px; }
+  .cierre-linea { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--gray-light); font-size: 14px; }
+  .cierre-linea.total { font-weight: 700; font-size: 16px; border-bottom: none; padding-top: 12px; }
+  .cierre-firma { margin-top: 24px; }
+  .cierre-firma label { font-size: 12px; color: var(--gray); display: block; margin-bottom: 6px; }
+  .cierre-firma input { width: 100%; padding: 10px; border: 1.5px solid var(--gray-light); border-radius: 8px; font-size: 14px; }
+  .btn-imprimir {
+    width: 100%; margin-top: 16px; padding: 12px; background: var(--black); color: #fff;
+    border: none; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer;
+  }
+
+  /* ── TRANSFERENCIAS ── */
+  .kpi-transferencia-row {
+    background: var(--purple-bg); border: 1px solid var(--purple-brd); border-radius: 8px;
+    padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;
+  }
+  .kpi-transferencia-row span { font-size: 13px; color: var(--purple); font-weight: 600; }
+  .kpi-transferencia-row strong { font-size: 18px; font-weight: 800; color: var(--purple); }
+</style>
 </head>
 <body>
 
@@ -226,602 +302,652 @@
 <div id="login-screen">
   <div class="login-card">
     <div class="login-logo">
-      <div class="login-badge">O</div>
-      <div><div class="login-brand">ORUM Rent & Events</div><div class="login-brand-sub">Sistema de Caja 2026</div></div>
+      <img src="/orum-logo.png" alt="ORUM" onerror="this.style.display='none'">
+      <div style="font-size:26px;font-weight:900;letter-spacing:-1px;">ORUM</div>
     </div>
-    <div class="login-heading">Acceder</div>
-    <div class="login-desc">Introduce tus credenciales para acceder al sistema.</div>
-    <div class="form-field"><label>Usuario</label><input type="text" id="login-user" placeholder="Tu usuario" autocomplete="username" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()"/></div>
-    <div class="form-field"><label>Contraseña</label><input type="password" id="login-pass" placeholder="••••••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()"/></div>
-    <button class="btn-login" id="btn-login" onclick="doLogin()">Entrar</button>
+    <div class="login-title">Sistema de Caja 2026</div>
+    <div class="login-sub">Accede con tus credenciales</div>
+    <div class="form-group">
+      <label>Usuario</label>
+      <input type="text" id="inp-usuario" placeholder="Usuario" autocomplete="username">
+    </div>
+    <div class="form-group">
+      <label>Contraseña</label>
+      <input type="password" id="inp-pass" placeholder="Contraseña" autocomplete="current-password">
+    </div>
+    <button class="btn-login" onclick="doLogin()">Entrar</button>
     <div class="login-error" id="login-error"></div>
   </div>
 </div>
 
 <!-- APP -->
-<div id="app-screen">
-  <header>
-    <div class="logo">
-      <div class="logo-badge">O</div>
-      <div><div class="logo-name">ORUM Rent & Events</div><div class="logo-sub">Sistema de Caja 2026</div></div>
+<div id="app">
+  <div class="topbar">
+    <div class="topbar-left">
+      <div>
+        <div class="topbar-logo">ORUM Rent & Events</div>
+        <div class="topbar-subtitle">Sistema de Caja 2026</div>
+      </div>
     </div>
-    <div class="header-right">
-      <div class="user-chip"><div class="user-avatar" id="user-avatar">?</div><span id="user-name">—</span></div>
-      <button class="btn-logout" onclick="doLogout()">Salir</button>
+    <div class="topbar-right">
+      <div class="user-badge">
+        <div class="user-avatar" id="user-avatar">S</div>
+        <span id="user-nombre">Usuario</span>
+      </div>
+      <button class="btn-salir" onclick="doLogout()">Salir</button>
     </div>
-  </header>
-
-  <div class="nav-tabs">
-    <button class="nav-tab active" onclick="switchTab('caja',this)">🏦 Caja Diaria</button>
-    <button class="nav-tab tab-contab" id="tab-contab" onclick="switchTab('contabilidad',this)" style="display:none">📊 Contabilidad</button>
   </div>
 
-  <main>
-    <!-- PANEL CAJA -->
-    <div id="panel-caja" class="panel active">
-      <div class="controls">
-        <span class="controls-label">Desde</span>
-        <input type="date" class="date-input" id="fecha-desde"/>
-        <span class="controls-label">Hasta</span>
-        <input type="date" class="date-input" id="fecha-hasta"/>
-        <button class="btn-cargar" id="btn-cargar" onclick="cargarDatos()">
-          <span id="cargar-icon">↻</span><span id="cargar-text">Cargar cobros</span>
-        </button>
-        <div class="error-bar" id="error-bar"></div>
-      </div>
-      <div class="cajas-grid" id="cajas-container">
-        <div class="empty-state"><div class="empty-icon">🏦</div><div class="empty-text">Selecciona una fecha y pulsa "Cargar cobros"</div></div>
-      </div>
-      <div class="abreb-section" id="abreb-section" style="display:none">
-        <div class="abreb-card" id="abreb-card"></div>
-      </div>
-      <div class="acciones-bar" id="acciones-bar" style="display:none">
-        <button class="btn-cierre btn-cierre-mar" onclick="generarCierre('marbella')">🟣 Cierre Marbella</button>
-        <button class="btn-cierre btn-cierre-mon" onclick="generarCierre('monda')">🟢 Cierre Monda</button>
-        <button class="btn-cierre btn-cierre-abreb" onclick="generarCierre('abrebotellas')">📋 No Confirmados</button>
-        <button class="btn-cierre btn-cierre-all" onclick="generarCierre('all')">📋 Cierre Global</button>
-      </div>
+  <div class="tabs">
+    <div class="tab active" onclick="showTab('caja')" id="tab-caja">🏦 Caja Diaria</div>
+    <div class="tab" onclick="showTab('contabilidad')" id="tab-contabilidad" style="display:none">📊 Contabilidad</div>
+  </div>
+
+  <!-- CAJA DIARIA -->
+  <div id="panel-caja" class="main">
+    <div class="filtros-bar">
+      <label>Desde</label>
+      <input type="date" id="fecha-desde" onchange="guardarFiltros()">
+      <label>Hasta</label>
+      <input type="date" id="fecha-hasta" onchange="guardarFiltros()">
+      <button class="btn-cargar" onclick="cargarCobros()" id="btn-cargar">
+        <span>↻</span> Cargar cobros
+      </button>
     </div>
 
-    <!-- PANEL CONTABILIDAD -->
-    <div id="panel-contabilidad" class="panel">
-      <div class="contab-top">
-        <div>
-          <div class="contab-title">Control de Efectivo</div>
-          <div class="contab-subtitle">Selecciona el rango de fechas y marca las facturas cuando recojas el dinero</div>
-        </div>
-        <div class="rango-row">
-          <span class="rango-label">Desde</span>
-          <input type="date" class="date-input" id="contab-desde"/>
-          <span class="rango-label">Hasta</span>
-          <input type="date" class="date-input" id="contab-hasta"/>
-          <button class="btn-cargar" id="btn-contab" onclick="cargarContabilidad()">
-            <span id="contab-icon">↻</span><span id="contab-text">Cargar</span>
-          </button>
-        </div>
-      </div>
-
-      <div id="contab-resumen" style="display:none">
-        <div class="contab-stats">
-          <div class="stat-card"><div class="stat-label">Total efectivo período</div><div class="stat-value" id="stat-total">0,00 €</div><div class="stat-sub" id="stat-facturas">0 facturas</div></div>
-          <div class="stat-card green"><div class="stat-label">Verificado y recogido</div><div class="stat-value" id="stat-verificado">0,00 €</div><div class="stat-sub" id="stat-verificado-n">0 facturas</div></div>
-          <div class="stat-card orange"><div class="stat-label">Pendiente de recoger</div><div class="stat-value" id="stat-pendiente">0,00 €</div><div class="stat-sub" id="stat-pendiente-n">0 facturas</div></div>
-        </div>
-        <div class="progress-wrap">
-          <div class="progress-text" id="progress-text">0 / 0</div>
-          <div class="progress-bar-bg"><div class="progress-bar-fill" id="progress-bar" style="width:0%"></div></div>
-          <div class="progress-badge" id="progress-badge">Pendiente</div>
-        </div>
-      </div>
-
-      <div class="contab-table-card" id="contab-table-card">
-        <div class="contab-table-header">
-          <div class="contab-table-title">Facturas de efectivo</div>
-          <div style="font-size:12px;color:var(--muted)" id="contab-rango-label"></div>
-        </div>
-        <div id="contab-table-body">
-          <div class="contab-empty">Selecciona un rango de fechas y pulsa Cargar</div>
-        </div>
+    <div id="caja-content">
+      <div class="empty-state">
+        <div class="icon">📅</div>
+        <p>Selecciona un rango de fechas y pulsa "Cargar cobros"</p>
       </div>
     </div>
-  </main>
+  </div>
+
+  <!-- CONTABILIDAD -->
+  <div id="panel-contabilidad" class="main" style="display:none">
+    <div class="contab-header">
+      <label>Desde</label>
+      <input type="date" id="contab-desde" class="filtros-bar" style="padding:8px 12px;border:1.5px solid var(--gray-light);border-radius:8px;">
+      <label>Hasta</label>
+      <input type="date" id="contab-hasta" class="filtros-bar" style="padding:8px 12px;border:1.5px solid var(--gray-light);border-radius:8px;">
+      <button class="btn-cargar" onclick="cargarContabilidad()">↻ Cargar</button>
+    </div>
+    <div id="contab-content">
+      <div class="empty-state"><div class="icon">📊</div><p>Selecciona un rango y carga los datos</p></div>
+    </div>
+  </div>
 </div>
 
 <!-- MODAL CIERRE -->
-<div class="modal-overlay" id="modal-cierre" style="display:none" onclick="closeCierre(event)">
-  <div class="print-modal" onclick="event.stopPropagation()">
-    <div class="print-header">
-      <h2>Documento de Cierre de Caja</h2>
-      <div class="print-actions">
-        <button class="btn-print" onclick="imprimirCierre()">🖨 Imprimir / PDF</button>
-        <button class="btn-close-modal" onclick="closeCierre()">Cerrar</button>
-      </div>
+<div id="modal-cierre" style="display:none" class="modal-overlay" onclick="if(event.target===this)cerrarModal()">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="modal-title">Cierre de Caja</div>
+      <button class="btn-close" onclick="cerrarModal()">✕</button>
     </div>
-    <div id="cierre-doc"></div>
+    <div class="modal-body" id="modal-body"></div>
   </div>
 </div>
 
 <script>
-// ─── CONFIG ──────────────────────────────────────────────────
-// URL del Apps Script — reemplazar cuando esté desplegado
-const AS_URL = 'https://script.google.com/macros/s/AKfycbxaSfXi-D3Sx8Lpek6pHPaA-2_NgrXW6CTM0d37LlCX-x0hqRLM6BwyH-BIinyiJlAi/exec';
-const AS_TOKEN = 'ORUMx2026CajaStats';
+const API_WORKER = 'https://orum-api.dashboardorum.workers.dev';
+const API_SERVER = '';
 
-// ─── STATE ───────────────────────────────────────────────────
-let sessionToken = sessionStorage.getItem('orum_session');
-let usuarioActual = sessionStorage.getItem('orum_user');
-let rolActual = sessionStorage.getItem('orum_rol');
-let datosActuales = null;
-let contabData = [];
-const cajaState = {
-  marbella:     { saldo_inicial: 0, retiradas: [] },
-  monda:        { saldo_inicial: 0, retiradas: [] },
-  abrebotellas: { saldo_inicial: 0, retiradas: [] }
-};
+// Métodos de pago disponibles
+const METODOS = [
+  { id: 'efectivo-marbella', label: '💵 Ef. Marbella', ubicacion: 'marbella', tipo: 'efectivo', nombre: 'Efectivo Marbella' },
+  { id: 'tpv-marbella',      label: '💳 TPV Marbella', ubicacion: 'marbella', tipo: 'tpv',      nombre: 'TPV Marbella' },
+  { id: 'efectivo-monda',    label: '💵 Ef. Monda',    ubicacion: 'monda',    tipo: 'efectivo', nombre: 'Efectivo Monda' },
+  { id: 'tpv-monda',         label: '💳 TPV Monda',    ubicacion: 'monda',    tipo: 'tpv',      nombre: 'TPV Monda' },
+  { id: 'transferencia',     label: '🏦 Transf.',      ubicacion: null,       tipo: 'transferencia', nombre: 'Transferencia Bancaria' },
+  { id: 'factura0',          label: '📄 Factura 0€',   ubicacion: null,       tipo: 'otro',     nombre: 'Factura 0€' },
+];
 
-// ─── INIT ────────────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', async () => {
-  const hoy = new Date().toISOString().split('T')[0];
-  document.getElementById('fecha-desde').value = hoy;
-  document.getElementById('fecha-hasta').value = hoy;
-  // Rango contabilidad: últimos 7 días por defecto
-  const hace7 = new Date(); hace7.setDate(hace7.getDate()-7);
-  document.getElementById('contab-desde').value = hace7.toISOString().split('T')[0];
-  document.getElementById('contab-hasta').value = hoy;
+let estadoActual = {}; // factura_id -> metodo
+let facturasActuales = [];
+let noConfirmadosActuales = [];
+let registrosGuardados = {};
+let userInfo = null;
 
-  if (sessionToken) {
-    try {
-      const r = await fetch('/api/me', { headers: { 'x-session-token': sessionToken } });
-      if (r.ok) { const d = await r.json(); mostrarApp(d.usuario, d.rol); return; }
-    } catch(e) {}
-  }
-  mostrarLogin();
-});
-
-function mostrarLogin() {
-  document.getElementById('login-screen').style.display = 'flex';
-  document.getElementById('app-screen').style.display = 'none';
-  setTimeout(() => document.getElementById('login-user').focus(), 100);
-}
-
-function mostrarApp(usuario, rol) {
-  usuarioActual = usuario; rolActual = rol;
-  document.getElementById('login-screen').style.display = 'none';
-  document.getElementById('app-screen').style.display = 'block';
-  const nombre = usuario.charAt(0).toUpperCase() + usuario.slice(1);
-  document.getElementById('user-name').textContent = nombre;
-  document.getElementById('user-avatar').textContent = nombre.charAt(0);
-  if (rol === 'contabilidad' || rol === 'admin') document.getElementById('tab-contab').style.display = 'inline-block';
-}
-
+// ── AUTH ──────────────────────────────────────────────────────
 async function doLogin() {
-  const usuario = document.getElementById('login-user').value.trim();
-  const password = document.getElementById('login-pass').value;
-  const btn = document.getElementById('btn-login');
-  const errEl = document.getElementById('login-error');
-  if (!usuario || !password) { errEl.textContent = 'Introduce usuario y contraseña'; errEl.style.display = 'block'; return; }
-  btn.disabled = true; btn.textContent = 'Entrando...'; errEl.style.display = 'none';
-  try {
-    const r = await fetch('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ usuario, password }) });
-    const d = await r.json();
-    if (!r.ok) throw new Error(d.error || 'Error');
-    sessionToken = d.token; rolActual = d.rol;
-    sessionStorage.setItem('orum_session', d.token);
-    sessionStorage.setItem('orum_user', d.usuario);
-    sessionStorage.setItem('orum_rol', d.rol);
-    mostrarApp(d.usuario, d.rol);
-  } catch(e) { errEl.textContent = e.message; errEl.style.display = 'block'; }
-  finally { btn.disabled = false; btn.textContent = 'Entrar'; }
+  const usuario = document.getElementById('inp-usuario').value.trim();
+  const password = document.getElementById('inp-pass').value;
+  const r = await fetch('/api/login', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({usuario,password}) });
+  const d = await r.json();
+  if (!r.ok) { document.getElementById('login-error').textContent = d.error || 'Error'; return; }
+  userInfo = d;
+  iniciarApp();
 }
+
+document.getElementById('inp-pass').addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); });
 
 async function doLogout() {
-  try { await fetch('/api/logout', { method: 'POST', headers: { 'x-session-token': sessionToken } }); } catch(e) {}
-  sessionToken = null; sessionStorage.clear();
-  document.getElementById('login-user').value = '';
-  document.getElementById('login-pass').value = '';
-  mostrarLogin();
+  await fetch('/api/logout', { method: 'POST' });
+  location.reload();
 }
 
-function switchTab(tab, el) {
-  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
-  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
-  el.classList.add('active');
-  document.getElementById('panel-' + tab).classList.add('active');
+async function checkSession() {
+  const r = await fetch('/api/me');
+  if (!r.ok) return;
+  userInfo = await r.json();
+  iniciarApp();
 }
 
-// ─── APPS SCRIPT HELPER ──────────────────────────────────────
-async function asGet(params) {
-  const url = AS_URL + '?' + new URLSearchParams({ token: AS_TOKEN, ...params });
-  const r = await fetch(url);
-  const json = await r.json();
-  return json.data;
+function iniciarApp() {
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  document.getElementById('user-nombre').textContent = userInfo.nombre;
+  document.getElementById('user-avatar').textContent = userInfo.nombre[0].toUpperCase();
+
+  // Mostrar tabs según rol
+  if (['contabilidad','admin'].includes(userInfo.rol)) {
+    document.getElementById('tab-contabilidad').style.display = '';
+  }
+
+  // Fechas por defecto: mes actual
+  const hoy = new Date();
+  const primerDia = new Date(hoy.getFullYear(), hoy.getMonth(), 1).toISOString().substring(0,10);
+  const hoyStr = hoy.toISOString().substring(0,10);
+  
+  const savedDesde = localStorage.getItem('caja-desde') || primerDia;
+  const savedHasta = localStorage.getItem('caja-hasta') || hoyStr;
+  document.getElementById('fecha-desde').value = savedDesde;
+  document.getElementById('fecha-hasta').value = savedHasta;
+
+  const hoyContab = hoy.toISOString().substring(0,10);
+  document.getElementById('contab-desde').value = primerDia;
+  document.getElementById('contab-hasta').value = hoyContab;
 }
 
-// ─── CARGAR DATOS CAJA ───────────────────────────────────────
-async function cargarDatos() {
+function guardarFiltros() {
+  localStorage.setItem('caja-desde', document.getElementById('fecha-desde').value);
+  localStorage.setItem('caja-hasta', document.getElementById('fecha-hasta').value);
+}
+
+function showTab(tab) {
+  ['caja','contabilidad'].forEach(t => {
+    document.getElementById('panel-' + t).style.display = t === tab ? '' : 'none';
+    document.getElementById('tab-' + t).classList.toggle('active', t === tab);
+  });
+}
+
+// ── CARGAR COBROS ─────────────────────────────────────────────
+async function cargarCobros() {
   const desde = document.getElementById('fecha-desde').value;
-  const hasta  = document.getElementById('fecha-hasta').value;
-  if (!desde || !hasta) { mostrarError('Selecciona las fechas'); return; }
-  if (desde > hasta) { mostrarError('La fecha inicio debe ser anterior a la final'); return; }
-  const fecha = desde; // Para compatibilidad con cierre
-  setLoading(true); ocultarError();
-  try {
-    // 1. Métodos de pago
-    const metodos = await asGet({ action: 'paymentmethods' });
-    const metodoMap = {};
-    (metodos || []).forEach(m => { metodoMap[m.id] = m.name || m.displayname || ''; });
+  const hasta = document.getElementById('fecha-hasta').value;
+  if (!desde || !hasta) return;
 
-    // 2. Pagos del día
-    const payments = await asGet({ action: 'invoicepayments', desde: desde, hasta: hasta });
+  const btn = document.getElementById('btn-cargar');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner" style="width:16px;height:16px;border-width:2px;display:inline-block;margin:0"></span> Cargando...';
 
-    // 3. Mapear
-    const pagosRaw = (payments || []).map(p => {
-      const mid = parseInt((p.paymentmethod||'').split('/').pop());
-      const mn = metodoMap[mid] || '';
-      let ub = null, tp = null;
-      if (mn==='Efectivo Marbella'){ub='marbella';tp='efectivo';}
-      else if(mn==='TPV Marbella'){ub='marbella';tp='tpv';}
-      else if(mn==='Efectivo Monda'){ub='monda';tp='efectivo';}
-      else if(mn==='TPV Monda'){ub='monda';tp='tpv';}
-      const invId = (p.invoice||'').split('/').pop();
-      return { id: p.id, importe: parseFloat(p.amount)||0, fecha: p.paymentdate, metodo: mn, ubicacion: ub, tipo: tp, invoiceId: invId, numero_factura: invId, cliente:'', proyecto_id:'', proyecto_nombre:'', proyecto_numero:'', importe_base: null, tiene_abrebotellas: false };
-    });
-
-    let resultado = pagosRaw.filter(p => p.ubicacion !== null);
-
-    // 4. Enriquecer facturas en paralelo
-    const invoiceIds = [...new Set(resultado.map(p=>p.invoiceId).filter(Boolean))];
-    await Promise.all(invoiceIds.map(async invId => {
-      try {
-        const inv = await asGet({ action: 'invoice', id: invId });
-        if (inv) {
-          const projId = inv.project ? (inv.project+'').split('/').pop() : '';
-          resultado.forEach(p => {
-            if (p.invoiceId === invId) {
-              p.numero_factura = inv.number || invId;
-              p.cliente = inv.contact?.displayname || inv.customer_displayname || '';
-              p.proyecto_numero = inv.project?.number || '';
-              p.proyecto_nombre = inv.project?.name || '';
-              p.proyecto_id = projId;
-              p.importe_base = parseFloat(inv.total_without_vat || inv.subtotal || 0);
-              p.importe_total = parseFloat(inv.total_with_vat || inv.total || p.importe);
-            }
-          });
-        }
-      } catch(e) {}
-    }));
-
-    // 5. Detectar abrebotellas
-    try {
-      const eq = await asGet({ action: 'projectequipment' });
-      const gruposAbreb = new Set();
-      (eq||[]).forEach(e => { if((e.equipment||'')===('/equipment/1600')) gruposAbreb.add(e.equipment_group); });
-      const projsAbreb = new Set();
-      await Promise.all([...gruposAbreb].map(async gp => {
-        if (!gp) return;
-        const g = await asGet({ action: 'equipmentgroup', id: gp.split('/').pop() });
-        if (g?.project) projsAbreb.add((g.project+'').split('/').pop());
-      }));
-      resultado.forEach(p => { if(p.proyecto_id && projsAbreb.has(p.proyecto_id)) p.tiene_abrebotellas = true; });
-    } catch(e) { console.warn('Abrebotellas:', e.message); }
-
-    // 6. Agrupar
-    const resumen = {
-      marbella: { efectivo:0, tpv:0, total:0, pagos:[] },
-      monda:    { efectivo:0, tpv:0, total:0, pagos:[] }
-    };
-    resultado.forEach(p => {
-      resumen[p.ubicacion][p.tipo] += p.importe;
-      resumen[p.ubicacion].total  += p.importe;
-      resumen[p.ubicacion].pagos.push(p);
-    });
-
-    const pagosAbreb = resultado.filter(p => p.tiene_abrebotellas && p.tipo==='efectivo');
-    const cajaAbrebotellas = { total_base: pagosAbreb.reduce((s,p)=>s+(p.importe_base||0),0), pagos: pagosAbreb };
-
-    datosActuales = { fecha: desde, hasta, resumen, pagos: resultado, cajaAbrebotellas };
-    renderCajas(datosActuales);
-    renderAbrebotellas(cajaAbrebotellas);
-    document.getElementById('acciones-bar').style.display = 'flex';
-  } catch(e) {
-    mostrarError('Error: ' + e.message);
-  } finally { setLoading(false); }
-}
-
-function setLoading(v) {
-  document.getElementById('cargar-icon').innerHTML = v ? '<div class="spinner"></div>' : '↻';
-  document.getElementById('cargar-text').textContent = v ? 'Cargando...' : 'Cargar cobros';
-  document.getElementById('btn-cargar').classList.toggle('loading', v);
-}
-function mostrarError(msg) { const b=document.getElementById('error-bar'); b.textContent=msg; b.style.display='block'; }
-function ocultarError() { document.getElementById('error-bar').style.display='none'; }
-
-// ─── RENDER CAJAS ────────────────────────────────────────────
-function renderCajas(data) {
-  const c = document.getElementById('cajas-container');
-  c.innerHTML = '';
-  ['marbella','monda'].forEach(ub => c.appendChild(crearCajaCard(ub, data.resumen[ub], cajaState[ub])));
-}
-
-function crearCajaCard(ub, r, state) {
-  const card = document.createElement('div');
-  card.className = 'caja-card';
-  const nombre = ub==='marbella'?'Marbella':'Monda';
-  const emoji  = ub==='marbella'?'🏖':'🏡';
-  const nEf = r.pagos.filter(p=>p.tipo==='efectivo').length;
-  const nTpv = r.pagos.filter(p=>p.tipo==='tpv').length;
-  card.innerHTML = `
-    <div class="caja-header"><div class="caja-titulo"><div class="caja-icono icono-${ub}">${emoji}</div><div class="caja-nombre">Caja ${nombre}</div></div><div class="caja-total">${fmt(r.total)}</div></div>
-    <div class="kpi-row">
-      <div class="kpi-pill kpi-efectivo"><div class="kpi-label">Efectivo</div><div class="kpi-value">${fmt(r.efectivo)}</div><div class="kpi-count">${nEf} cobro${nEf!==1?'s':''}</div></div>
-      <div class="kpi-pill kpi-tpv"><div class="kpi-label">TPV</div><div class="kpi-value">${fmt(r.tpv)}</div><div class="kpi-count">${nTpv} cobro${nTpv!==1?'s':''}</div></div>
-    </div>
-    <div class="saldo-row"><label>Saldo inicial €</label><input type="number" class="saldo-input" id="saldo-${ub}" value="${state.saldo_inicial}" min="0" step="0.01" oninput="actualizarSaldo('${ub}',this.value)"/><button class="btn-add-retirada" onclick="addRetirada('${ub}')">− Retirada</button></div>
-    <div class="retiradas-list" id="retiradas-${ub}"></div>
-    <div class="saldo-final-row"><div class="saldo-final-label">Efectivo en caja</div><div class="saldo-final-value" id="saldo-final-${ub}">${fmt(r.efectivo+state.saldo_inicial)}</div></div>
-    <div class="pagos-section">
-      <div class="pagos-toggle" onclick="togglePagos('${ub}',this)"><span class="pagos-toggle-label">${r.pagos.length} cobro${r.pagos.length!==1?'s':''} registrados</span><span class="pagos-toggle-arrow">▼</span></div>
-      <div class="pagos-table-wrap" id="tabla-${ub}">${renderTablaPagos(r.pagos)}</div>
-    </div>`;
-  renderRetiradas(ub, state.retiradas);
-  return card;
-}
-
-function renderAbrebotellas(data) {
-  const sec = document.getElementById('abreb-section');
-  const card = document.getElementById('abreb-card');
-  const state = cajaState.abrebotellas;
-  if (!data?.pagos?.length) { sec.style.display='none'; return; }
-  sec.style.display = 'block';
-  card.innerHTML = `
-    <div class="abreb-header"><div class="abreb-title"><div class="abreb-icon">🍾</div><div><div class="abreb-nombre">Caja Abrebotellas</div><div class="abreb-subtitle">Importe base sin IVA · ${data.pagos.length} proyecto${data.pagos.length!==1?'s':''}</div></div></div><div class="abreb-total">${fmt(data.total_base)}</div></div>
-    <div class="saldo-row"><label>Saldo inicial €</label><input type="number" class="saldo-input" id="saldo-abrebotellas" value="${state.saldo_inicial}" min="0" step="0.01" oninput="actualizarSaldo('abrebotellas',this.value)"/><button class="btn-add-retirada" onclick="addRetirada('abrebotellas')">− Retirada</button></div>
-    <div class="retiradas-list" id="retiradas-abrebotellas"></div>
-    <div class="saldo-final-row"><div class="saldo-final-label">Efectivo en caja</div><div class="saldo-final-value" id="saldo-final-abrebotellas">${fmt(data.total_base+state.saldo_inicial)}</div></div>
-    <div class="pagos-section">
-      <div class="pagos-toggle" onclick="togglePagos('abreb-det',this)"><span class="pagos-toggle-label">Ver proyectos con abrebotellas</span><span class="pagos-toggle-arrow">▼</span></div>
-      <div class="pagos-table-wrap" id="tabla-abreb-det">
-        <table class="pagos-table"><thead><tr><th>Factura</th><th>Cliente</th><th>Proyecto</th><th style="text-align:right">Base s/IVA</th><th style="text-align:right">Total c/IVA</th></tr></thead>
-        <tbody>${data.pagos.map(p=>`<tr><td>${p.numero_factura||'-'}</td><td style="max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.cliente||'-'}</td><td>${p.proyecto_nombre||p.proyecto_numero||'-'}</td><td class="importe-cell" style="color:var(--orange)">${fmt(p.importe_base||0)}</td><td class="importe-cell">${fmt(p.importe)}</td></tr>`).join('')}</tbody></table>
-      </div>
-    </div>`;
-  renderRetiradas('abrebotellas', state.retiradas);
-}
-
-function renderTablaPagos(pagos) {
-  if (!pagos.length) return '<p style="color:var(--muted);font-size:12px;padding:10px 0">Sin cobros este día</p>';
-  return `<table class="pagos-table"><thead><tr><th>Hora</th><th>Factura</th><th>Cliente</th><th>Método</th><th style="text-align:right">Importe</th></tr></thead>
-    <tbody>${pagos.map(p=>`<tr><td>${(p.fecha||'').substring(11,16)}</td><td>${p.numero_factura||'-'}</td><td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.cliente||'-'}</td><td><span class="tag tag-${p.tipo}">${p.tipo==='efectivo'?'Efectivo':'TPV'}</span></td><td class="importe-cell">${fmt(p.importe)}</td></tr>`).join('')}</tbody></table>`;
-}
-
-function togglePagos(id, el) { document.getElementById('tabla-'+id).classList.toggle('visible'); el.classList.toggle('open'); }
-function actualizarSaldo(ub, val) { cajaState[ub].saldo_inicial=parseFloat(val)||0; recalc(ub); }
-function addRetirada(ub) { cajaState[ub].retiradas.push({id:Date.now(),concepto:'',importe:0}); renderRetiradas(ub,cajaState[ub].retiradas); recalc(ub); }
-function removeRetirada(ub, id) { cajaState[ub].retiradas=cajaState[ub].retiradas.filter(r=>r.id!==id); renderRetiradas(ub,cajaState[ub].retiradas); recalc(ub); }
-function updateRetirada(ub, id, field, val) { const r=cajaState[ub].retiradas.find(r=>r.id===id); if(r) r[field]=field==='importe'?(parseFloat(val)||0):val; if(field==='importe') recalc(ub); }
-function renderRetiradas(ub, retiradas) {
-  const c=document.getElementById('retiradas-'+ub); if(!c) return;
-  c.innerHTML=retiradas.map(r=>`<div class="retirada-item"><div class="retirada-dot"></div><input class="retirada-concepto" type="text" placeholder="Concepto..." value="${r.concepto}" oninput="updateRetirada('${ub}',${r.id},'concepto',this.value)"/><input class="retirada-importe" type="number" placeholder="0.00" value="${r.importe||''}" min="0" step="0.01" oninput="updateRetirada('${ub}',${r.id},'importe',this.value)"/><button class="btn-remove" onclick="removeRetirada('${ub}',${r.id})">×</button></div>`).join('');
-}
-function recalc(ub) {
-  if(!datosActuales) return;
-  const base = ub==='abrebotellas' ? datosActuales.cajaAbrebotellas.total_base : datosActuales.resumen[ub].efectivo;
-  const s=cajaState[ub]; const totalRet=s.retiradas.reduce((a,r)=>a+r.importe,0);
-  const el=document.getElementById('saldo-final-'+ub);
-  if(el) el.textContent=fmt(base+s.saldo_inicial-totalRet);
-}
-
-// ─── CONTABILIDAD ────────────────────────────────────────────
-async function cargarContabilidad() {
-  const desde = document.getElementById('contab-desde').value;
-  const hasta  = document.getElementById('contab-hasta').value;
-  if (!desde || !hasta) { alert('Selecciona un rango de fechas'); return; }
-  if (desde > hasta) { alert('La fecha de inicio debe ser anterior a la fecha final'); return; }
-
-  // Loading
-  const btn = document.getElementById('btn-contab');
-  document.getElementById('contab-icon').innerHTML = '<div class="spinner"></div>';
-  document.getElementById('contab-text').textContent = 'Cargando...';
-  btn.classList.add('loading');
+  document.getElementById('caja-content').innerHTML = '<div class="loading"><div class="spinner"></div><p>Cargando facturas de Rentman...</p></div>';
 
   try {
-    const metodos = await asGet({ action: 'paymentmethods' });
-    const metodoMap = {};
-    (metodos||[]).forEach(m => { metodoMap[m.id] = m.name||m.displayname||''; });
+    // Cargar facturas del worker
+    const [rFacturas, rRegistros] = await Promise.all([
+      fetch(`${API_WORKER}/caja/facturas?desde=${desde}&hasta=${hasta}`).then(r=>r.json()),
+      fetch(`/api/caja/registros?desde=${desde}&hasta=${hasta}`).then(r=>r.json())
+    ]);
 
-    const payments = await asGet({ action: 'invoicepayments', desde, hasta });
+    facturasActuales = rFacturas.facturas || [];
+    noConfirmadosActuales = rFacturas.no_confirmados || [];
+    registrosGuardados = rRegistros || {};
 
-    let pagos = (payments||[]).map(p => {
-      const mid = parseInt((p.paymentmethod||'').split('/').pop());
-      const mn = metodoMap[mid] || '';
-      let ub = null;
-      if (mn==='Efectivo Marbella') ub='marbella';
-      else if (mn==='Efectivo Monda') ub='monda';
-      if (!ub) return null;
-      const invId = (p.invoice||'').split('/').pop();
-      const fechaPago = (p.paymentdate||'').substring(0,10);
-      return { id: p.id, importe: parseFloat(p.amount)||0, fecha: fechaPago, metodo: mn, ubicacion: ub, invoiceId: invId, numero_factura: invId, cliente:'', tick_contabilidad: null };
-    }).filter(Boolean);
+    // Aplicar registros guardados
+    estadoActual = {};
+    Object.entries(registrosGuardados).forEach(([id, reg]) => {
+      estadoActual[id] = reg.metodo_pago;
+    });
 
-    // Enriquecer facturas en paralelo
-    const invoiceIds = [...new Set(pagos.map(p=>p.invoiceId).filter(Boolean))];
-    await Promise.all(invoiceIds.map(async invId => {
-      try {
-        const inv = await asGet({ action: 'invoice', id: invId });
-        if (inv) { pagos.forEach(p => { if(p.invoiceId===invId){ p.numero_factura=inv.number||invId; p.cliente=inv.contact?.displayname||inv.customer_displayname||''; } }); }
-      } catch(e) {}
-    }));
-
-    // Cargar ticks
-    try {
-      const tr = await fetch(`/api/ticks?desde=${desde}&hasta=${hasta}`, { headers: { 'x-session-token': sessionToken } });
-      if (tr.ok) {
-        const td = await tr.json();
-        pagos.forEach(p => { const k=p.fecha+'_'+p.invoiceId; p.tick_contabilidad=td.ticks[k]||null; });
-      }
-    } catch(e) {}
-
-    // Ordenar por fecha desc
-    pagos.sort((a,b) => b.fecha.localeCompare(a.fecha));
-
-    contabData = pagos;
-    renderContabilidad(desde, hasta);
+    renderCaja();
   } catch(e) {
-    alert('Error: ' + e.message);
-  } finally {
-    document.getElementById('contab-icon').textContent = '↻';
-    document.getElementById('contab-text').textContent = 'Cargar';
-    btn.classList.remove('loading');
+    document.getElementById('caja-content').innerHTML = `<div class="empty-state"><div class="icon">⚠️</div><p>Error al cargar: ${e.message}</p></div>`;
   }
+
+  btn.disabled = false;
+  btn.innerHTML = '<span>↻</span> Cargar cobros';
 }
 
-function renderContabilidad(desde, hasta) {
-  const resumen = document.getElementById('contab-resumen');
-  const body = document.getElementById('contab-table-body');
-  const rangoLabel = document.getElementById('contab-rango-label');
+// ── RENDER CAJA ───────────────────────────────────────────────
+function renderCaja() {
+  const desde = document.getElementById('fecha-desde').value;
+  const hasta = document.getElementById('fecha-hasta').value;
 
-  const fmtFecha = d => new Date(d+'T12:00:00').toLocaleDateString('es-ES',{day:'2-digit',month:'short'});
-  rangoLabel.textContent = fmtFecha(desde) + ' — ' + fmtFecha(hasta);
+  // Calcular totales
+  const totales = { marbella: {efectivo:0,tpv:0,count_ef:0,count_tpv:0}, monda: {efectivo:0,tpv:0,count_ef:0,count_tpv:0}, transferencia: 0 };
 
-  if (!contabData.length) {
-    resumen.style.display = 'none';
-    body.innerHTML = '<div class="contab-empty">No hay cobros en efectivo en este período</div>';
-    return;
-  }
-
-  const total = contabData.length;
-  const marcados = contabData.filter(p=>p.tick_contabilidad).length;
-  const importeTotal = contabData.reduce((s,p)=>s+p.importe,0);
-  const importeVerif = contabData.filter(p=>p.tick_contabilidad).reduce((s,p)=>s+p.importe,0);
-  const importePend  = importeTotal - importeVerif;
-  const pct = total>0 ? Math.round((marcados/total)*100) : 0;
-
-  resumen.style.display = 'block';
-  document.getElementById('stat-total').textContent = fmt(importeTotal);
-  document.getElementById('stat-facturas').textContent = total + ' factura' + (total!==1?'s':'');
-  document.getElementById('stat-verificado').textContent = fmt(importeVerif);
-  document.getElementById('stat-verificado-n').textContent = marcados + ' factura' + (marcados!==1?'s':'');
-  document.getElementById('stat-pendiente').textContent = fmt(importePend);
-  document.getElementById('stat-pendiente-n').textContent = (total-marcados) + ' factura' + ((total-marcados)!==1?'s':'');
-  document.getElementById('progress-text').textContent = marcados + ' / ' + total + ' verificadas';
-  document.getElementById('progress-bar').style.width = pct + '%';
-  const badge = document.getElementById('progress-badge');
-  if (marcados===total && total>0) { badge.textContent='✓ Completo'; badge.className='progress-badge done'; }
-  else { badge.textContent=pct+'% verificado'; badge.className='progress-badge'; }
-
-  const canTick = rolActual==='contabilidad' || rolActual==='admin';
-
-  // Agrupar por fecha para mostrar separadores
-  const porFecha = {};
-  contabData.forEach(p => { if(!porFecha[p.fecha]) porFecha[p.fecha]=[]; porFecha[p.fecha].push(p); });
-
-  let html = `<table class="contab-table">
-    <thead><tr><th style="width:36px">✓</th><th>Fecha</th><th>Factura</th><th>Cliente</th><th>Ubicación</th><th style="text-align:right">Importe</th><th>Verificado por</th></tr></thead>
-    <tbody>`;
-
-  Object.keys(porFecha).sort((a,b)=>b.localeCompare(a)).forEach(fecha => {
-    porFecha[fecha].forEach(p => {
-      const tick = p.tick_contabilidad;
-      const ticked = !!tick;
-      const ub = p.ubicacion==='marbella'?'🏖 Marbella':'🏡 Monda';
-      const fechaDisplay = new Date(fecha+'T12:00:00').toLocaleDateString('es-ES',{weekday:'short',day:'2-digit',month:'short'});
-      html += `<tr class="${ticked?'marcado':''}">
-        <td>${canTick
-          ? `<button class="tick-btn ${ticked?'ticked':''}" onclick="toggleTick('${fecha}','${p.invoiceId}',${!ticked})" title="${ticked?'Desmarcar':'Marcar como recogido'}">${ticked?'✓':''}</button>`
-          : `<span style="color:${ticked?'var(--green)':'var(--border2)'};font-size:16px">${ticked?'✓':'○'}</span>`
-        }${ticked&&tick.usuario?`<div class="tick-info">${tick.usuario}</div>`:''}</td>
-        <td><span class="fecha-chip">${fechaDisplay}</span></td>
-        <td style="font-family:'DM Mono',monospace;font-size:12px">${p.numero_factura||'-'}</td>
-        <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:'DM Mono',monospace;font-size:12px">${p.cliente||'-'}</td>
-        <td style="font-size:12px">${ub}</td>
-        <td class="importe-cell" style="font-family:'DM Mono',monospace">${fmt(p.importe)}</td>
-        <td style="font-size:11px;color:var(--muted)">${tick?`${tick.usuario}<br><span style="font-size:10px">${new Date(tick.fecha_tick).toLocaleDateString('es-ES',{day:'2-digit',month:'short'})}</span>`:'—'}</td>
-      </tr>`;
-    });
+  facturasActuales.forEach(f => {
+    const metodoId = estadoActual[String(f.id)];
+    if (!metodoId) return;
+    const m = METODOS.find(x => x.id === metodoId);
+    if (!m) return;
+    const imp = f.total_pagado || f.importe || 0;
+    if (m.ubicacion === 'marbella') {
+      totales.marbella[m.tipo] += imp;
+      if (m.tipo === 'efectivo') totales.marbella.count_ef++;
+      else totales.marbella.count_tpv++;
+    } else if (m.ubicacion === 'monda') {
+      totales.monda[m.tipo] += imp;
+      if (m.tipo === 'efectivo') totales.monda.count_ef++;
+      else totales.monda.count_tpv++;
+    } else if (m.tipo === 'transferencia') {
+      totales.transferencia += imp;
+    }
   });
 
-  html += '</tbody></table>';
-  body.innerHTML = html;
+  const totalMarbella = totales.marbella.efectivo + totales.marbella.tpv;
+  const totalMonda = totales.monda.efectivo + totales.monda.tpv;
+  const totalGlobal = totalMarbella + totalMonda + totales.transferencia;
+  const sinAsignar = facturasActuales.filter(f => !estadoActual[String(f.id)]).length;
+
+  const html = `
+    <!-- KPIs -->
+    <div class="kpi-grid">
+      <div class="kpi-card kpi-total">
+        <div class="kpi-label">Total Cobrado</div>
+        <div class="kpi-value">${fmt(totalGlobal)}</div>
+        <div class="kpi-sub">${facturasActuales.length} facturas · ${sinAsignar} sin asignar</div>
+      </div>
+      <div class="kpi-card kpi-efectivo">
+        <div class="kpi-label">Efectivo Total</div>
+        <div class="kpi-value">${fmt(totales.marbella.efectivo + totales.monda.efectivo)}</div>
+        <div class="kpi-sub">Marbella + Monda</div>
+      </div>
+      <div class="kpi-card kpi-tpv">
+        <div class="kpi-label">TPV Total</div>
+        <div class="kpi-value">${fmt(totales.marbella.tpv + totales.monda.tpv)}</div>
+        <div class="kpi-sub">Marbella + Monda</div>
+      </div>
+      <div class="kpi-card kpi-transferencia">
+        <div class="kpi-label">Transferencias</div>
+        <div class="kpi-value">${fmt(totales.transferencia)}</div>
+        <div class="kpi-sub">Bancarias</div>
+      </div>
+    </div>
+
+    <!-- CAJAS -->
+    <div class="cajas-grid">
+      <div class="caja-card caja-marbella">
+        <div class="caja-header">
+          <div class="caja-title">🏙️ Caja Marbella</div>
+          <div class="caja-total">${fmt(totalMarbella)}</div>
+        </div>
+        <div class="caja-desglose">
+          <div class="desglose-item efectivo">
+            <div class="desglose-label">💵 Efectivo</div>
+            <div class="desglose-value">${fmt(totales.marbella.efectivo)}</div>
+            <div class="desglose-count">${totales.marbella.count_ef} cobros</div>
+          </div>
+          <div class="desglose-item tpv">
+            <div class="desglose-label">💳 TPV</div>
+            <div class="desglose-value">${fmt(totales.marbella.tpv)}</div>
+            <div class="desglose-count">${totales.marbella.count_tpv} cobros</div>
+          </div>
+        </div>
+        <div class="saldo-row">
+          <label>Saldo inicial €</label>
+          <input type="number" class="saldo-input" id="saldo-marbella" value="0" min="0">
+          <button class="btn-retirada" onclick="registrarRetirada('marbella')">- Retirada</button>
+        </div>
+        <div class="efectivo-total">
+          <span>EFECTIVO EN CAJA</span>
+          <span id="ef-caja-marbella">${fmt(totales.marbella.efectivo)}</span>
+        </div>
+      </div>
+
+      <div class="caja-card caja-monda">
+        <div class="caja-header">
+          <div class="caja-title">🏡 Caja Monda</div>
+          <div class="caja-total">${fmt(totalMonda)}</div>
+        </div>
+        <div class="caja-desglose">
+          <div class="desglose-item efectivo">
+            <div class="desglose-label">💵 Efectivo</div>
+            <div class="desglose-value">${fmt(totales.monda.efectivo)}</div>
+            <div class="desglose-count">${totales.monda.count_ef} cobros</div>
+          </div>
+          <div class="desglose-item tpv">
+            <div class="desglose-label">💳 TPV</div>
+            <div class="desglose-value">${fmt(totales.monda.tpv)}</div>
+            <div class="desglose-count">${totales.monda.count_tpv} cobros</div>
+          </div>
+        </div>
+        <div class="saldo-row">
+          <label>Saldo inicial €</label>
+          <input type="number" class="saldo-input" id="saldo-monda" value="0" min="0">
+          <button class="btn-retirada" onclick="registrarRetirada('monda')">- Retirada</button>
+        </div>
+        <div class="efectivo-total">
+          <span>EFECTIVO EN CAJA</span>
+          <span id="ef-caja-monda">${fmt(totales.monda.efectivo)}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- BOTONES CIERRE -->
+    <div class="cierres-row">
+      <button class="btn-cierre btn-cierre-marbella" onclick="generarCierre('marbella')">🟣 Cierre Marbella</button>
+      <button class="btn-cierre btn-cierre-monda" onclick="generarCierre('monda')">🟢 Cierre Monda</button>
+      <button class="btn-cierre btn-cierre-noconf" onclick="generarCierre('noconfirmados')">📋 No Confirmados</button>
+      <button class="btn-cierre btn-cierre-global" onclick="generarCierre('global')">📋 Cierre Global</button>
+    </div>
+
+    <!-- TABLA FACTURAS OFICIALES -->
+    <div class="tabla-section">
+      <div class="tabla-header">
+        <div class="tabla-title">
+          🧾 Facturas Oficiales
+          <span class="badge badge-gray">${facturasActuales.length}</span>
+          ${sinAsignar > 0 ? `<span class="badge badge-orange">${sinAsignar} sin asignar</span>` : ''}
+        </div>
+      </div>
+      ${facturasActuales.length === 0
+        ? '<div class="empty-state"><div class="icon">📄</div><p>No hay facturas pagadas en este período</p></div>'
+        : `<table>
+          <thead><tr>
+            <th>Nº Factura</th><th>Cliente</th><th>Proyecto</th>
+            <th>Fecha Pago</th><th>Importe</th><th>Método de Pago</th>
+          </tr></thead>
+          <tbody>
+            ${facturasActuales.map(f => renderFilaFactura(f, false)).join('')}
+          </tbody>
+        </table>`
+      }
+    </div>
+
+    <!-- TABLA NO CONFIRMADOS -->
+    ${noConfirmadosActuales.length > 0 ? `
+    <div class="tabla-section">
+      <div class="tabla-header">
+        <div class="tabla-title">
+          🍾 No Confirmados (Abrebotellas)
+          <span class="badge badge-orange">${noConfirmadosActuales.length}</span>
+        </div>
+      </div>
+      <table>
+        <thead><tr>
+          <th>Nº Factura</th><th>Cliente</th><th>Proyecto</th>
+          <th>Fecha Pago</th><th>Importe Base (sin IVA)</th><th>Método de Pago</th>
+        </tr></thead>
+        <tbody>
+          ${noConfirmadosActuales.map(f => renderFilaFactura(f, true)).join('')}
+        </tbody>
+      </table>
+    </div>` : ''}
+  `;
+
+  document.getElementById('caja-content').innerHTML = html;
+
+  // Actualizar efectivo en caja con saldo inicial
+  actualizarEfectivoCaja('marbella', totales.marbella.efectivo);
+  actualizarEfectivoCaja('monda', totales.monda.efectivo);
 }
 
-async function toggleTick(fecha, invoiceId, marcado) {
-  try {
-    const r = await fetch('/api/tick', { method:'POST', headers:{'Content-Type':'application/json','x-session-token':sessionToken}, body:JSON.stringify({fecha,invoiceId,marcado}) });
-    if (!r.ok) throw new Error('Error al guardar');
-    const p = contabData.find(x=>x.invoiceId===invoiceId && x.fecha===fecha);
-    if (p) p.tick_contabilidad = marcado ? { usuario:usuarioActual, fecha_tick:new Date().toISOString(), invoiceId, fecha } : null;
-    const desde = document.getElementById('contab-desde').value;
-    const hasta  = document.getElementById('contab-hasta').value;
-    renderContabilidad(desde, hasta);
-  } catch(e) { alert('Error: '+e.message); }
+function renderFilaFactura(f, esNoConf) {
+  const metodoId = estadoActual[String(f.id)] || '';
+  const m = METODOS.find(x => x.id === metodoId);
+  const imp = f.total_pagado || f.importe || 0;
+  const impStr = imp >= 0
+    ? `<span class="importe positivo">${fmt(imp)}</span>`
+    : `<span class="importe negativo">${fmt(imp)}</span>`;
+
+  const botonesMetodo = METODOS.map(met => `
+    <button class="btn-metodo ${metodoId === met.id ? 'selected-' + met.id : ''}"
+      onclick="asignarMetodo(${f.id}, '${met.id}', ${esNoConf})">
+      ${met.label}
+    </button>
+  `).join('');
+
+  return `<tr id="fila-${f.id}">
+    <td><strong>${f.numero || f.id}</strong></td>
+    <td>${f.cliente || '—'}</td>
+    <td style="color:var(--gray);font-size:12px">${f.proyecto_numero ? '#' + f.proyecto_numero : '—'}</td>
+    <td style="color:var(--gray)">${f.fecha_pago || '—'}</td>
+    <td>${impStr}</td>
+    <td><div class="metodo-selector">${botonesMetodo}</div></td>
+  </tr>`;
 }
 
-// ─── CIERRE ──────────────────────────────────────────────────
-function generarCierre(scope) {
-  if (!datosActuales) return;
-  const fecha = datosActuales.fecha;
-  const hasta = datosActuales.hasta || fecha;
-  const esPeriodo = fecha !== hasta;
-  const fechaFmt = esPeriodo
-    ? new Date(fecha+'T12:00:00').toLocaleDateString('es-ES',{day:'2-digit',month:'long'}) + ' — ' + new Date(hasta+'T12:00:00').toLocaleDateString('es-ES',{day:'2-digit',month:'long',year:'numeric'})
-    : new Date(fecha+'T12:00:00').toLocaleDateString('es-ES',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
-  const ahora = new Date().toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'});
-  const nombreUsuario = usuarioActual.charAt(0).toUpperCase()+usuarioActual.slice(1);
+async function asignarMetodo(facturaId, metodoId, esNoConf) {
+  const key = String(facturaId);
+  const anterior = estadoActual[key];
 
-  let html = `<div class="doc-top"><div><div class="doc-empresa">ORUM</div><div class="doc-subtitle">Rent & Events · Arqueo de Caja</div></div><div class="doc-meta"><strong>${fechaFmt}</strong>Cierre: ${ahora}<br>Por: ${nombreUsuario}</div></div>`;
-
-  if (scope==='abrebotellas') {
-    const ab=datosActuales.cajaAbrebotellas; const s=cajaState.abrebotellas;
-    const tRet=s.retiradas.reduce((a,r)=>a+r.importe,0);
-    html+=`<div class="doc-section"><div class="doc-section-title">Caja Abrebotellas — Base sin IVA</div>
-      <div class="doc-row"><span class="lbl">Saldo inicial</span><span class="val">+ ${fmt(s.saldo_inicial)}</span></div>
-      <div class="doc-row"><span class="lbl">Total base s/IVA</span><span class="val" style="color:var(--orange)">+ ${fmt(ab.total_base)}</span></div>
-      ${s.retiradas.map(r=>`<div class="doc-row"><span class="lbl">Retirada: ${r.concepto||'Sin concepto'}</span><span class="val" style="color:var(--red)">− ${fmt(r.importe)}</span></div>`).join('')}
-      <div class="doc-row total"><span class="lbl">EFECTIVO EN CAJA</span><span class="val">${fmt(ab.total_base+s.saldo_inicial-tRet)}</span></div></div>`;
-  } else {
-    const ubs = scope==='all'?['marbella','monda']:[scope];
-    ubs.forEach((ub,idx) => {
-      const r=datosActuales.resumen[ub]; const s=cajaState[ub];
-      const nombre=ub==='marbella'?'MARBELLA':'MONDA';
-      const tRet=s.retiradas.reduce((a,r)=>a+r.importe,0);
-      if(idx>0) html+='<hr class="doc-sep">';
-      html+=`<div class="doc-section"><div class="doc-section-title">Caja ${nombre}</div>
-        <div class="doc-row"><span class="lbl">Saldo inicial</span><span class="val">+ ${fmt(s.saldo_inicial)}</span></div>
-        <div class="doc-row"><span class="lbl">Cobros efectivo</span><span class="val" style="color:var(--green)">+ ${fmt(r.efectivo)}</span></div>
-        <div class="doc-row"><span class="lbl">Cobros TPV</span><span class="val" style="color:var(--blue)">+ ${fmt(r.tpv)}</span></div>
-        ${s.retiradas.map(ret=>`<div class="doc-row"><span class="lbl">Retirada: ${ret.concepto||'Sin concepto'}</span><span class="val" style="color:var(--red)">− ${fmt(ret.importe)}</span></div>`).join('')}
-        <div class="doc-row total"><span class="lbl">EFECTIVO EN CAJA</span><span class="val">${fmt(r.efectivo+s.saldo_inicial-tRet)}</span></div></div>`;
-      if(r.pagos.length) html+=`<div class="doc-section"><div class="doc-section-title">Detalle · ${nombre}</div>
-        <table class="pagos-table"><thead><tr><th>Hora</th><th>Factura</th><th>Cliente</th><th>Método</th><th style="text-align:right">Importe</th></tr></thead>
-        <tbody>${r.pagos.map(p=>`<tr><td>${(p.fecha||'').substring(11,16)}</td><td>${p.numero_factura||'-'}</td><td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.cliente||'-'}</td><td><span class="tag tag-${p.tipo}">${p.tipo==='efectivo'?'Efectivo':'TPV'}</span></td><td class="importe-cell">${fmt(p.importe)}</td></tr>`).join('')}</tbody></table></div>`;
+  // Toggle: si ya estaba seleccionado, quitar
+  if (anterior === metodoId) {
+    delete estadoActual[key];
+    await fetch('/api/caja/registro', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ factura_id: facturaId, metodo_pago: null })
     });
-    if(scope==='all'){
-      const tEf=['marbella','monda'].reduce((s,ub)=>s+datosActuales.resumen[ub].efectivo,0);
-      const tTpv=['marbella','monda'].reduce((s,ub)=>s+datosActuales.resumen[ub].tpv,0);
-      const tRet=['marbella','monda'].reduce((s,ub)=>s+cajaState[ub].retiradas.reduce((a,r)=>a+r.importe,0),0);
-      const tSi=['marbella','monda'].reduce((s,ub)=>s+cajaState[ub].saldo_inicial,0);
-      html+=`<hr class="doc-sep"><div class="doc-section"><div class="doc-section-title">Resumen Global</div>
-        <div class="doc-row"><span class="lbl">Total efectivo</span><span class="val" style="color:var(--green)">${fmt(tEf)}</span></div>
-        <div class="doc-row"><span class="lbl">Total TPV</span><span class="val" style="color:var(--blue)">${fmt(tTpv)}</span></div>
-        <div class="doc-row"><span class="lbl">Total retiradas</span><span class="val" style="color:var(--red)">− ${fmt(tRet)}</span></div>
-        <div class="doc-row total"><span class="lbl">TOTAL COBRADO</span><span class="val">${fmt(tEf+tTpv)}</span></div>
-        <div class="doc-row total"><span class="lbl">EFECTIVO EN CAJAS</span><span class="val">${fmt(tEf+tSi-tRet)}</span></div></div>`;
-    }
+  } else {
+    estadoActual[key] = metodoId;
+    const m = METODOS.find(x => x.id === metodoId);
+    const f = [...facturasActuales, ...noConfirmadosActuales].find(x => x.id === facturaId);
+    await fetch('/api/caja/registro', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        factura_id: facturaId,
+        metodo_pago: metodoId,
+        ubicacion: m?.ubicacion,
+        tipo: m?.tipo,
+        importe: f?.total_pagado || f?.importe || 0,
+        cliente: f?.cliente || '',
+        numero: f?.numero || '',
+        fecha_pago: f?.fecha_pago || '',
+        es_abrebotellas: esNoConf,
+        usuario: userInfo?.nombre || ''
+      })
+    });
   }
 
-  html+=`<div class="doc-firma-section"><div class="doc-firma-title">Firma del responsable</div>
-    <div class="doc-firma-grid">
-      <div class="doc-firma-box"><div class="doc-firma-line"></div><div class="doc-firma-name">${nombreUsuario}</div><div class="doc-firma-role">Responsable de caja</div><div class="doc-firma-fecha">${fechaFmt} · ${ahora}</div></div>
-      <div class="doc-firma-box"><div class="doc-firma-line"></div><div class="doc-firma-name">Supervisión</div><div class="doc-firma-role">Gerencia / Contabilidad</div><div class="doc-firma-fecha"> </div></div>
-    </div></div>`;
+  renderCaja();
+}
 
-  document.getElementById('cierre-doc').innerHTML = html;
+function actualizarEfectivoCaja(caja, efectivo) {
+  const saldoEl = document.getElementById('saldo-' + caja);
+  const efEl = document.getElementById('ef-caja-' + caja);
+  if (!saldoEl || !efEl) return;
+  const saldo = parseFloat(saldoEl.value) || 0;
+  efEl.textContent = fmt(efectivo + saldo);
+  saldoEl.oninput = () => {
+    const s = parseFloat(saldoEl.value) || 0;
+    efEl.textContent = fmt(efectivo + s);
+  };
+}
+
+function registrarRetirada(caja) {
+  const imp = prompt(`Importe de retirada en ${caja === 'marbella' ? 'Marbella' : 'Monda'} (€):`);
+  if (!imp || isNaN(parseFloat(imp))) return;
+  alert(`Retirada de ${fmt(parseFloat(imp))} registrada en Caja ${caja === 'marbella' ? 'Marbella' : 'Monda'}`);
+}
+
+// ── CIERRE ────────────────────────────────────────────────────
+function generarCierre(tipo) {
+  const desde = document.getElementById('fecha-desde').value;
+  const hasta = document.getElementById('fecha-hasta').value;
+
+  let titulo, facturasCierre, totalEfectivo = 0, totalTPV = 0, totalTransf = 0;
+
+  if (tipo === 'marbella') {
+    titulo = '🟣 Cierre Caja Marbella';
+    facturasCierre = facturasActuales.filter(f => {
+      const m = METODOS.find(x => x.id === estadoActual[String(f.id)]);
+      return m?.ubicacion === 'marbella';
+    });
+  } else if (tipo === 'monda') {
+    titulo = '🟢 Cierre Caja Monda';
+    facturasCierre = facturasActuales.filter(f => {
+      const m = METODOS.find(x => x.id === estadoActual[String(f.id)]);
+      return m?.ubicacion === 'monda';
+    });
+  } else if (tipo === 'noconfirmados') {
+    titulo = '🍾 No Confirmados';
+    facturasCierre = noConfirmadosActuales.filter(f => estadoActual[String(f.id)]);
+  } else {
+    titulo = '📋 Cierre Global';
+    facturasCierre = facturasActuales.filter(f => estadoActual[String(f.id)]);
+  }
+
+  facturasCierre.forEach(f => {
+    const metodoId = estadoActual[String(f.id)];
+    const m = METODOS.find(x => x.id === metodoId);
+    const imp = f.total_pagado || f.importe || 0;
+    if (m?.tipo === 'efectivo') totalEfectivo += imp;
+    else if (m?.tipo === 'tpv') totalTPV += imp;
+    else if (m?.tipo === 'transferencia') totalTransf += imp;
+  });
+
+  const total = totalEfectivo + totalTPV + totalTransf;
+
+  const body = `
+    <div class="cierre-empresa">
+      <strong>ORUM Rent & Events</strong>
+      <p>Servicios y Alquiler para Eventos SL</p>
+      <p style="margin-top:8px;color:var(--gray)">${desde} al ${hasta}</p>
+    </div>
+    <div class="cierre-linea"><span>💵 Efectivo</span><strong>${fmt(totalEfectivo)}</strong></div>
+    <div class="cierre-linea"><span>💳 TPV</span><strong>${fmt(totalTPV)}</strong></div>
+    ${totalTransf > 0 ? `<div class="cierre-linea"><span>🏦 Transferencias</span><strong>${fmt(totalTransf)}</strong></div>` : ''}
+    <div class="cierre-linea total"><span>TOTAL</span><strong>${fmt(total)}</strong></div>
+    <div style="margin-top:16px">
+      <table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead><tr style="background:var(--gray-bg)">
+          <th style="padding:6px 10px;text-align:left">Factura</th>
+          <th style="padding:6px 10px;text-align:left">Cliente</th>
+          <th style="padding:6px 10px;text-align:right">Importe</th>
+          <th style="padding:6px 10px;text-align:left">Método</th>
+        </tr></thead>
+        <tbody>
+          ${facturasCierre.map(f => {
+            const metodoId = estadoActual[String(f.id)];
+            const m = METODOS.find(x => x.id === metodoId);
+            const imp = f.total_pagado || f.importe || 0;
+            return `<tr style="border-bottom:1px solid var(--gray-light)">
+              <td style="padding:6px 10px">${f.numero || f.id}</td>
+              <td style="padding:6px 10px">${f.cliente || '—'}</td>
+              <td style="padding:6px 10px;text-align:right;font-weight:600">${fmt(imp)}</td>
+              <td style="padding:6px 10px;color:var(--gray)">${m?.nombre || '—'}</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+    <div class="cierre-firma">
+      <label>Responsable de cierre</label>
+      <input type="text" id="firma-nombre" placeholder="Nombre y apellidos" value="${userInfo?.nombre || ''}">
+    </div>
+    <button class="btn-imprimir" onclick="imprimirCierre('${titulo}')">🖨️ Imprimir / Guardar PDF</button>
+  `;
+
+  document.getElementById('modal-title').textContent = titulo;
+  document.getElementById('modal-body').innerHTML = body;
   document.getElementById('modal-cierre').style.display = 'flex';
 }
 
-function closeCierre(e) { if(!e||e.target===document.getElementById('modal-cierre')) document.getElementById('modal-cierre').style.display='none'; }
-function imprimirCierre() { window.print(); }
-function fmt(n) { return (parseFloat(n)||0).toLocaleString('es-ES',{minimumFractionDigits:2,maximumFractionDigits:2})+' €'; }
+function cerrarModal() { document.getElementById('modal-cierre').style.display = 'none'; }
+
+function imprimirCierre(titulo) {
+  const firma = document.getElementById('firma-nombre')?.value || '';
+  const contenido = document.getElementById('modal-body').innerHTML;
+  const win = window.open('', '_blank');
+  win.document.write(`<html><head><title>${titulo}</title>
+    <style>body{font-family:sans-serif;padding:32px;max-width:600px;margin:0 auto}
+    table{width:100%;border-collapse:collapse}th,td{padding:6px 10px;border-bottom:1px solid #eee}
+    .btn-imprimir{display:none}.cierre-firma input{border:none;border-bottom:1px solid #333;width:100%;font-size:14px}
+    @media print{.btn-imprimir{display:none}}</style></head>
+    <body><h2>${titulo}</h2>${contenido}
+    <p style="margin-top:24px;font-size:12px;color:#666">Firmado por: ${firma} · ${new Date().toLocaleString('es-ES')}</p>
+    <script>window.onload=()=>window.print()<\/script></body></html>`);
+  win.document.close();
+}
+
+// ── CONTABILIDAD ──────────────────────────────────────────────
+async function cargarContabilidad() {
+  const desde = document.getElementById('contab-desde').value;
+  const hasta = document.getElementById('contab-hasta').value;
+  if (!desde || !hasta) return;
+
+  document.getElementById('contab-content').innerHTML = '<div class="loading"><div class="spinner"></div><p>Cargando...</p></div>';
+
+  try {
+    const [rFacturas, rRegistros, rTicks] = await Promise.all([
+      fetch(`${API_WORKER}/caja/facturas?desde=${desde}&hasta=${hasta}`).then(r=>r.json()),
+      fetch(`/api/caja/registros?desde=${desde}&hasta=${hasta}`).then(r=>r.json()),
+      fetch(`/api/ticks?desde=${desde}&hasta=${hasta}`).then(r=>r.json())
+    ]);
+
+    const facturas = [...(rFacturas.facturas || []), ...(rFacturas.no_confirmados || [])];
+    const registros = rRegistros || {};
+    const ticks = rTicks || {};
+
+    const html = `
+      <div class="tabla-section">
+        <div class="tabla-header">
+          <div class="tabla-title">📊 Facturas Efectivo — Contabilidad</div>
+        </div>
+        ${facturas.length === 0
+          ? '<div class="empty-state"><p>No hay facturas en este período</p></div>'
+          : `<table>
+            <thead><tr>
+              <th>Nº Factura</th><th>Cliente</th><th>Fecha Pago</th>
+              <th>Importe</th><th>Método</th><th>No Conf.</th><th>Verificado</th>
+            </tr></thead>
+            <tbody>
+              ${facturas.map(f => {
+                const reg = registros[String(f.id)];
+                const tick = ticks[`${f.fecha_pago}_${f.id}`];
+                const m = reg ? METODOS.find(x => x.id === reg.metodo_pago) : null;
+                const imp = f.total_pagado || f.importe || 0;
+                return `<tr>
+                  <td><strong>${f.numero || f.id}</strong></td>
+                  <td>${f.cliente || '—'}</td>
+                  <td style="color:var(--gray)">${f.fecha_pago || '—'}</td>
+                  <td><strong>${fmt(imp)}</strong></td>
+                  <td style="color:var(--gray);font-size:12px">${m?.nombre || (reg?.metodo_pago || '—')}</td>
+                  <td style="text-align:center">${f.es_abrebotellas ? '🍾' : ''}</td>
+                  <td style="text-align:center">
+                    <div class="tick-circle ${tick ? 'checked' : ''}"
+                      onclick="toggleTick('${f.fecha_pago}_${f.id}', this)">
+                      ${tick ? '✓' : ''}
+                    </div>
+                  </td>
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table>`
+        }
+      </div>
+    `;
+    document.getElementById('contab-content').innerHTML = html;
+  } catch(e) {
+    document.getElementById('contab-content').innerHTML = `<div class="empty-state"><p>Error: ${e.message}</p></div>`;
+  }
+}
+
+async function toggleTick(key, el) {
+  const estaChecked = el.classList.contains('checked');
+  const r = await fetch('/api/tick', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ key, valor: estaChecked ? null : true, usuario: userInfo?.nombre || '' })
+  });
+  if (r.ok) {
+    el.classList.toggle('checked');
+    el.textContent = el.classList.contains('checked') ? '✓' : '';
+  }
+}
+
+// ── UTILS ─────────────────────────────────────────────────────
+function fmt(n) {
+  return (parseFloat(n) || 0).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+}
+
+// ── INIT ──────────────────────────────────────────────────────
+checkSession();
 </script>
 </body>
 </html>
