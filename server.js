@@ -8,123 +8,181 @@ const PORT = process.env.PORT || 3000;
 const DATA_DIR = path.join(__dirname, 'data');
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR);
 
-const TICKS_FILE = path.join(DATA_DIR, 'ticks.json');
-const CAJA_FILE  = path.join(DATA_DIR, 'caja_registros.json');
+const TICKS_FILE    = path.join(DATA_DIR, 'ticks.json');
+const CAJA_FILE     = path.join(DATA_DIR, 'caja_registros.json');
+const HISTORIAL_FILE= path.join(DATA_DIR, 'historial.json');
+const CIERRES_FILE  = path.join(DATA_DIR, 'cierres.json');
+const SALDOS_FILE   = path.join(DATA_DIR, 'saldos.json');
 
-function loadJSON(file) {
-  try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return {}; }
-}
-function saveJSON(file, data) {
-  fs.writeFileSync(file, JSON.stringify(data, null, 2));
+function loadJSON(f) { try { return JSON.parse(fs.readFileSync(f,'utf8')); } catch { return {}; } }
+function saveJSON(f,d) { fs.writeFileSync(f, JSON.stringify(d,null,2)); }
+
+function addHistorial(accion, datos, usuario) {
+  const h = loadJSON(HISTORIAL_FILE);
+  const key = Date.now().toString();
+  h[key] = { accion, datos, usuario, ts: new Date().toISOString() };
+  const keys = Object.keys(h).sort();
+  if (keys.length > 2000) keys.slice(0, keys.length-2000).forEach(k => delete h[k]);
+  saveJSON(HISTORIAL_FILE, h);
 }
 
 const USERS = {
-  marina:  { pass: 'Orum2026#Mar', rol: 'caja',         nombre: 'Marina' },
-  danilo:  { pass: 'Orum2026#Dan', rol: 'caja',         nombre: 'Danilo' },
-  maria:   { pass: 'Orum2026#Mia', rol: 'caja',         nombre: 'María' },
-  isabel:  { pass: 'Orum2026#Isa', rol: 'contabilidad', nombre: 'Isabel' },
-  ana:     { pass: 'Orum2026#Ana', rol: 'contabilidad', nombre: 'Ana' },
-  sergio:  { pass: 'Orum2026#Ser', rol: 'admin',        nombre: 'Sergio' }
+  marina: { pass:'Orum2026#Mar', rol:'caja',         nombre:'Marina' },
+  danilo: { pass:'Orum2026#Dan', rol:'caja',         nombre:'Danilo' },
+  maria:  { pass:'Orum2026#Mia', rol:'caja',         nombre:'María' },
+  isabel: { pass:'Orum2026#Isa', rol:'contabilidad', nombre:'Isabel' },
+  ana:    { pass:'Orum2026#Ana', rol:'contabilidad', nombre:'Ana' },
+  sergio: { pass:'Orum2026#Ser', rol:'admin',        nombre:'Sergio' }
 };
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
-app.use(session({
-  secret: 'orum-caja-2026-secret',
-  resave: false,
-  saveUninitialized: false,
-  cookie: { maxAge: 8 * 60 * 60 * 1000 }
-}));
+app.use(session({ secret:'orum-caja-2026-secret', resave:false, saveUninitialized:false, cookie:{ maxAge:8*60*60*1000 } }));
 
-function auth(req, res, next) {
-  if (!req.session.user) return res.status(401).json({ error: 'No autenticado' });
-  next();
-}
-function authContab(req, res, next) {
-  if (!req.session.user) return res.status(401).json({ error: 'No autenticado' });
-  if (!['contabilidad', 'admin'].includes(req.session.user.rol))
-    return res.status(403).json({ error: 'Sin permisos' });
-  next();
-}
+function auth(req,res,next) { if(!req.session.user) return res.status(401).json({error:'No autenticado'}); next(); }
+function authAdmin(req,res,next) { if(!req.session.user) return res.status(401).json({error:'No autenticado'}); if(req.session.user.rol!=='admin') return res.status(403).json({error:'Sin permisos'}); next(); }
+function authContab(req,res,next) { if(!req.session.user) return res.status(401).json({error:'No autenticado'}); if(!['contabilidad','admin'].includes(req.session.user.rol)) return res.status(403).json({error:'Sin permisos'}); next(); }
 
 // ── AUTH ──────────────────────────────────────────────────────
-app.post('/api/login', (req, res) => {
+app.post('/api/login', (req,res) => {
   const { usuario, password } = req.body;
   const u = USERS[usuario?.toLowerCase()];
-  if (!u || u.pass !== password) return res.status(401).json({ error: 'Credenciales incorrectas' });
-  req.session.user = { usuario, rol: u.rol, nombre: u.nombre };
-  res.json({ ok: true, usuario, rol: u.rol, nombre: u.nombre });
+  if (!u||u.pass!==password) return res.status(401).json({error:'Credenciales incorrectas'});
+  req.session.user = { usuario, rol:u.rol, nombre:u.nombre };
+  res.json({ ok:true, usuario, rol:u.rol, nombre:u.nombre });
 });
+app.post('/api/logout', (req,res) => { req.session.destroy(); res.json({ok:true}); });
+app.get('/api/me', auth, (req,res) => res.json(req.session.user));
 
-app.post('/api/logout', (req, res) => {
-  req.session.destroy();
-  res.json({ ok: true });
-});
-
-app.get('/api/me', auth, (req, res) => res.json(req.session.user));
-
-// ── TICKS CONTABILIDAD ────────────────────────────────────────
-app.get('/api/ticks', auth, (req, res) => {
+// ── TICKS ─────────────────────────────────────────────────────
+app.get('/api/ticks', auth, (req,res) => {
   const ticks = loadJSON(TICKS_FILE);
   const { desde, hasta } = req.query;
-  if (!desde || !hasta) return res.json(ticks);
-  const filtrado = {};
-  Object.entries(ticks).forEach(([k, v]) => {
-    const fecha = k.split('_')[0];
-    if (fecha >= desde && fecha <= hasta) filtrado[k] = v;
-  });
-  res.json(filtrado);
+  if (!desde||!hasta) return res.json(ticks);
+  const f = {};
+  Object.entries(ticks).forEach(([k,v]) => { const d=k.split('_')[0]; if(d>=desde&&d<=hasta) f[k]=v; });
+  res.json(f);
 });
-
-app.post('/api/tick', authContab, (req, res) => {
+app.post('/api/tick', authContab, (req,res) => {
   const { key, valor, nota, usuario } = req.body;
-  if (!key) return res.status(400).json({ error: 'key requerida' });
+  if (!key) return res.status(400).json({error:'key requerida'});
   const ticks = loadJSON(TICKS_FILE);
-  if (valor === null || valor === undefined) {
-    delete ticks[key];
-  } else {
-    ticks[key] = { valor, nota: nota || '', usuario: usuario || '', fecha: new Date().toISOString() };
-  }
+  if (valor===null||valor===undefined) delete ticks[key];
+  else ticks[key] = { valor, nota:nota||'', usuario:usuario||'', fecha:new Date().toISOString() };
   saveJSON(TICKS_FILE, ticks);
-  res.json({ ok: true });
+  addHistorial('tick', {key,valor,nota}, usuario||'');
+  res.json({ok:true});
 });
 
-// ── REGISTROS CAJA (métodos de pago asignados manualmente) ────
-app.get('/api/caja/registros', auth, (req, res) => {
-  const registros = loadJSON(CAJA_FILE);
+// ── REGISTROS CAJA ────────────────────────────────────────────
+app.get('/api/caja/registros', auth, (req,res) => {
+  const r = loadJSON(CAJA_FILE);
   const { desde, hasta } = req.query;
-  if (!desde || !hasta) return res.json(registros);
-  const filtrado = {};
-  Object.entries(registros).forEach(([k, v]) => {
-    if (v.fecha_pago >= desde && v.fecha_pago <= hasta) filtrado[k] = v;
-  });
-  res.json(filtrado);
+  if (!desde||!hasta) return res.json(r);
+  const f = {};
+  Object.entries(r).forEach(([k,v]) => { if(v.fecha_pago>=desde&&v.fecha_pago<=hasta) f[k]=v; });
+  res.json(f);
 });
-
-app.post('/api/caja/registro', auth, (req, res) => {
-  const { factura_id, metodo_pago, ubicacion, tipo, importe, cliente, numero, fecha_pago, es_abrebotellas, usuario } = req.body;
-  if (!factura_id || !metodo_pago) return res.status(400).json({ error: 'factura_id y metodo_pago requeridos' });
+app.post('/api/caja/registro', auth, (req,res) => {
+  const { factura_id, metodo_pago, ubicacion, tipo, importe, cliente, numero, fecha_pago, es_abrebotellas, usuario, num_operacion } = req.body;
+  if (!factura_id) return res.status(400).json({error:'factura_id requerido'});
   const registros = loadJSON(CAJA_FILE);
   const key = String(factura_id);
-  registros[key] = {
-    factura_id, metodo_pago, ubicacion, tipo, importe,
-    cliente, numero, fecha_pago, es_abrebotellas,
-    usuario, updated: new Date().toISOString()
+  const anterior = registros[key]?.metodo_pago||null;
+  if (metodo_pago===null||metodo_pago===undefined) {
+    delete registros[key];
+    addHistorial('quitar_metodo', {factura_id,numero,anterior}, usuario||'');
+  } else {
+    registros[key] = { factura_id, metodo_pago, ubicacion, tipo, importe, cliente, numero, fecha_pago, es_abrebotellas, usuario, num_operacion:num_operacion||'', updated:new Date().toISOString() };
+    addHistorial('asignar_metodo', {factura_id,numero,cliente,metodo_pago,importe,num_operacion:num_operacion||''}, usuario||'');
+  }
+  saveJSON(CAJA_FILE, registros);
+  res.json({ok:true});
+});
+
+// ── CIERRES ───────────────────────────────────────────────────
+// Estructura: cierres[caja][fecha_desde+'_'+fecha_hasta] = { usuario, ts, total_ef, total_tpv, total_transf, retiradas, saldo_anterior, saldo_final }
+
+app.get('/api/cierres', auth, (req,res) => {
+  res.json(loadJSON(CIERRES_FILE));
+});
+
+app.post('/api/cierre', auth, (req,res) => {
+  const { caja, desde, hasta, total_ef, total_tpv, total_transf, retiradas, saldo_anterior, saldo_final, usuario } = req.body;
+  if (!caja||!desde||!hasta) return res.status(400).json({error:'caja, desde y hasta requeridos'});
+
+  const cierres = loadJSON(CIERRES_FILE);
+  if (!cierres[caja]) cierres[caja] = {};
+
+  const periodoKey = `${desde}_${hasta}`;
+  cierres[caja][periodoKey] = {
+    caja, desde, hasta,
+    total_ef: total_ef||0,
+    total_tpv: total_tpv||0,
+    total_transf: total_transf||0,
+    retiradas: retiradas||[],
+    saldo_anterior: saldo_anterior||0,
+    saldo_final: saldo_final||0,
+    usuario: usuario||'',
+    ts: new Date().toISOString()
   };
-  saveJSON(CAJA_FILE, registros);
-  res.json({ ok: true });
+  saveJSON(CIERRES_FILE, cierres);
+
+  // Actualizar saldo de la caja
+  const saldos = loadJSON(SALDOS_FILE);
+  saldos[caja] = { efectivo_final: saldo_final||0, fecha: hasta, usuario: usuario||'', updated: new Date().toISOString() };
+  saveJSON(SALDOS_FILE, saldos);
+
+  addHistorial('cierre_caja', { caja, desde, hasta, total_ef, total_tpv, saldo_final }, usuario||'');
+  res.json({ok:true});
 });
 
-app.delete('/api/caja/registro/:id', auth, (req, res) => {
-  const registros = loadJSON(CAJA_FILE);
-  delete registros[req.params.id];
-  saveJSON(CAJA_FILE, registros);
-  res.json({ ok: true });
+// Verificar si se puede cerrar una caja
+app.get('/api/cierre/verificar', auth, (req,res) => {
+  const { caja, desde } = req.query;
+  if (!caja||!desde) return res.status(400).json({error:'caja y desde requeridos'});
+
+  const cierres = loadJSON(CIERRES_FILE);
+  const cajaCierres = cierres[caja]||{};
+
+  // Buscar el último cierre de esta caja
+  const periodosCerrados = Object.keys(cajaCierres).sort();
+  if (periodosCerrados.length===0) return res.json({ ok:true, puede_cerrar:true, mensaje:null });
+
+  const ultimoCierre = cajaCierres[periodosCerrados[periodosCerrados.length-1]];
+  const ultimaFechaCierre = ultimoCierre.hasta;
+
+  // Si hay un período sin cerrar anterior al actual
+  if (ultimaFechaCierre < desde) {
+    // Hay días entre el último cierre y el actual - OK, pueden no tener cobros
+    return res.json({ ok:true, puede_cerrar:true, mensaje:null });
+  }
+
+  // Si el período actual ya está cerrado
+  const periodoKey = Object.keys(cajaCierres).find(k => {
+    const [d,h] = k.split('_');
+    return d===desde || (d<=desde && h>=desde);
+  });
+  if (periodoKey) {
+    const c = cajaCierres[periodoKey];
+    return res.json({ ok:false, puede_cerrar:false, mensaje:`Esta caja ya fue cerrada el ${new Date(c.ts).toLocaleString('es-ES')} por ${c.usuario}` });
+  }
+
+  return res.json({ ok:true, puede_cerrar:true, mensaje:null });
 });
 
-// ── SERVE APP ─────────────────────────────────────────────────
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+// ── SALDOS ────────────────────────────────────────────────────
+app.get('/api/saldos', auth, (req,res) => res.json(loadJSON(SALDOS_FILE)));
+
+// ── HISTORIAL ─────────────────────────────────────────────────
+app.get('/api/historial', authAdmin, (req,res) => {
+  const h = loadJSON(HISTORIAL_FILE);
+  const { desde, hasta, limit } = req.query;
+  let entries = Object.entries(h).sort((a,b)=>b[0].localeCompare(a[0]));
+  if (desde&&hasta) entries=entries.filter(([,v])=>v.ts>=desde&&v.ts<=hasta+'T23:59:59Z');
+  if (limit) entries=entries.slice(0,parseInt(limit));
+  res.json(Object.fromEntries(entries));
 });
 
-app.listen(PORT, () => console.log('ORUM Caja corriendo en puerto ' + PORT));
+app.get('*', (req,res) => res.sendFile(path.join(__dirname,'public','index.html')));
+app.listen(PORT, ()=>console.log('ORUM Caja puerto '+PORT));
