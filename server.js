@@ -13,6 +13,7 @@ const CAJA_FILE     = path.join(DATA_DIR, 'caja_registros.json');
 const HISTORIAL_FILE= path.join(DATA_DIR, 'historial.json');
 const CIERRES_FILE  = path.join(DATA_DIR, 'cierres.json');
 const SALDOS_FILE   = path.join(DATA_DIR, 'saldos.json');
+const NC_CONF_FILE  = path.join(DATA_DIR, 'nc_confirmaciones.json');
 
 function loadJSON(f) { try { return JSON.parse(fs.readFileSync(f,'utf8')); } catch { return {}; } }
 function saveJSON(f,d) { fs.writeFileSync(f, JSON.stringify(d,null,2)); }
@@ -185,6 +186,34 @@ app.get('/api/historial', authAdmin, (req,res) => {
 });
 
 // ── PROXY NO CONFIRMADOS (Apps Script) ───────────────────────
+// ── NC CONFIRMACIONES ─────────────────────────────────────────
+app.get('/api/nc/confirmaciones', auth, (req, res) => {
+  res.json(loadJSON(NC_CONF_FILE));
+});
+
+app.post('/api/nc/confirmar', authContab, (req, res) => {
+  const { nc_id, confirmar, metodo, importe, cliente, numero, usuario } = req.body;
+  if (!nc_id) return res.status(400).json({ error: 'nc_id requerido' });
+  const confs = loadJSON(NC_CONF_FILE);
+  if (confirmar === false) {
+    delete confs[String(nc_id)];
+    addHistorial('nc_quitar_confirmacion', { nc_id, numero, cliente }, usuario || '');
+  } else {
+    confs[String(nc_id)] = {
+      confirmado: true,
+      usuario: usuario || '',
+      ts: new Date().toISOString(),
+      metodo: metodo || '',
+      importe: importe || 0,
+      cliente: cliente || '',
+      numero: numero || ''
+    };
+    addHistorial('nc_confirmar_recepcion', { nc_id, numero, cliente, metodo, importe }, usuario || '');
+  }
+  saveJSON(NC_CONF_FILE, confs);
+  res.json({ ok: true });
+});
+
 const NC_AS_URL = 'https://script.google.com/macros/s/AKfycbx1ayolXUAmk95s8M2bUS_46O7HQrM4gmQgh1mQF9zOCuOvEQfp59K94TnDYpopE73QmA/exec';
 
 app.get('/api/noconfirmados', auth, async (req, res) => {
