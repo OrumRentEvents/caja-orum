@@ -309,23 +309,35 @@ async function cargarCobros() {
   document.getElementById('buscador').style.display = 'none';
 
   try {
-    const [rF, rR, rC, rCrew] = await Promise.all([
+    // Cargar facturas y registros primero
+    const [rF, rR] = await Promise.all([
       fetch(`${API_WORKER}/caja/facturas?desde=${desde}&hasta=${hasta}`).then(r=>r.json()),
-      fetch(`/api/caja/registros?desde=${desde}&hasta=${hasta}`).then(r=>r.json()),
-      fetch(`${API_WORKER}/contactos`).then(r=>r.json()),
-      fetch(`${API_WORKER}/crew`).then(r=>r.json())
+      fetch(`/api/caja/registros?desde=${desde}&hasta=${hasta}`).then(r=>r.json())
     ]);
 
-    // Mapas
+    // Obtener IDs únicos de clientes de las facturas devueltas
+    const todasFacturasRaw = [...(rF.facturas||[]), ...(rF.no_confirmados||[])];
+    const clienteIds = [...new Set(todasFacturasRaw.map(f=>f.cliente_id).filter(Boolean))];
+
+    // Cargar solo los contactos que necesitamos directamente desde Rentman via Worker
     const mapaContactos = {};
-    (rC.data||[]).forEach(c => { mapaContactos[String(c.id)] = c.displayname||''; });
     const mapaCrew = {};
-    (rCrew.data||[]).forEach(c => { mapaCrew[String(c.id)] = c.displayname||''; });
+
+    // Cargar contactos en lotes de 20 para no saturar
+    for (let i = 0; i < clienteIds.length; i += 20) {
+      const lote = clienteIds.slice(i, i+20);
+      await Promise.all(lote.map(async id => {
+        try {
+          const r = await fetch(`${API_WORKER}/contacto/${id}`).then(r=>r.json());
+          if (r.ok && r.data) mapaContactos[String(id)] = r.data.displayname||'';
+        } catch(e) {}
+      }));
+    }
 
     const enrich = arr => arr.map(f => ({
       ...f,
       cliente: (f.cliente_id && mapaContactos[f.cliente_id]) ? mapaContactos[f.cliente_id] : (f.cliente||'—'),
-      comercial: (f.comercial_id && mapaCrew[f.comercial_id]) ? mapaCrew[f.comercial_id] : ''
+      comercial: ''
     }));
 
     facturasActuales = enrich(rF.facturas||[]);
