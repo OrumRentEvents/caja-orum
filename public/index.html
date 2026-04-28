@@ -683,9 +683,8 @@ async function cargarNoConf(){
   if(!desde||!hasta)return;
   document.getElementById('noconf-content').innerHTML='<div class="loading"><div class="spinner"></div><p>Cargando...</p></div>';
   try{
-    // Leer del Apps Script de No Confirmados (GET para evitar CORS)
-    const ncParams = new URLSearchParams({ token: 'ORUMx2026CajaStats', action: 'registros', desde, hasta });
-    const r = await fetch(`${NC_URL}?${ncParams}`).then(r=>r.json());
+    // Leer del Apps Script via proxy Railway (evita CORS)
+    const r = await fetch(`/api/noconfirmados?desde=${desde}&hasta=${hasta}`).then(r=>r.json());
 
     noConfs = (r.registros||[]).map(reg => ({
       id: reg.id,

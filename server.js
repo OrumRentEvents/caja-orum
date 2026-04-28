@@ -184,5 +184,20 @@ app.get('/api/historial', authAdmin, (req,res) => {
   res.json(Object.fromEntries(entries));
 });
 
+// ── PROXY NO CONFIRMADOS (Apps Script) ───────────────────────
+const NC_AS_URL = 'https://script.google.com/macros/s/AKfycbx1ayolXUAmk95s8M2bUS_46O7HQrM4gmQgh1mQF9zOCuOvEQfp59K94TnDYpopE73QmA/exec';
+
+app.get('/api/noconfirmados', auth, async (req, res) => {
+  const { desde, hasta } = req.query;
+  try {
+    const url = `${NC_AS_URL}?token=ORUMx2026CajaStats&action=registros&desde=${desde}&hasta=${hasta}`;
+    const r = await fetch(url, { redirect: 'follow' });
+    const data = await r.json();
+    res.json(data);
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.get('*', (req,res) => res.sendFile(path.join(__dirname,'public','index.html')));
 app.listen(PORT, ()=>console.log('ORUM Caja puerto '+PORT));
