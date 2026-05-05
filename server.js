@@ -296,12 +296,11 @@ app.post('/api/cache/reload', authAdmin, async (req,res) => {
 
 // ── FIANZAS ────────────────────────────────────────────────────
 async function fetchFianzasRentman() {
-  // Paginar todos los proyectos con custom_3 > 0 (tienen fianza)
   let all = [];
   let offset = 0;
   const limit = 300;
   while (true) {
-    const r = await fetch(`${RENTMAN_URL}/projects?limit=${limit}&offset=${offset}&fields=id,number,name,customer,account_manager,planperiod_start,planperiod_end,custom_3,custom_4,custom_5`, {
+    const r = await fetch(`${RENTMAN_URL}/projects?limit=${limit}&offset=${offset}`, {
       headers: { Authorization: `Bearer ${RENTMAN_TOKEN}` }
     });
     const data = await r.json();
@@ -311,12 +310,15 @@ async function fetchFianzasRentman() {
     offset += limit;
   }
 
-  // Filtrar: excluir custom_5=3 (sin fianza) y custom_3=0 o vacío
+  // Los campos custom vienen dentro de p.custom.custom_3 etc.
   const proyectos = all.filter(p => {
-    const c3 = parseFloat(p.custom_3) || 0;
-    const c5 = String(p.custom_5 || '0');
+    const c = p.custom || {};
+    const c3 = parseFloat(c.custom_3) || 0;
+    const c5 = String(c.custom_5 != null ? c.custom_5 : '0');
     return c3 > 0 && c5 !== '3';
   });
+
+  const estadoMap = { '0': 'Pendiente', '1': 'Pagada', '2': 'Devuelta' };
 
   // Enriquecer clientes en batch de 20
   const contactoIds = [...new Set(proyectos.map(p => p.customer).filter(Boolean).map(c => c.replace('/contacts/', '')))];
@@ -347,10 +349,11 @@ async function fetchFianzasRentman() {
   }
 
   return proyectos.map(p => {
+    const c = p.custom || {};
     const cId = (p.customer || '').replace('/contacts/', '');
     const amId = (p.account_manager || '').replace('/crew/', '');
-    const c5 = String(p.custom_5 || '0');
-    const estadoMap = { '0': 'Pendiente', '1': 'Pagada', '2': 'Devuelta' };
+    const c5 = String(c.custom_5 != null ? c.custom_5 : '0');
+    const metodoCod = String(c.custom_4 != null ? c.custom_4 : '0');
     return {
       id: p.id,
       numero: String(p.number || ''),
@@ -359,9 +362,9 @@ async function fetchFianzasRentman() {
       comercial: comercialMap[amId] || '',
       fecha_inicio: (p.planperiod_start || '').substring(0, 10),
       fecha_fin: (p.planperiod_end || '').substring(0, 10),
-      importe: parseFloat(p.custom_3) || 0,
-      metodo: FIANZA_METODOS[String(p.custom_4 || '0')] || 'Transferencia Bancaria',
-      metodo_id: String(p.custom_4 || '0'),
+      importe: parseFloat(c.custom_3) || 0,
+      metodo: FIANZA_METODOS[metodoCod] || 'Transferencia Bancaria',
+      metodo_id: metodoCod,
       estado: estadoMap[c5] || 'Pendiente',
       estado_id: c5
     };
@@ -388,13 +391,12 @@ app.post('/api/fianzas/:id/estado', auth, async (req, res) => {
     const r = await fetch(`${RENTMAN_URL}/projects/${req.params.id}`, {
       method: 'PATCH',
       headers: { Authorization: `Bearer ${RENTMAN_TOKEN}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ custom_5: String(estado) })
+      body: JSON.stringify({ custom: { custom_5: String(estado) } })
     });
     if (!r.ok) {
       const err = await r.text();
       return res.status(r.status).json({ ok: false, error: err });
     }
-    // Invalidar caché
     cacheFianzas.ts = 0;
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ ok: false, error: e.message }); }
