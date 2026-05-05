@@ -335,22 +335,47 @@ async function cargarCobros(){
   btn.disabled=false;btn.innerHTML='↻ Cargar cobros';
 }
 
-async function enriquecerClientes(lista){
+// Cache compartida de contactos y proyectos
+const _cacheContactos={}, _cacheProyectos={};
+
+async function fetchContacto(id){
+  if(_cacheContactos[id]!==undefined)return _cacheContactos[id];
+  try{const r=await fetch(`${API}/contacto/${id}`).then(r=>r.json());const n=(r.ok&&r.data)?(r.data.displayname||''):'';_cacheContactos[id]=n;return n;}
+  catch(e){_cacheContactos[id]='';return '';}
+}
+
+async function fetchProyecto(id){
+  if(!id)return null;
+  if(_cacheProyectos[id]!==undefined)return _cacheProyectos[id];
+  try{const r=await fetch(`${API}/proyecto/${id}`).then(r=>r.json());const d=(r.ok&&r.data)?r.data:null;_cacheProyectos[id]=d;return d;}
+  catch(e){_cacheProyectos[id]=null;return null;}
+}
+
+async function enriquecerLista(lista, renderFn){
+  // Clientes
   const ids=[...new Set(lista.map(f=>f.cliente_id).filter(Boolean))];
   for(let i=0;i<ids.length;i+=8){
-    const lote=ids.slice(i,i+8);
-    await Promise.all(lote.map(async id=>{
-      try{
-        const r=await fetch(`${API}/contacto/${id}`).then(r=>r.json());
-        if(r.ok&&r.data){
-          const n=r.data.displayname||'';
-          facturas.forEach(f=>{if(f.cliente_id===id)f.cliente=n;});
-          noConfs.forEach(f=>{if(f.cliente_id===id)f.cliente=n;});
-        }
-      }catch(e){}
+    await Promise.all(ids.slice(i,i+8).map(async id=>{
+      const n=await fetchContacto(id);
+      if(n) lista.forEach(f=>{if(f.cliente_id===id)f.cliente=n;});
     }));
-    if(document.getElementById('tabla-wrapper'))renderTabla();
+    if(renderFn)renderFn();
   }
+  // Proyectos (número visible)
+  const pids=[...new Set(lista.map(f=>f.proyecto_id).filter(Boolean))];
+  for(let i=0;i<pids.length;i+=8){
+    await Promise.all(pids.slice(i,i+8).map(async id=>{
+      const p=await fetchProyecto(id);
+      if(p&&p.number!==undefined){const num=String(p.number);lista.forEach(f=>{if(f.proyecto_id===id)f.proyecto_numero=num;});}
+    }));
+    if(renderFn)renderFn();
+  }
+}
+
+async function enriquecerClientes(lista){
+  await enriquecerLista([...facturas,...noConfs,...facturasC], ()=>{
+    if(document.getElementById('tabla-wrapper'))renderTabla();
+  });
 }
 
 // ── TOTALES ───────────────────────────────────────────────────
@@ -789,21 +814,8 @@ async function cargarContabilidad(){
       if(reg&&reg.cliente&&!f.cliente) f.cliente=reg.cliente;
     });
     renderContab();
-    // Enriquecer desde Rentman los que aún no tengan cliente
-    const idsC=[...new Set(facturasC.filter(f=>!f.cliente&&f.cliente_id).map(f=>f.cliente_id))];
-    for(let i=0;i<idsC.length;i+=8){
-      const lote=idsC.slice(i,i+8);
-      await Promise.all(lote.map(async id=>{
-        try{
-          const r=await fetch(`${API}/contacto/${id}`).then(r=>r.json());
-          if(r.ok&&r.data){
-            const n=r.data.displayname||'';
-            facturasC.forEach(f=>{if(f.cliente_id===id)f.cliente=n;});
-          }
-        }catch(e){}
-      }));
-      renderContab();
-    }
+    // Enriquecer clientes y proyectos desde Rentman
+    enriquecerLista(facturasC, renderContab);
   }catch(e){document.getElementById('contab-content').innerHTML=`<div class="empty-state"><p>Error: ${e.message}</p></div>`;}
 }
 

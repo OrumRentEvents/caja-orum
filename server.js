@@ -265,6 +265,15 @@ app.get('/api/contacto/:id', auth, async (req,res) => {
   } catch(e) { res.status(500).json({ok:false, error:e.message}); }
 });
 
+// ── PROYECTO RENTMAN ───────────────────────────────────────────
+app.get('/api/proyecto/:id', auth, async (req,res) => {
+  try {
+    const r = await fetch(`${RENTMAN_URL}/projects/${req.params.id}`, { headers:{ Authorization:`Bearer ${RENTMAN_TOKEN}` } });
+    const data = await r.json();
+    res.json({ ok:true, data: data.data||null });
+  } catch(e) { res.status(500).json({ok:false, error:e.message}); }
+});
+
 // ── RECARGAR CACHÉ (admin) ────────────────────────────────────
 app.post('/api/cache/reload', authAdmin, async (req,res) => {
   res.json({ok:true, mensaje:'Recargando...'});
