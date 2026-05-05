@@ -910,23 +910,54 @@ async function cargarHistorial(){
     const r=await fetch(`/api/historial?desde=${desde}&hasta=${hasta}&limit=500`).then(r=>r.json());
     const entries=Object.entries(r).sort((a,b)=>b[0].localeCompare(a[0]));
     if(entries.length===0){document.getElementById('historial-content').innerHTML='<div class="empty-state"><div class="icon">📋</div><p>No hay registros</p></div>';return;}
-    const labels={'asignar_metodo':'✅ Asignó método','quitar_metodo':'❌ Quitó método','tick':'☑️ Verificó','cierre_caja':'🔒 Cierre caja'};
+    const HIST_CFG = {
+      'asignar_metodo':       { icon:'✅', label:'Asignó método',         color:'#16a34a' },
+      'quitar_metodo':        { icon:'❌', label:'Quitó método',           color:'#dc2626' },
+      'tick':                 { icon:'☑️', label:'Verificó factura',       color:'#2563eb' },
+      'cierre_caja':          { icon:'🔒', label:'Cierre de caja',         color:'#7c3aed' },
+      'nc_confirmar_recepcion':{ icon:'✅', label:'NC Recibido por Ana',   color:'#16a34a' },
+      'nc_quitar_confirmacion':{ icon:'↩', label:'NC Quitó confirmación',  color:'#f59e0b' },
+    };
+    const METODO_NOMBRES = {
+      'efectivo-marbella':'Ef. Marbella','efectivo-monda':'Ef. Monda',
+      'tpv-marbella':'TPV Marbella','tpv-monda':'TPV Monda',
+      'transferencia':'Transferencia','factura0':'Factura 0€'
+    };
+    function histDetalle(v) {
+      const d = typeof v.datos === 'string' ? (() => { try { return JSON.parse(v.datos); } catch(e) { return {}; } })() : (v.datos||{});
+      const parts = [];
+      if (d.numero)        parts.push(`Factura <strong>#${d.numero}</strong>`);
+      if (d.nc_id)         parts.push(`NC <strong>#${d.nc_id}</strong>`);
+      if (d.cliente)       parts.push(`<span style="color:#374151">${d.cliente}</span>`);
+      if (d.metodo_pago)   parts.push(`<span style="background:#f1f5f9;padding:1px 6px;border-radius:4px">${METODO_NOMBRES[d.metodo_pago]||d.metodo_pago}</span>`);
+      if (d.metodo)        parts.push(`<span style="background:#f1f5f9;padding:1px 6px;border-radius:4px">${METODO_NOMBRES[d.metodo]||d.metodo}</span>`);
+      if (d.num_operacion) parts.push(`Op: <strong>${d.num_operacion}</strong>`);
+      if (d.importe)       parts.push(`<strong style="color:#16a34a">${fmt(d.importe)}</strong>`);
+      if (d.caja)          parts.push(`Caja <strong>${d.caja}</strong>`);
+      if (d.desde&&d.hasta)parts.push(`${d.desde} → ${d.hasta}`);
+      if (d.key&&v.accion==='tick') parts.push(`<span style="color:#6b7280;font-size:11px">${d.key}</span>`);
+      return parts.join(' · ');
+    }
     document.getElementById('historial-content').innerHTML=`
       <div class="tabla-section">
         <div class="tabla-header"><div class="tabla-title">📋 Historial <span class="badge badge-gray">${entries.length}</span></div></div>
-        ${entries.map(([,v])=>`
-          <div class="hist-row">
-            <span style="color:var(--gray);font-size:12px">${new Date(v.ts).toLocaleString('es-ES')}</span>
-            <span style="font-weight:600;color:var(--purple)">${v.usuario||'—'}</span>
-            <span>${labels[v.accion]||v.accion}
-              ${v.datos?.numero?`· Factura <strong>${v.datos.numero}</strong>`:''}
-              ${v.datos?.cliente?`· ${v.datos.cliente}`:''}
-              ${v.datos?.metodo_pago?`· <em>${v.datos.metodo_pago}</em>`:''}
-              ${v.datos?.num_operacion?`· Op: <strong>${v.datos.num_operacion}</strong>`:''}
-              ${v.datos?.caja?`· Caja <strong>${v.datos.caja}</strong>`:''}
-              ${v.datos?.importe?`· ${fmt(v.datos.importe)}`:''}
-            </span>
-          </div>`).join('')}
+        <div class="tabla-scroll"><table style="font-size:13px">
+          <thead><tr>
+            <th style="width:140px">Fecha</th>
+            <th style="width:90px">Usuario</th>
+            <th style="width:160px">Acción</th>
+            <th>Detalle</th>
+          </tr></thead>
+          <tbody>${entries.map(([,v])=>{
+            const cfg = HIST_CFG[v.accion] || { icon:'📝', label:v.accion, color:'#6b7280' };
+            return `<tr>
+              <td style="color:var(--gray);white-space:nowrap">${new Date(v.ts).toLocaleString('es-ES',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</td>
+              <td style="font-weight:600;color:var(--purple)">${v.usuario||'—'}</td>
+              <td><span style="color:${cfg.color};font-weight:600">${cfg.icon} ${cfg.label}</span></td>
+              <td>${histDetalle(v)}</td>
+            </tr>`;
+          }).join('')}</tbody>
+        </table></div>
       </div>`;
   }catch(e){document.getElementById('historial-content').innerHTML=`<div class="empty-state"><p>Error: ${e.message}</p></div>`;}
 }
