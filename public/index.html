@@ -354,7 +354,7 @@ async function cargarCobros(){
   try{
     const[rF,rR,rS,rC]=await Promise.all([
       fetch(`${API}/caja/facturas?desde=${desde}&hasta=${hasta}`).then(r=>r.json()),
-      fetch(`/api/caja/registros?desde=${desde}&hasta=${hasta}`).then(r=>r.json()),
+      fetch(`/api/caja/registros`).then(r=>r.json()),
       fetch('/api/saldos').then(r=>r.json()),
       fetch('/api/cierres').then(r=>r.json()),
     ]);
