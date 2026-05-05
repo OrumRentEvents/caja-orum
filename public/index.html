@@ -780,19 +780,93 @@ function setContabSort(c){contabSortCol===c?contabSortDirC*=-1:(contabSortCol=c,
 let contabSortCol='fecha_pago',contabSortDirC=1;
 function sc(c){return contabSortCol!==c?'↕':contabSortDirC===1?'↑':'↓';}
 
+// Estado de filtros contabilidad (persiste entre renders)
+let contabFiltros = new Set(['efectivo-marbella','tpv-marbella','efectivo-monda','tpv-monda','transferencia','factura0','sin-metodo']);
+
+function toggleFiltroContab(id){
+  if(contabFiltros.has(id)) contabFiltros.delete(id); else contabFiltros.add(id);
+  renderContab();
+}
+function selTodosFiltros(sel){
+  const todos=['efectivo-marbella','tpv-marbella','efectivo-monda','tpv-monda','transferencia','factura0','sin-metodo'];
+  if(sel) todos.forEach(x=>contabFiltros.add(x)); else contabFiltros.clear();
+  renderContab();
+}
+
 function renderContab(){
   const q=(document.getElementById('contab-buscar')?.value||'').toLowerCase();
-  let l=facturasC.filter(f=>!q||(f.numero||'').includes(q)||(f.cliente||'').toLowerCase().includes(q));
+
+  // Calcular método de cada factura para filtros y resumen
+  function getMetodoId(f){
+    const reg=registrosC[String(f.id)];
+    if(!reg||!reg.metodo_pago) return 'sin-metodo';
+    return reg.metodo_pago;
+  }
+
+  // Filtrar por búsqueda
+  let lBase=facturasC.filter(f=>!q||(f.numero||'').includes(q)||(f.cliente||'').toLowerCase().includes(q));
+
+  // Resumen por método (sobre lBase sin filtro de método)
+  const GRUPOS = [
+    {id:'efectivo-marbella', label:'💵 Ef. Marbella', color:'#16a34a'},
+    {id:'efectivo-monda',    label:'💵 Ef. Monda',    color:'#15803d'},
+    {id:'tpv-marbella',      label:'💳 TPV Marbella', color:'#2563eb'},
+    {id:'tpv-monda',         label:'💳 TPV Monda',    color:'#1d4ed8'},
+    {id:'transferencia',     label:'🏦 Transferencia',color:'#7c3aed'},
+    {id:'factura0',          label:'📄 Factura 0€',   color:'#94a3b8'},
+    {id:'sin-metodo',        label:'❓ Sin método',   color:'#cbd5e1'},
+  ];
+  const resumen = GRUPOS.map(g => {
+    const items = lBase.filter(f=>getMetodoId(f)===g.id);
+    const total = items.reduce((s,f)=>s+(f.total_pagado||f.importe||0),0);
+    const verif = items.reduce((s,f)=>s+(ticksC[`${f.fecha_pago}_${f.id}`]?f.total_pagado||f.importe||0:0),0);
+    return {...g, count:items.length, total, verif};
+  }).filter(g=>g.count>0);
+
+  // Aplicar filtro de método
+  let l=lBase.filter(f=>contabFiltros.has(getMetodoId(f)));
   l.sort((a,b)=>{let va=a[contabSortCol]||0,vb=b[contabSortCol]||0;return typeof va==='string'?va.localeCompare(vb)*contabSortDirC:(va-vb)*contabSortDirC;});
+
   const totalV=l.reduce((s,f)=>s+(ticksC[`${f.fecha_pago}_${f.id}`]?f.total_pagado||f.importe||0:0),0);
+  const todosActivos=GRUPOS.every(g=>contabFiltros.has(g.id));
+
   document.getElementById('contab-content').innerHTML=`
-    <div class="kpi-grid" style="margin-bottom:20px">
-      <div class="kpi-card"><div class="kpi-label">Total Facturas</div><div class="kpi-value">${l.length}</div></div>
+    <div class="kpi-grid" style="margin-bottom:16px">
+      <div class="kpi-card"><div class="kpi-label">Total Facturas</div><div class="kpi-value">${l.length}<span style="color:var(--gray);font-size:14px;font-weight:400"> / ${lBase.length}</span></div></div>
       <div class="kpi-card kpi-efectivo"><div class="kpi-label">Total Verificado</div><div class="kpi-value">${fmt(totalV)}</div></div>
     </div>
+
+    <!-- RESUMEN POR MÉTODO -->
+    <div class="tabla-section" style="margin-bottom:16px">
+      <div class="tabla-header"><div class="tabla-title">📋 Resumen por Método</div></div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;padding:14px">
+        ${resumen.map(g=>`
+          <div style="background:#fff;border:1px solid #e2e8f0;border-left:4px solid ${g.color};border-radius:10px;padding:12px 14px">
+            <div style="font-size:13px;font-weight:600;color:#374151;margin-bottom:6px">${g.label}</div>
+            <div style="font-size:18px;font-weight:700;color:${g.color}">${fmt(g.total)}</div>
+            <div style="font-size:11px;color:#6b7280;margin-top:3px">${g.count} facturas · verificado: <strong>${fmt(g.verif)}</strong></div>
+          </div>`).join('')}
+      </div>
+    </div>
+
+    <!-- FILTROS CHECKBOX -->
+    <div class="tabla-section" style="margin-bottom:16px">
+      <div style="padding:12px 16px;display:flex;flex-wrap:wrap;gap:10px;align-items:center">
+        <span style="font-size:12px;font-weight:600;color:#374151;margin-right:4px">FILTRAR:</span>
+        ${GRUPOS.map(g=>`
+          <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:13px;padding:5px 10px;border-radius:20px;border:1.5px solid ${contabFiltros.has(g.id)?g.color:'#e2e8f0'};background:${contabFiltros.has(g.id)?g.color+'18':'#fff'};transition:all .15s">
+            <input type="checkbox" ${contabFiltros.has(g.id)?'checked':''} onchange="toggleFiltroContab('${g.id}')" style="accent-color:${g.color};width:14px;height:14px">
+            <span style="color:${contabFiltros.has(g.id)?g.color:'#64748b'};font-weight:${contabFiltros.has(g.id)?'600':'400'}">${g.label}</span>
+          </label>`).join('')}
+        <button onclick="selTodosFiltros(${!todosActivos})" style="margin-left:auto;font-size:12px;padding:5px 12px;border:1.5px solid #e2e8f0;border-radius:20px;background:#fff;cursor:pointer;color:#374151">
+          ${todosActivos?'☐ Ninguno':'☑ Todos'}
+        </button>
+      </div>
+    </div>
+
     <div class="tabla-section">
-      <div class="tabla-header"><div class="tabla-title">📊 Facturas</div></div>
-      ${l.length===0?'<div class="empty-state"><p>No hay facturas</p></div>':`
+      <div class="tabla-header"><div class="tabla-title">📊 Facturas <span style="color:var(--gray);font-size:13px;font-weight:400">(${l.length})</span></div></div>
+      ${l.length===0?'<div class="empty-state"><p>No hay facturas con los filtros seleccionados</p></div>':`
       <div class="tabla-scroll"><table>
         <thead><tr>
           <th onclick="setContabSort('numero')" class="${contabSortCol==='numero'?'sorted':''}">Nº Factura ${sc('numero')}</th>
