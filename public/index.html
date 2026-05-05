@@ -783,7 +783,27 @@ async function cargarContabilidad(){
     ]);
     facturasC=[...(rF.facturas||[]),...(rF.no_confirmados||[])];
     registrosC=rR||{};ticksC=rT||{};
+    // Enriquecer cliente desde registrosC primero (instantáneo)
+    facturasC.forEach(f=>{
+      const reg=registrosC[String(f.id)];
+      if(reg&&reg.cliente&&!f.cliente) f.cliente=reg.cliente;
+    });
     renderContab();
+    // Enriquecer desde Rentman los que aún no tengan cliente
+    const idsC=[...new Set(facturasC.filter(f=>!f.cliente&&f.cliente_id).map(f=>f.cliente_id))];
+    for(let i=0;i<idsC.length;i+=8){
+      const lote=idsC.slice(i,i+8);
+      await Promise.all(lote.map(async id=>{
+        try{
+          const r=await fetch(`${API}/contacto/${id}`).then(r=>r.json());
+          if(r.ok&&r.data){
+            const n=r.data.displayname||'';
+            facturasC.forEach(f=>{if(f.cliente_id===id)f.cliente=n;});
+          }
+        }catch(e){}
+      }));
+      renderContab();
+    }
   }catch(e){document.getElementById('contab-content').innerHTML=`<div class="empty-state"><p>Error: ${e.message}</p></div>`;}
 }
 
