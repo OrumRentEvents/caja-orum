@@ -214,6 +214,48 @@ app.post('/api/nc/confirmar', authContab, (req, res) => {
   res.json({ ok: true });
 });
 
+// ── PROXY CONTACTO RENTMAN ───────────────────────────────────
+const RENTMAN_TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpYXQiOjE3NzMxNTM0MjIsIm1lZGV3ZXJrZXIiOjIzNSwiYWNjb3VudCI6InNlcnZpY2lvc3lhbHF1aWxlcnBhcmFldmVudG9zc2wiLCJjbGllbnRfdHlwZSI6Im9wZW5hcGkiLCJjbGllbnQubmFtZSI6Im9wZW5hcGkiLCJleHAiOjIwODg3NzI2MjIsImlzcyI6IntcIm5hbWVcIjpcImJhY2tlbmRcIixcInZlcnNpb25cIjpcIjQuODI4LjAuNlwifSJ9.hyHIfRnBGkLunqFAzG40c95AjpkWJfywelT_RiTcXDs';
+const RENTMAN_URL   = 'https://api.rentman.net';
+
+app.get('/api/contacto/:id', auth, async (req, res) => {
+  try {
+    const r = await fetch(`${RENTMAN_URL}/contacts/${req.params.id}`, {
+      headers: { Authorization: `Bearer ${RENTMAN_TOKEN}` }
+    });
+    const data = await r.json();
+    res.json({ ok: true, data: data.data || null });
+  } catch(e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// ── PROXY FACTURAS RENTMAN ────────────────────────────────────
+const AS_RUTAS_URL = 'https://script.google.com/macros/s/AKfycbxaSfXi-D3Sx8Lpek6pHPaA-2_NgrXW6CTM0d37LlCX-x0hqRLM6BwyH-BIinyiJlAi/exec';
+const RUTAS_TOKEN  = 'ORUMx2026CajaStats';
+
+async function asGet(baseUrl, params) {
+  const qs = new URLSearchParams(params).toString();
+  let url = `${baseUrl}?${qs}`;
+  let r;
+  for (let i=0; i<6; i++) {
+    r = await fetch(url, { redirect:'manual' });
+    if ([301,302,307,308].includes(r.status)) { url = r.headers.get('location'); if (!url) break; }
+    else break;
+  }
+  const text = await r.text();
+  try { return JSON.parse(text); }
+  catch(e) { throw new Error('AS no JSON: ' + text.substring(0,200)); }
+}
+
+app.get('/api/caja/facturas', auth, async (req, res) => {
+  try {
+    const { desde, hasta } = req.query;
+    const data = await asGet(AS_RUTAS_URL, { token:RUTAS_TOKEN, action:'invoicepayments', desde, hasta });
+    res.json(data.data ? { facturas: data.data } : data);
+  } catch(e) { res.status(500).json({error: e.message}); }
+});
+
 const NC_AS_URL = 'https://script.google.com/macros/s/AKfycbx1ayolXUAmk95s8M2bUS_46O7HQrM4gmQgh1mQF9zOCuOvEQfp59K94TnDYpopE73QmA/exec';
 
 app.get('/api/noconfirmados', auth, async (req, res) => {
