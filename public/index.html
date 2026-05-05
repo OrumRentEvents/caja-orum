@@ -1201,20 +1201,22 @@ function renderFianzas() {
 function solicitarDevolucionFianza(proyectoId, numero, cliente, importe, metodo, fechaEvento) {
   document.getElementById('modal-fianza-title').textContent = '📋 Solicitar Devolución de Fianza';
   document.getElementById('modal-fianza-body').innerHTML = `
-    <div style="background:var(--gray-bg);border-radius:8px;padding:14px;margin-bottom:16px;font-size:14px">
-      <div style="margin-bottom:6px"><strong>#${numero}</strong> · ${cliente}</div>
-      <div style="color:var(--gray)">Importe: <strong style="color:var(--green)">${fmt(importe)}</strong> · ${metodo}</div>
+    <div style="background:var(--gray-bg);border-radius:10px;padding:16px;margin-bottom:20px">
+      <div style="font-size:13px;color:var(--gray);margin-bottom:4px">#${numero} · ${cliente}</div>
+      <div style="font-size:13px;color:var(--gray);margin-bottom:12px">${metodo}${fechaEvento ? ' · Evento: ' + fechaEvento : ''}</div>
+      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--gray);margin-bottom:4px">Importe a devolver</div>
+      <div style="font-size:36px;font-weight:800;color:#16a34a;letter-spacing:-1px">${fmt(importe)}</div>
     </div>
-    <p style="color:var(--gray);font-size:13px;margin-bottom:16px">
-      Se creará una solicitud de devolución. Ana recibirá el resumen el próximo viernes a las 8:00.
-    </p>
     <div style="margin-bottom:16px">
-      <label style="font-size:12px;color:var(--gray);display:block;margin-bottom:6px">Notas (opcional)</label>
-      <input type="text" id="fianza-notas" placeholder="Ej: Transferencia a cuenta habitual" style="width:100%;padding:10px;border:1.5px solid var(--gray-light);border-radius:8px;font-size:14px;outline:none">
+      <label style="font-size:12px;font-weight:600;color:var(--gray);display:block;margin-bottom:8px">Notas para Ana</label>
+      <textarea id="fianza-notas" placeholder="Ej: Transferencia a cuenta habitual, IBAN del cliente..." style="width:100%;padding:10px;border:1.5px solid var(--gray-light);border-radius:8px;font-size:14px;outline:none;resize:vertical;min-height:80px;font-family:inherit;box-sizing:border-box"></textarea>
     </div>
+    <p style="color:var(--gray);font-size:12px;margin-bottom:16px">
+      📅 Ana recibirá el resumen el próximo <strong>viernes a las 8:00</strong>.
+    </p>
     <div style="display:flex;gap:10px">
       <button onclick="document.getElementById('modal-fianza').style.display='none'" style="flex:1;padding:11px;border:1.5px solid var(--gray-light);background:var(--white);border-radius:8px;font-size:14px;cursor:pointer">Cancelar</button>
-      <button onclick="ejecutarSolicitud(${proyectoId},'${numero}','${cliente.replace(/'/g,"\'")}',${importe},'${metodo}','${fechaEvento}')" style="flex:1;padding:11px;background:#7c3aed;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">📋 Enviar solicitud</button>
+      <button onclick="ejecutarSolicitud(${proyectoId},'${numero}','${cliente.replace(/'/g, "\'")}',${importe},'${metodo}','${fechaEvento}')" style="flex:1;padding:11px;background:#7c3aed;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">📋 Enviar solicitud</button>
     </div>`;
   document.getElementById('modal-fianza').style.display = 'flex';
 }

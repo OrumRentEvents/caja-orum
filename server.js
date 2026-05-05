@@ -317,7 +317,7 @@ async function fetchFianzasRentman() {
     const c = p.custom || {};
     const c3 = parseFloat(c.custom_3) || 0;
     const c5 = String(c.custom_5 != null ? c.custom_5 : '0');
-    return c3 > 0 && c5 !== '3';
+    return c3 > 0 && (c5 === '1' || c5 === '2');
   });
 
   const estadoMap = { '0': 'Pendiente', '1': 'Pagada', '2': 'Devuelta' };
