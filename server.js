@@ -14,6 +14,20 @@ const USERS = {
   sergio: { pass:'Orum2026#Ser', rol:'admin',        nombre:'Sergio' }
 };
 
+// Mapeo custom_4 → método de pago fianzas
+const FIANZA_METODOS = {
+  '0': 'Transferencia Bancaria',
+  '3': 'Efectivo Marbella',
+  '4': 'Efectivo Monda',
+  '5': 'TPV',
+  '6': 'TPV Marbella',
+  '7': 'TPV Monda'
+};
+
+// Caché de fianzas en memoria
+const cacheFianzas = { data: [], ts: 0 };
+const FIANZAS_TTL = 5 * 60 * 1000; // 5 minutos
+
 const AS_RUTAS_URL = 'https://script.google.com/macros/s/AKfycbxaSfXi-D3Sx8Lpek6pHPaA-2_NgrXW6CTM0d37LlCX-x0hqRLM6BwyH-BIinyiJlAi/exec';
 const AS_NC_URL    = 'https://script.google.com/macros/s/AKfycbx1ayolXUAmk95s8M2bUS_46O7HQrM4gmQgh1mQF9zOCuOvEQfp59K94TnDYpopE73QmA/exec';
 const CAJA_TOKEN   = 'ORUMx2026CajaStore';
@@ -278,6 +292,121 @@ app.get('/api/proyecto/:id', auth, async (req,res) => {
 app.post('/api/cache/reload', authAdmin, async (req,res) => {
   res.json({ok:true, mensaje:'Recargando...'});
   recargarCache();
+});
+
+// ── FIANZAS ────────────────────────────────────────────────────
+async function fetchFianzasRentman() {
+  // Paginar todos los proyectos con custom_3 > 0 (tienen fianza)
+  let all = [];
+  let offset = 0;
+  const limit = 300;
+  while (true) {
+    const r = await fetch(`${RENTMAN_URL}/projects?limit=${limit}&offset=${offset}&fields=id,number,name,customer,account_manager,planperiod_start,planperiod_end,custom_3,custom_4,custom_5`, {
+      headers: { Authorization: `Bearer ${RENTMAN_TOKEN}` }
+    });
+    const data = await r.json();
+    const items = data.data || [];
+    all = all.concat(items);
+    if (items.length < limit) break;
+    offset += limit;
+  }
+
+  // Filtrar: excluir custom_5=3 (sin fianza) y custom_3=0 o vacío
+  const proyectos = all.filter(p => {
+    const c3 = parseFloat(p.custom_3) || 0;
+    const c5 = String(p.custom_5 || '0');
+    return c3 > 0 && c5 !== '3';
+  });
+
+  // Enriquecer clientes en batch de 20
+  const contactoIds = [...new Set(proyectos.map(p => p.customer).filter(Boolean).map(c => c.replace('/contacts/', '')))];
+  const contactoMap = {};
+  for (let i = 0; i < contactoIds.length; i += 20) {
+    const batch = contactoIds.slice(i, i + 20);
+    await Promise.all(batch.map(async id => {
+      try {
+        const r = await fetch(`${RENTMAN_URL}/contacts/${id}`, { headers: { Authorization: `Bearer ${RENTMAN_TOKEN}` } });
+        const d = await r.json();
+        if (d.data) contactoMap[id] = d.data.displayname || '';
+      } catch(e) {}
+    }));
+  }
+
+  // Enriquecer comerciales
+  const comercialIds = [...new Set(proyectos.map(p => p.account_manager).filter(Boolean).map(c => c.replace('/crew/', '')))];
+  const comercialMap = {};
+  for (let i = 0; i < comercialIds.length; i += 20) {
+    const batch = comercialIds.slice(i, i + 20);
+    await Promise.all(batch.map(async id => {
+      try {
+        const r = await fetch(`${RENTMAN_URL}/crew/${id}`, { headers: { Authorization: `Bearer ${RENTMAN_TOKEN}` } });
+        const d = await r.json();
+        if (d.data) comercialMap[id] = d.data.displayname || '';
+      } catch(e) {}
+    }));
+  }
+
+  return proyectos.map(p => {
+    const cId = (p.customer || '').replace('/contacts/', '');
+    const amId = (p.account_manager || '').replace('/crew/', '');
+    const c5 = String(p.custom_5 || '0');
+    const estadoMap = { '0': 'Pendiente', '1': 'Pagada', '2': 'Devuelta' };
+    return {
+      id: p.id,
+      numero: String(p.number || ''),
+      nombre: p.name || '',
+      cliente: contactoMap[cId] || cId,
+      comercial: comercialMap[amId] || '',
+      fecha_inicio: (p.planperiod_start || '').substring(0, 10),
+      fecha_fin: (p.planperiod_end || '').substring(0, 10),
+      importe: parseFloat(p.custom_3) || 0,
+      metodo: FIANZA_METODOS[String(p.custom_4 || '0')] || 'Transferencia Bancaria',
+      metodo_id: String(p.custom_4 || '0'),
+      estado: estadoMap[c5] || 'Pendiente',
+      estado_id: c5
+    };
+  });
+}
+
+app.get('/api/fianzas', auth, async (req, res) => {
+  try {
+    const ahora = Date.now();
+    if (ahora - cacheFianzas.ts < FIANZAS_TTL && cacheFianzas.data.length > 0) {
+      return res.json({ ok: true, data: cacheFianzas.data, cached: true });
+    }
+    const data = await fetchFianzasRentman();
+    cacheFianzas.data = data;
+    cacheFianzas.ts = Date.now();
+    res.json({ ok: true, data, cached: false });
+  } catch(e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+app.post('/api/fianzas/:id/estado', auth, async (req, res) => {
+  try {
+    const { estado } = req.body; // '0'=Pendiente, '1'=Pagada, '2'=Devuelta
+    if (!['0','1','2'].includes(String(estado))) return res.status(400).json({ ok:false, error:'Estado inválido' });
+    const r = await fetch(`${RENTMAN_URL}/projects/${req.params.id}`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${RENTMAN_TOKEN}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ custom_5: String(estado) })
+    });
+    if (!r.ok) {
+      const err = await r.text();
+      return res.status(r.status).json({ ok: false, error: err });
+    }
+    // Invalidar caché
+    cacheFianzas.ts = 0;
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+app.post('/api/fianzas/cache/reload', auth, async (req, res) => {
+  try {
+    const data = await fetchFianzasRentman();
+    cacheFianzas.data = data;
+    cacheFianzas.ts = Date.now();
+    res.json({ ok: true, data, count: data.length });
+  } catch(e) { res.status(500).json({ ok: false, error: e.message }); }
 });
 
 app.get('*', (req,res) => res.sendFile(path.join(__dirname,'public','index.html')));

@@ -159,6 +159,7 @@ tr:hover td{background:var(--gray-bg)}
     <div class="tab" onclick="showTab('noconf')" id="tab-noconf" style="display:none">🍾 No Confirmados</div>
     <div class="tab" onclick="showTab('contabilidad')" id="tab-contabilidad" style="display:none">📊 Contabilidad</div>
     <div class="tab" onclick="showTab('historial')" id="tab-historial" style="display:none">📋 Historial</div>
+    <div class="tab" onclick="showTab('fianzas')" id="tab-fianzas" style="display:none">💰 Fianzas</div>
   </div>
 
   <div id="panel-caja" class="main">
@@ -202,7 +203,40 @@ tr:hover td{background:var(--gray-bg)}
   </div>
 </div>
 
-<!-- MODAL CIERRE -->
+  <div id="panel-fianzas" class="main" style="display:none">
+    <div class="filtros-bar">
+      <label>Estado</label>
+      <select id="fianzas-filtro-estado" onchange="renderFianzas()" style="padding:8px 12px;border:1.5px solid var(--gray-light);border-radius:8px;font-size:14px;outline:none">
+        <option value="">Todos</option>
+        <option value="Pendiente">Pendiente</option>
+        <option value="Pagada">Pagada</option>
+        <option value="Devuelta">Devuelta</option>
+      </select>
+      <label>Método</label>
+      <select id="fianzas-filtro-metodo" onchange="renderFianzas()" style="padding:8px 12px;border:1.5px solid var(--gray-light);border-radius:8px;font-size:14px;outline:none">
+        <option value="">Todos</option>
+        <option value="Transferencia Bancaria">Transferencia</option>
+        <option value="Efectivo Marbella">Efectivo Marbella</option>
+        <option value="Efectivo Monda">Efectivo Monda</option>
+        <option value="TPV Marbella">TPV Marbella</option>
+        <option value="TPV Monda">TPV Monda</option>
+        <option value="TPV">TPV</option>
+      </select>
+      <input type="text" class="inp-buscar" id="fianzas-buscar" placeholder="🔍 Buscar cliente / proyecto..." oninput="renderFianzas()" style="width:220px">
+      <button class="btn-cargar" onclick="cargarFianzas(false)" id="btn-cargar-fianzas">↻ Actualizar</button>
+    </div>
+    <div id="fianzas-content"><div class="empty-state"><div class="icon">💰</div><p>Cargando fianzas...</p></div></div>
+  </div>
+
+<!-- MODAL FIANZA DETALLE -->
+<div id="modal-fianza" style="display:none" class="modal-overlay" onclick="if(event.target===this)document.getElementById('modal-fianza').style.display='none'">
+  <div class="modal modal-sm">
+    <div class="modal-header"><div class="modal-title" id="modal-fianza-title">Fianza</div><button class="btn-close" onclick="document.getElementById('modal-fianza').style.display='none'">✕</button></div>
+    <div class="modal-body" id="modal-fianza-body"></div>
+  </div>
+</div>
+
+<!-- MODAL FIANZA -->
 <div id="modal-cierre" style="display:none" class="modal-overlay" onclick="if(event.target===this)cerrarModal()">
   <div class="modal"><div class="modal-header"><div class="modal-title" id="modal-title">Cierre</div><button class="btn-close" onclick="cerrarModal()">✕</button></div><div class="modal-body" id="modal-body"></div></div>
 </div>
@@ -282,7 +316,9 @@ function iniciarApp(){
   if(['caja','contabilidad','admin'].includes(userInfo.rol)) document.getElementById('tab-contabilidad').style.display='';
   // Historial: solo admin
   if(userInfo.rol==='admin') document.getElementById('tab-historial').style.display='';
-  // Arrancar en la pestaña correcta
+  // Fianzas: todos los roles
+  document.getElementById('tab-fianzas').style.display='';
+  // Si es comercial, arrancar en fianzas no, arrancar en caja
   if(userInfo.rol==='comercial') showTab('caja');
   const hoy=new Date().toISOString().substring(0,10);
   const p=hoy.substring(0,8)+'01';
@@ -294,12 +330,13 @@ function iniciarApp(){
 }
 
 function showTab(t){
-  ['caja','noconf','contabilidad','historial'].forEach(x=>{
+  ['caja','noconf','contabilidad','historial','fianzas'].forEach(x=>{
     const p=document.getElementById('panel-'+x);
     const tb=document.getElementById('tab-'+x);
     if(p)p.style.display=x===t?'':'none';
     if(tb)tb.classList.toggle('active',x===t);
   });
+  if(t==='fianzas' && fianzasData.length===0) cargarFianzas(false);
 }
 
 function setHoy(){const h=new Date().toISOString().substring(0,10);document.getElementById('fecha-desde').value=h;document.getElementById('fecha-hasta').value=h;cargarCobros();}
@@ -1005,7 +1042,189 @@ async function cargarHistorial(){
   }catch(e){document.getElementById('historial-content').innerHTML=`<div class="empty-state"><p>Error: ${e.message}</p></div>`;}
 }
 
-function fmt(n){return(parseFloat(n)||0).toLocaleString('es-ES',{minimumFractionDigits:2,maximumFractionDigits:2})+' €';}
+// ── FIANZAS ───────────────────────────────────────────────────
+let fianzasData = [];
+let fianzasSortCol = 'fecha_inicio', fianzasSortDir = 1;
+
+async function cargarFianzas(forzar=false) {
+  const btn = document.getElementById('btn-cargar-fianzas');
+  btn.disabled = true; btn.textContent = 'Cargando...';
+  document.getElementById('fianzas-content').innerHTML = '<div class="loading"><div class="spinner"></div><p>Cargando fianzas desde Rentman...</p></div>';
+  try {
+    const url = forzar ? '/api/fianzas/cache/reload' : '/api/fianzas';
+    const method = forzar ? 'POST' : 'GET';
+    const r = await fetch(url, { method });
+    const d = await r.json();
+    if (!d.ok) throw new Error(d.error || 'Error desconocido');
+    fianzasData = d.data || [];
+    renderFianzas();
+  } catch(e) {
+    document.getElementById('fianzas-content').innerHTML = `<div class="empty-state"><div class="icon">⚠️</div><p>Error: ${e.message}</p></div>`;
+  }
+  btn.disabled = false; btn.textContent = '↻ Actualizar';
+}
+
+function setFianzaSort(col) {
+  fianzasSortCol === col ? fianzasSortDir *= -1 : (fianzasSortCol = col, fianzasSortDir = 1);
+  renderFianzas();
+}
+function sf(c) { return fianzasSortCol !== c ? '↕' : fianzasSortDir === 1 ? '↑' : '↓'; }
+
+function renderFianzas() {
+  const rol = userInfo?.rol || '';
+  const filtroEstado = document.getElementById('fianzas-filtro-estado')?.value || '';
+  const filtroMetodo = document.getElementById('fianzas-filtro-metodo')?.value || '';
+  const q = (document.getElementById('fianzas-buscar')?.value || '').toLowerCase();
+
+  let lista = fianzasData.filter(f => {
+    if (filtroEstado && f.estado !== filtroEstado) return false;
+    if (filtroMetodo && f.metodo !== filtroMetodo) return false;
+    if (q && !f.cliente.toLowerCase().includes(q) && !f.nombre.toLowerCase().includes(q) && !f.numero.includes(q)) return false;
+    return true;
+  });
+
+  lista.sort((a, b) => {
+    let va = a[fianzasSortCol] || '', vb = b[fianzasSortCol] || '';
+    if (fianzasSortCol === 'importe') return (a.importe - b.importe) * fianzasSortDir;
+    return String(va).localeCompare(String(vb)) * fianzasSortDir;
+  });
+
+  // KPIs
+  const total = fianzasData.reduce((s, f) => s + f.importe, 0);
+  const pendientes = fianzasData.filter(f => f.estado === 'Pendiente');
+  const pagadas = fianzasData.filter(f => f.estado === 'Pagada');
+  const devueltas = fianzasData.filter(f => f.estado === 'Devuelta');
+  const totalPendiente = pendientes.reduce((s, f) => s + f.importe, 0);
+  const totalPagadas = pagadas.reduce((s, f) => s + f.importe, 0);
+  const totalDevueltas = devueltas.reduce((s, f) => s + f.importe, 0);
+
+  // Botones de acción según rol
+  const puedeMarcar = ['caja', 'admin'].includes(rol);       // María: marcar para devolver
+  const puedeConfirmar = ['contabilidad', 'admin'].includes(rol); // Ana: confirmar devolución
+  const soloLectura = rol === 'comercial';
+
+  const btnRecarga = rol === 'admin' ? `<button onclick="cargarFianzas(true)" style="padding:8px 16px;background:var(--black);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;margin-left:auto">🔄 Forzar recarga</button>` : '';
+
+  const estadoBadge = (f) => {
+    if (f.estado === 'Devuelta') return `<span style="background:#f0fdf4;color:#166534;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600">✅ Devuelta</span>`;
+    if (f.estado === 'Pagada')   return `<span style="background:#eff6ff;color:#1e40af;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600">💰 Pagada</span>`;
+    return `<span style="background:#fef9c3;color:#854d0e;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600">⏳ Pendiente</span>`;
+  };
+
+  const metodoBadge = (f) => {
+    const colores = {
+      'Transferencia Bancaria': { bg: '#f5f3ff', color: '#6d28d9' },
+      'Efectivo Marbella':      { bg: '#f0fdf4', color: '#166534' },
+      'Efectivo Monda':         { bg: '#f0fdf4', color: '#166534' },
+      'TPV Marbella':           { bg: '#eff6ff', color: '#1e40af' },
+      'TPV Monda':              { bg: '#eff6ff', color: '#1e40af' },
+      'TPV':                    { bg: '#eff6ff', color: '#1e40af' },
+    };
+    const c = colores[f.metodo] || { bg: '#f1f5f9', color: '#64748b' };
+    return `<span style="background:${c.bg};color:${c.color};padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600">${f.metodo}</span>`;
+  };
+
+  const accionBtn = (f) => {
+    if (soloLectura) return '';
+    if (f.estado === 'Devuelta') return `<span style="color:var(--gray);font-size:12px">—</span>`;
+    if (f.estado === 'Pagada' && puedeConfirmar) {
+      return `<button onclick="confirmarDevolucionFianza(${f.id},'${(f.cliente||'').replace(/'/g,"\\'")}',${f.importe})" style="padding:5px 12px;background:#16a34a;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">✅ Devolver</button>`;
+    }
+    if (f.estado === 'Pendiente' && puedeMarcar) {
+      return `<button onclick="marcarPagadaFianza(${f.id},'${(f.cliente||'').replace(/'/g,"\\'")}',${f.importe})" style="padding:5px 12px;background:#2563eb;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">💰 Marcar pagada</button>`;
+    }
+    return '';
+  };
+
+  document.getElementById('fianzas-content').innerHTML = `
+    <div class="kpi-grid" style="margin-bottom:16px">
+      <div class="kpi-card"><div class="kpi-label">Total Fianzas</div><div class="kpi-value">${fmt(total)}</div><div class="kpi-sub">${fianzasData.length} proyectos</div></div>
+      <div class="kpi-card" style="border-left:4px solid #f59e0b"><div class="kpi-label">Pendientes cobro</div><div class="kpi-value" style="color:#d97706">${fmt(totalPendiente)}</div><div class="kpi-sub">${pendientes.length} fianzas</div></div>
+      <div class="kpi-card kpi-tpv"><div class="kpi-label">Cobradas / Retenidas</div><div class="kpi-value">${fmt(totalPagadas)}</div><div class="kpi-sub">${pagadas.length} fianzas</div></div>
+      <div class="kpi-card kpi-efectivo"><div class="kpi-label">Devueltas</div><div class="kpi-value">${fmt(totalDevueltas)}</div><div class="kpi-sub">${devueltas.length} fianzas</div></div>
+    </div>
+
+    <div class="tabla-section">
+      <div class="tabla-header">
+        <div class="tabla-title">💰 Fianzas <span class="badge badge-gray">${lista.length}</span>${filtroEstado||filtroMetodo||q?`<span class="badge badge-orange">Filtrado</span>`:''}</div>
+        ${btnRecarga}
+      </div>
+      ${lista.length === 0 ? '<div class="empty-state"><div class="icon">🔍</div><p>No hay fianzas con los filtros seleccionados</p></div>' : `
+      <div class="tabla-scroll"><table>
+        <thead><tr>
+          <th onclick="setFianzaSort('numero')" class="${fianzasSortCol==='numero'?'sorted':''}">Proyecto ${sf('numero')}</th>
+          <th onclick="setFianzaSort('cliente')" class="${fianzasSortCol==='cliente'?'sorted':''}">Cliente ${sf('cliente')}</th>
+          <th onclick="setFianzaSort('fecha_inicio')" class="${fianzasSortCol==='fecha_inicio'?'sorted':''}">Evento ${sf('fecha_inicio')}</th>
+          <th onclick="setFianzaSort('importe')" class="${fianzasSortCol==='importe'?'sorted':''}">Importe ${sf('importe')}</th>
+          <th>Método</th>
+          <th onclick="setFianzaSort('estado')" class="${fianzasSortCol==='estado'?'sorted':''}">Estado ${sf('estado')}</th>
+          ${!soloLectura ? '<th>Acción</th>' : ''}
+        </tr></thead>
+        <tbody>${lista.map(f => `<tr>
+          <td><strong>#${f.numero}</strong><br><span style="font-size:11px;color:var(--gray)">${f.nombre}</span></td>
+          <td>${f.cliente || '—'}</td>
+          <td style="color:var(--gray);font-size:12px">${f.fecha_inicio || '—'}</td>
+          <td><strong class="imp pos">${fmt(f.importe)}</strong></td>
+          <td>${metodoBadge(f)}</td>
+          <td>${estadoBadge(f)}</td>
+          ${!soloLectura ? `<td>${accionBtn(f)}</td>` : ''}
+        </tr>`).join('')}</tbody>
+      </table></div>`}
+    </div>`;
+}
+
+function marcarPagadaFianza(id, cliente, importe) {
+  document.getElementById('modal-fianza-title').textContent = '💰 Marcar Fianza como Pagada';
+  document.getElementById('modal-fianza-body').innerHTML = `
+    <p style="color:var(--gray);font-size:14px;margin-bottom:16px">
+      Confirma que se ha recibido la fianza de <strong>${cliente}</strong> por importe de <strong>${fmt(importe)}</strong>.
+    </p>
+    <p style="background:var(--blue-bg);border:1px solid var(--blue-brd);border-radius:8px;padding:12px;font-size:13px;margin-bottom:16px">
+      ℹ️ El estado se actualiza directamente en Rentman (campo custom_5 → Pagada).
+    </p>
+    <div style="display:flex;gap:10px">
+      <button onclick="document.getElementById('modal-fianza').style.display='none'" style="flex:1;padding:11px;border:1.5px solid var(--gray-light);background:var(--white);border-radius:8px;font-size:14px;cursor:pointer">Cancelar</button>
+      <button onclick="ejecutarCambioEstadoFianza(${id},'1')" style="flex:1;padding:11px;background:#2563eb;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">Confirmar</button>
+    </div>`;
+  document.getElementById('modal-fianza').style.display = 'flex';
+}
+
+function confirmarDevolucionFianza(id, cliente, importe) {
+  document.getElementById('modal-fianza-title').textContent = '✅ Confirmar Devolución de Fianza';
+  document.getElementById('modal-fianza-body').innerHTML = `
+    <p style="color:var(--gray);font-size:14px;margin-bottom:16px">
+      Confirma que se ha devuelto la fianza a <strong>${cliente}</strong> por importe de <strong>${fmt(importe)}</strong>.
+    </p>
+    <p style="background:var(--green-bg);border:1px solid var(--green-brd);border-radius:8px;padding:12px;font-size:13px;margin-bottom:16px">
+      ℹ️ El estado se actualizará en Rentman a <strong>Devuelta</strong> (custom_5 = 2).
+    </p>
+    <div style="display:flex;gap:10px">
+      <button onclick="document.getElementById('modal-fianza').style.display='none'" style="flex:1;padding:11px;border:1.5px solid var(--gray-light);background:var(--white);border-radius:8px;font-size:14px;cursor:pointer">Cancelar</button>
+      <button onclick="ejecutarCambioEstadoFianza(${id},'2')" style="flex:1;padding:11px;background:#16a34a;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">Confirmar Devolución</button>
+    </div>`;
+  document.getElementById('modal-fianza').style.display = 'flex';
+}
+
+async function ejecutarCambioEstadoFianza(proyectoId, nuevoEstado) {
+  document.getElementById('modal-fianza').style.display = 'none';
+  try {
+    const r = await fetch(`/api/fianzas/${proyectoId}/estado`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ estado: nuevoEstado, usuario: userInfo?.nombre || '' })
+    });
+    const d = await r.json();
+    if (!d.ok) throw new Error(d.error || 'Error al actualizar');
+    // Actualizar en memoria inmediatamente
+    const f = fianzasData.find(x => x.id === proyectoId);
+    if (f) { f.estado_id = nuevoEstado; f.estado = nuevoEstado === '1' ? 'Pagada' : 'Devuelta'; }
+    // Invalidar caché del servidor
+    await fetch('/api/fianzas/cache/reload', { method: 'POST' });
+    renderFianzas();
+  } catch(e) { alert('Error: ' + e.message); }
+}
+
+
 checkSession();
 </script>
 </body>
