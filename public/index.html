@@ -873,7 +873,7 @@ function renderContab(){
           <th onclick="setContabSort('cliente')" class="${contabSortCol==='cliente'?'sorted':''}">Cliente ${sc('cliente')}</th>
           <th onclick="setContabSort('fecha_pago')" class="${contabSortCol==='fecha_pago'?'sorted':''}">Fecha Pago ${sc('fecha_pago')}</th>
           <th onclick="setContabSort('total_pagado')" class="${contabSortCol==='total_pagado'?'sorted':''}">Importe ${sc('total_pagado')}</th>
-          <th>Método</th><th>Nº Op.</th><th>No Conf.</th><th>Verificado</th>
+          <th>Método</th><th>Nº Op.</th><th>Verificado</th>
         </tr></thead>
         <tbody>${l.map(f=>{
           const reg=registrosC[String(f.id)];
@@ -887,7 +887,6 @@ function renderContab(){
             <td><strong class="imp ${imp>=0?'pos':'neg'}">${fmt(imp)}</strong></td>
             <td style="font-size:12px;color:var(--gray)">${m?.nombre||'—'}</td>
             <td style="font-size:12px;color:var(--blue);font-weight:600">${reg?.num_operacion||''}</td>
-            <td style="text-align:center">${f.es_abrebotellas?'🍾':''}</td>
             <td style="text-align:center"><div class="tick-circle ${tick?'checked':''}" onclick="toggleTick('${f.fecha_pago}_${f.id}',this)">${tick?'✓':''}</div></td>
           </tr>`;
         }).join('')}</tbody>
