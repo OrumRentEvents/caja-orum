@@ -274,12 +274,16 @@ function iniciarApp(){
   document.getElementById('app').style.display='block';
   document.getElementById('user-nombre').textContent=userInfo.nombre;
   document.getElementById('user-avatar').textContent=userInfo.nombre[0].toUpperCase();
-  if(['contabilidad','admin','caja'].includes(userInfo.rol)) document.getElementById('tab-contabilidad').style.display='';
-  document.getElementById('tab-noconf').style.display=''; // visible para todos los roles
-  if(['caja','contabilidad','admin'].includes(userInfo.rol)) document.getElementById('tab-caja').style.display='';
+  // Caja Diaria: todos excepto... nadie, todos la ven
+  document.getElementById('tab-caja').style.display='';
+  // No Confirmados: todos
+  document.getElementById('tab-noconf').style.display='';
+  // Contabilidad: caja, contabilidad, admin
+  if(['caja','contabilidad','admin'].includes(userInfo.rol)) document.getElementById('tab-contabilidad').style.display='';
+  // Historial: solo admin
   if(userInfo.rol==='admin') document.getElementById('tab-historial').style.display='';
-  // Comerciales: ven Caja Diaria y No Confirmados (sin check)
-  if(userInfo.rol==='comercial') { showTab('caja'); }
+  // Arrancar en la pestaña correcta
+  if(userInfo.rol==='comercial') showTab('caja');
   const hoy=new Date().toISOString().substring(0,10);
   const p=hoy.substring(0,8)+'01';
   ['fecha-desde','fecha-hasta','nc-desde','nc-hasta'].forEach(id=>document.getElementById(id).value=hoy);
@@ -718,14 +722,14 @@ async function cargarNoConf(){
 }
 
 function renderNoConf(){
-  const totalEf=noConfsVista.reduce((s,f)=>{const st=estado[String(f.id)];return s+(st?f.total_pagado||f.importe||0:0);},0);
-  const sin=noConfsVista.filter(f=>!estado[String(f.id)]).length;
-  const confirmados=noConfs.filter(f=>ncConfs[String(f.id)]?.confirmado).length;
-  const pendConf=noConfsVista.filter(f=>estado[String(f.id)]&&!ncConfs[String(f.id)]?.confirmado).length;
   const esContab=userInfo&&['contabilidad','admin'].includes(userInfo.rol);
   const esComercial=userInfo&&userInfo.rol==='comercial';
   // Comerciales solo ven los no confirmados por Ana
   const noConfsVista = esComercial ? noConfs.filter(f=>!ncConfs[String(f.id)]?.confirmado) : noConfs;
+  const totalEf=noConfsVista.reduce((s,f)=>{const st=estado[String(f.id)];return s+(st?f.total_pagado||f.importe||0:0);},0);
+  const sin=noConfsVista.filter(f=>!estado[String(f.id)]).length;
+  const confirmados=noConfs.filter(f=>ncConfs[String(f.id)]?.confirmado).length;
+  const pendConf=noConfsVista.filter(f=>estado[String(f.id)]&&!ncConfs[String(f.id)]?.confirmado).length;
   document.getElementById('noconf-content').innerHTML=`
     <div class="kpi-grid" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr))">
       <div class="kpi-card kpi-efectivo"><div class="kpi-label">Total No Confirmados</div><div class="kpi-value">${fmt(totalEf)}</div><div class="kpi-sub">${noConfs.length} registros · ${sin} sin método</div></div>
