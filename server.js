@@ -28,12 +28,14 @@ const FIANZA_METODOS = {
 const cacheFianzas = { data: [], ts: 0 };
 const FIANZAS_TTL = 5 * 60 * 1000; // 5 minutos
 
-const AS_RUTAS_URL = 'https://script.google.com/macros/s/AKfycbxaSfXi-D3Sx8Lpek6pHPaA-2_NgrXW6CTM0d37LlCX-x0hqRLM6BwyH-BIinyiJlAi/exec';
-const AS_NC_URL    = 'https://script.google.com/macros/s/AKfycbx1ayolXUAmk95s8M2bUS_46O7HQrM4gmQgh1mQF9zOCuOvEQfp59K94TnDYpopE73QmA/exec';
-const CAJA_TOKEN   = 'ORUMx2026CajaStore';
-const RUTAS_TOKEN  = 'ORUMx2026CajaStats';
-const RENTMAN_TOKEN= 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpYXQiOjE3NzMxNTM0MjIsIm1lZGV3ZXJrZXIiOjIzNSwiYWNjb3VudCI6InNlcnZpY2lvc3lhbHF1aWxlcnBhcmFldmVudG9zc2wiLCJjbGllbnRfdHlwZSI6Im9wZW5hcGkiLCJjbGllbnQubmFtZSI6Im9wZW5hcGkiLCJleHAiOjIwODg3NzI2MjIsImlzcyI6IntcIm5hbWVcIjpcImJhY2tlbmRcIixcInZlcnNpb25cIjpcIjQuODI4LjAuNlwifSJ9.hyHIfRnBGkLunqFAzG40c95AjpkWJfywelT_RiTcXDs';
-const RENTMAN_URL  = 'https://api.rentman.net';
+const AS_RUTAS_URL   = 'https://script.google.com/macros/s/AKfycbxaSfXi-D3Sx8Lpek6pHPaA-2_NgrXW6CTM0d37LlCX-x0hqRLM6BwyH-BIinyiJlAi/exec';
+const AS_NC_URL      = 'https://script.google.com/macros/s/AKfycbx1ayolXUAmk95s8M2bUS_46O7HQrM4gmQgh1mQF9zOCuOvEQfp59K94TnDYpopE73QmA/exec';
+const AS_FIANZAS_URL = process.env.AS_FIANZAS_URL || 'PON_AQUI_URL_FIANZAS_SCRIPT';
+const CAJA_TOKEN     = 'ORUMx2026CajaStore';
+const RUTAS_TOKEN    = 'ORUMx2026CajaStats';
+const FIANZAS_TOKEN  = 'ORUMx2026#Fianzas$Secret';
+const RENTMAN_TOKEN  = process.env.RENTMAN_TOKEN || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpYXQiOjE3NzMxNTM0MjIsIm1lZGV3ZXJrZXIiOjIzNSwiYWNjb3VudCI6InNlcnZpY2lvc3lhbHF1aWxlcnBhcmFldmVudG9zc2wiLCJjbGllbnRfdHlwZSI6Im9wZW5hcGkiLCJjbGllbnQubmFtZSI6Im9wZW5hcGkiLCJleHAiOjIwODg3NzI2MjIsImlzcyI6IntcIm5hbWVcIjpcImJhY2tlbmRcIixcInZlcnNpb25cIjpcIjQuODI4LjAuNlwifSJ9.hyHIfRnBGkLunqFAzG40c95AjpkWJfywelT_RiTcXDs';
+const RENTMAN_URL    = 'https://api.rentman.net';
 
 // ── Caché en memoria ──────────────────────────────────────────
 const cache = {
@@ -408,6 +410,88 @@ app.post('/api/fianzas/cache/reload', auth, async (req, res) => {
     cacheFianzas.data = data;
     cacheFianzas.ts = Date.now();
     res.json({ ok: true, data, count: data.length });
+  } catch(e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+// ── Helper AS Fianzas ─────────────────────────────────────────
+async function asFianzasGet(params) {
+  const qs = new URLSearchParams(params).toString();
+  let url = `${AS_FIANZAS_URL}?${qs}`;
+  let r;
+  for (let i = 0; i < 6; i++) {
+    r = await fetch(url, { redirect: 'manual' });
+    if ([301,302,307,308].includes(r.status)) { url = r.headers.get('location'); if (!url) break; }
+    else break;
+  }
+  const text = await r.text();
+  try { return JSON.parse(text); }
+  catch(e) { throw new Error('AS Fianzas no JSON: ' + text.substring(0, 300)); }
+}
+
+async function asFianzasPost(body) {
+  let url = AS_FIANZAS_URL;
+  let r;
+  for (let i = 0; i < 6; i++) {
+    r = await fetch(url, { method: 'POST', redirect: 'manual', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    if ([301,302,307,308].includes(r.status)) { url = r.headers.get('location'); if (!url) break; }
+    else break;
+  }
+  const text = await r.text();
+  try { return JSON.parse(text); }
+  catch(e) { throw new Error('AS Fianzas no JSON: ' + text.substring(0, 300)); }
+}
+
+// ── SOLICITUDES FIANZAS ───────────────────────────────────────
+// Caché de solicitudes en memoria
+const cacheSolicitudes = { data: [], ts: 0 };
+const SOLICITUDES_TTL = 2 * 60 * 1000; // 2 minutos
+
+app.get('/api/fianzas/solicitudes', auth, async (req, res) => {
+  try {
+    const ahora = Date.now();
+    if (ahora - cacheSolicitudes.ts < SOLICITUDES_TTL && cacheSolicitudes.data.length > 0) {
+      return res.json({ ok: true, data: cacheSolicitudes.data, cached: true });
+    }
+    const d = await asFianzasGet({ token: FIANZAS_TOKEN, action: 'get_solicitudes' });
+    if (!d.ok) return res.status(500).json(d);
+    cacheSolicitudes.data = d.data || [];
+    cacheSolicitudes.ts = Date.now();
+    res.json({ ok: true, data: cacheSolicitudes.data });
+  } catch(e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+app.post('/api/fianzas/solicitar', auth, async (req, res) => {
+  try {
+    const d = await asFianzasPost({ token: FIANZAS_TOKEN, action: 'crear_solicitud', ...req.body });
+    cacheSolicitudes.ts = 0; // invalidar caché
+    cacheFianzas.ts = 0;
+    res.json(d);
+  } catch(e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+app.post('/api/fianzas/devolver', auth, async (req, res) => {
+  try {
+    const { solicitud_id, proyecto_id, notas } = req.body;
+    // 1. Marcar devuelta en Sheet
+    const d = await asFianzasPost({ token: FIANZAS_TOKEN, action: 'marcar_devuelta', id: solicitud_id, notas: notas || '' });
+    if (!d.ok) return res.status(500).json(d);
+    // 2. Actualizar custom_5=2 en Rentman
+    await fetch(`${RENTMAN_URL}/projects/${proyecto_id}`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${RENTMAN_TOKEN}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ custom: { custom_5: '2' } })
+    });
+    cacheSolicitudes.ts = 0;
+    cacheFianzas.ts = 0;
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+app.post('/api/fianzas/cancelar-solicitud', auth, async (req, res) => {
+  try {
+    const d = await asFianzasPost({ token: FIANZAS_TOKEN, action: 'cancelar_solicitud', id: req.body.solicitud_id });
+    cacheSolicitudes.ts = 0;
+    res.json(d);
   } catch(e) { res.status(500).json({ ok: false, error: e.message }); }
 });
 
