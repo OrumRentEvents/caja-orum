@@ -1365,6 +1365,20 @@ async function ejecutarDevuelta(solicitudId, proyectoId) {
   } catch(e) { alert('Error: ' + e.message); }
 }
 
+function modalCancelarSolicitud(solicitudId) {
+  document.getElementById('modal-fianza-title').textContent = '↩ Deshacer Solicitud de Devolución';
+  document.getElementById('modal-fianza-body').innerHTML = `
+    <div style="background:#fff1f2;border:1px solid #fecdd3;border-radius:10px;padding:16px;margin-bottom:16px">
+      <div style="font-size:14px;color:#be123c;font-weight:600">¿Deshacer esta solicitud?</div>
+      <div style="font-size:13px;color:#9f1239;margin-top:4px">La solicitud quedará cancelada y Ana no recibirá esta fianza en el próximo email.</div>
+    </div>
+    <div style="display:flex;gap:10px">
+      <button onclick="document.getElementById('modal-fianza').style.display='none'" style="flex:1;padding:11px;border:1.5px solid var(--gray-light);background:var(--white);border-radius:8px;font-size:14px;cursor:pointer">No, mantener</button>
+      <button onclick="cancelarSolicitudFianza('${solicitudId}')" style="flex:1;padding:11px;background:#be123c;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">↩ Sí, deshacer</button>
+    </div>`;
+  document.getElementById('modal-fianza').style.display = 'flex';
+}
+
 async function cancelarSolicitudFianza(solicitudId) {
   if (!confirm('¿Cancelar esta solicitud de devolución?')) return;
   try {
