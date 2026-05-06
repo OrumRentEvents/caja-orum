@@ -1184,20 +1184,15 @@ function renderFianzas() {
     const solDev = getSolicitudDevuelta(f.id);
     // Completamente devuelta — sin acción
     if (estado === 'Devuelta') return `<span style="color:var(--gray);font-size:12px">—</span>`;
-    // Ana: solicitud pendiente → puede marcar devuelta
-    if (estado === 'SolicitudEnviada' && esContab) {
-      return `<button onclick="confirmarDevueltaFianza('${solPend.id}',${f.id},'${(f.cliente||'').replace(/'/g,"\'")}',${solPend.importe})" style="padding:5px 12px;background:#16a34a;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">✅ Marcar devuelta</button>`;
+    // Ana: solicitud pendiente → puede marcar devuelta. María/Sergio pueden deshacer
+    if (estado === 'SolicitudEnviada') {
+      const btnDevuelta = esContab ? `<button onclick="confirmarDevueltaFianza('${solPend.id}',${f.id},'${(f.cliente||'').replace(/'/g,"\'")}',${solPend.importe})" style="padding:5px 12px;background:#16a34a;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">✅ Marcar devuelta</button>` : '';
+      const btnDeshacer = (esCaja || userInfo?.rol === 'admin') ? `<button onclick="modalCancelarSolicitud('${solPend.id}')" style="padding:5px 12px;background:#fff1f2;color:#be123c;border:1px solid #fecdd3;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">↩ Deshacer</button>` : '';
+      return `<div style="display:flex;gap:6px;flex-wrap:wrap">${btnDevuelta}${btnDeshacer}</div>`;
     }
-    // Pagada sin solicitud — María puede solicitar
+    // Pagada sin solicitud — María o admin pueden solicitar
     if (estado === 'Pagada' && esCaja) {
       return `<button onclick="solicitarDevolucionFianza(${f.id},'${f.numero}','${(f.cliente||'').replace(/'/g,"\'")}',${f.importe},'${f.metodo}','${f.fecha_inicio}')" style="padding:5px 12px;background:#7c3aed;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">📋 Solicitar devolución</button>`;
-    }
-    // Solicitud enviada — María o Sergio pueden cancelar
-    if (estado === 'SolicitudEnviada' && (esCaja || userInfo?.rol === 'admin')) {
-      return `<div style="display:flex;gap:6px;flex-wrap:wrap">
-        ${esContab ? '' : ''}
-        <button onclick="modalCancelarSolicitud('${solPend.id}')" style="padding:5px 12px;background:#fff1f2;color:#be123c;border:1px solid #fecdd3;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">↩ Deshacer</button>
-      </div>`;
     }
     return '';
   };
