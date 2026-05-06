@@ -433,14 +433,19 @@ async function asFianzasGet(params) {
 }
 
 async function asFianzasPost(body) {
-  let url = AS_FIANZAS_URL;
-  let r;
-  for (let i = 0; i < 6; i++) {
-    r = await fetch(url, { method: 'POST', redirect: 'manual', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-    if ([301,302,307,308].includes(r.status)) { url = r.headers.get('location'); if (!url) break; }
-    else break;
+  const bodyStr = JSON.stringify(body);
+  // Primera llamada — obtiene el redirect de Google
+  const r1 = await fetch(AS_FIANZAS_URL, { method: 'POST', redirect: 'manual', headers: { 'Content-Type': 'application/json' }, body: bodyStr });
+  let finalUrl = AS_FIANZAS_URL;
+  if ([301,302,307,308].includes(r1.status)) {
+    finalUrl = r1.headers.get('location') || AS_FIANZAS_URL;
+  } else {
+    const text = await r1.text();
+    try { return JSON.parse(text); } catch(e) { throw new Error('AS Fianzas no JSON: ' + text.substring(0,300)); }
   }
-  const text = await r.text();
+  // Segunda llamada — POST a la URL final con el body original
+  const r2 = await fetch(finalUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: bodyStr });
+  const text = await r2.text();
   try { return JSON.parse(text); }
   catch(e) { throw new Error('AS Fianzas no JSON: ' + text.substring(0, 300)); }
 }
