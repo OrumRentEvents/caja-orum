@@ -1125,7 +1125,7 @@ function renderFianzas() {
   const estadoBadge = (f) => {
     const sol = getSolicitudPendiente(f.id);
     if (f.estado === 'Devuelta') return `<span style="background:#f0fdf4;color:#166534;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600">✅ Devuelta</span>`;
-    if (sol)                     return `<span style="background:#fef3c7;color:#92400e;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600">📋 Solicitud enviada</span>`;
+    if (sol)                     return `<div style="display:flex;flex-direction:column;gap:2px"><span style="background:#f3e8ff;color:#7c3aed;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600">📋 Solicitud enviada</span><span style="font-size:11px;color:#7c3aed;padding-left:4px">A devolver: ${fmt(sol.importe)}</span></div>`;
     if (f.estado === 'Pagada')   return `<span style="background:#eff6ff;color:#1e40af;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600">💰 Pagada</span>`;
     return `<span style="background:#fef9c3;color:#854d0e;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600">⏳ Pendiente cobro</span>`;
   };
@@ -1175,7 +1175,7 @@ function renderFianzas() {
     ${alertaSolicitudes}
     <div class="kpi-grid" style="margin-bottom:16px">
       <div class="kpi-card"><div class="kpi-label">Total Fianzas</div><div class="kpi-value">${fmt(total)}</div><div class="kpi-sub">${fianzasData.length} proyectos</div></div>
-      <div class="kpi-card" style="border-left:4px solid #f59e0b"><div class="kpi-label">Pendientes cobro</div><div class="kpi-value" style="color:#d97706">${fmt(pendientes.reduce((s,f)=>s+f.importe,0))}</div><div class="kpi-sub">${pendientes.length} fianzas</div></div>
+      <div class="kpi-card" style="border-left:4px solid #7c3aed"><div class="kpi-label">Solicitado por devolver</div><div class="kpi-value" style="color:#7c3aed">${fmt(totalSolPendiente)}</div><div class="kpi-sub">${solPendientes.length} solicitud${solPendientes.length!==1?'es':''} pendiente${solPendientes.length!==1?'s':''} de Ana</div></div>
       <div class="kpi-card kpi-tpv"><div class="kpi-label">Cobradas / Retenidas</div><div class="kpi-value">${fmt(pagadas.reduce((s,f)=>s+f.importe,0))}</div><div class="kpi-sub">${pagadas.length} fianzas · ${solPendientes.length} con solicitud</div></div>
       <div class="kpi-card kpi-efectivo"><div class="kpi-label">Devueltas</div><div class="kpi-value">${fmt(devueltas.reduce((s,f)=>s+f.importe,0))}</div><div class="kpi-sub">${devueltas.length} fianzas</div></div>
     </div>
