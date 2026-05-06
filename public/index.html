@@ -1373,10 +1373,12 @@ function modalCancelarSolicitud(solicitudId) {
       <div style="font-size:13px;color:#9f1239;margin-top:4px">La solicitud quedará cancelada y Ana no recibirá esta fianza en el próximo email.</div>
     </div>
     <div style="display:flex;gap:10px">
-      <button onclick="document.getElementById('modal-fianza').style.display='none'" style="flex:1;padding:11px;border:1.5px solid var(--gray-light);background:var(--white);border-radius:8px;font-size:14px;cursor:pointer">No, mantener</button>
-      <button onclick="cancelarSolicitudFianza('${solicitudId}')" style="flex:1;padding:11px;background:#be123c;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">↩ Sí, deshacer</button>
+      <button id="btn-cancelar-no" style="flex:1;padding:11px;border:1.5px solid var(--gray-light);background:var(--white);border-radius:8px;font-size:14px;cursor:pointer">No, mantener</button>
+      <button id="btn-cancelar-si" style="flex:1;padding:11px;background:#be123c;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">↩ Sí, deshacer</button>
     </div>`;
   document.getElementById('modal-fianza').style.display = 'flex';
+  document.getElementById('btn-cancelar-no').onclick = () => document.getElementById('modal-fianza').style.display = 'none';
+  document.getElementById('btn-cancelar-si').onclick = () => cancelarSolicitudFianza(solicitudId);
 }
 
 async function cancelarSolicitudFianza(solicitudId) {
