@@ -1192,9 +1192,12 @@ function renderFianzas() {
     if (estado === 'Pagada' && esCaja) {
       return `<button onclick="solicitarDevolucionFianza(${f.id},'${f.numero}','${(f.cliente||'').replace(/'/g,"\'")}',${f.importe},'${f.metodo}','${f.fecha_inicio}')" style="padding:5px 12px;background:#7c3aed;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">📋 Solicitar devolución</button>`;
     }
-    // Solicitud enviada — María puede cancelar
-    if (estado === 'SolicitudEnviada' && esCaja && !esContab) {
-      return `<button onclick="cancelarSolicitudFianza('${solPend.id}')" style="padding:5px 12px;background:var(--red-bg);color:var(--red);border:1px solid var(--red-brd);border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">✕ Cancelar</button>`;
+    // Solicitud enviada — María o Sergio pueden cancelar
+    if (estado === 'SolicitudEnviada' && (esCaja || userInfo?.rol === 'admin')) {
+      return `<div style="display:flex;gap:6px;flex-wrap:wrap">
+        ${esContab ? '' : ''}
+        <button onclick="modalCancelarSolicitud('${solPend.id}')" style="padding:5px 12px;background:#fff1f2;color:#be123c;border:1px solid #fecdd3;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">↩ Deshacer</button>
+      </div>`;
     }
     return '';
   };
