@@ -1153,8 +1153,11 @@ function renderFianzas() {
     const solPend = getSolicitudPendiente(f.id);
     const solDev = getSolicitudDevuelta(f.id);
     if (estado === 'Devuelta' || estado === 'DevueltaSheet') {
-      const sub = estado === 'DevueltaSheet' ? '<span style="font-size:10px;color:#166534;padding-left:4px">⏳ Pendiente notificar</span>' : '';
-      return `<div style="display:flex;flex-direction:column;gap:2px"><span style="background:#f0fdf4;color:#166534;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600">✅ Devuelta</span>${sub}</div>`;
+      const solD = getSolicitudDevuelta(f.id);
+      const sub = estado === 'DevueltaSheet' && solD
+        ? `<span style="font-size:11px;color:#166534;padding-left:2px">⏳ Pendiente notificar · <strong>Devolver: ${fmt(solD.importe)}</strong></span>`
+        : '';
+      return `<div style="display:flex;flex-direction:column;gap:3px"><span style="background:#f0fdf4;color:#166534;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600">✅ Devuelta</span>${sub}</div>`;
     }
     if (estado === 'SolicitudEnviada') return `<div style="display:flex;flex-direction:column;gap:2px"><span style="background:#f3e8ff;color:#7c3aed;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600">📋 Solicitud enviada</span><span style="font-size:11px;color:#7c3aed;padding-left:4px">A devolver: ${fmt(solPend.importe)}</span></div>`;
     if (f.estado === 'Pagada') return `<span style="background:#eff6ff;color:#1e40af;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600">💰 Pagada</span>`;
