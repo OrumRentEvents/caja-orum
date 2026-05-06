@@ -484,17 +484,10 @@ app.post('/api/fianzas/rentman-devuelta', auth, async (req, res) => {
 app.post('/api/fianzas/devolver', auth, async (req, res) => {
   try {
     const { solicitud_id, proyecto_id, notas } = req.body;
-    // 1. Marcar devuelta en Sheet
+    // Marcar devuelta en Sheet — Rentman lo actualiza María manualmente al generar el documento
     const d = await asFianzasGet({ token: FIANZAS_TOKEN, action: 'marcar_devuelta', id: solicitud_id, notas: notas || '' });
     if (!d.ok) return res.status(500).json(d);
-    // 2. Actualizar custom_5=2 en Rentman
-    await fetch(`${RENTMAN_URL}/projects/${proyecto_id}`, {
-      method: 'PATCH',
-      headers: { Authorization: `Bearer ${RENTMAN_TOKEN}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ custom: { custom_5: '2' } })
-    });
     cacheSolicitudes.ts = 0;
-    cacheFianzas.ts = 0;
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ ok: false, error: e.message }); }
 });
