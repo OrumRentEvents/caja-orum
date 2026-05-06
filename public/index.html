@@ -270,6 +270,8 @@ tr:hover td{background:var(--gray-bg)}
 </div>
 
 <script>
+const AS_FIANZAS_URL = 'https://script.google.com/macros/s/AKfycbywPrFiicFAK0f0ayIOa27JHqUXOviaAU_WlwmrDYNqq_g8Oe0ap14i8FDgXfYO5Is-wQ/exec';
+const FIANZAS_TOKEN = 'ORUMx2026#Fianzas$Secret';
 const API = 'https://orum-api.dashboardorum.workers.dev';
 const NC_URL = 'https://script.google.com/macros/s/AKfycbx1ayolXUAmk95s8M2bUS_46O7HQrM4gmQgh1mQF9zOCuOvEQfp59K94TnDYpopE73QmA/exec';
 
@@ -1052,6 +1054,27 @@ let fianzasData = [];
 let solicitudesData = [];
 let fianzasSortCol = 'fecha_inicio', fianzasSortDir = 1;
 
+async function asFianzasPost(body) {
+  let url = AS_FIANZAS_URL;
+  for (let i = 0; i < 6; i++) {
+    const r = await fetch(url, { method: 'POST', redirect: 'manual', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    if ([301,302,307,308].includes(r.status)) { url = r.headers.get('location'); if (!url) break; }
+    else { const t = await r.text(); try { return JSON.parse(t); } catch(e) { throw new Error('AS no JSON: ' + t.substring(0,200)); } }
+  }
+  throw new Error('AS: demasiados redirects');
+}
+
+async function asFianzasGet(params) {
+  const qs = new URLSearchParams(params).toString();
+  let url = `${AS_FIANZAS_URL}?${qs}`;
+  for (let i = 0; i < 6; i++) {
+    const r = await fetch(url, { redirect: 'manual' });
+    if ([301,302,307,308].includes(r.status)) { url = r.headers.get('location'); if (!url) break; }
+    else { const t = await r.text(); try { return JSON.parse(t); } catch(e) { throw new Error('AS no JSON: ' + t.substring(0,200)); } }
+  }
+  throw new Error('AS: demasiados redirects');
+}
+
 async function cargarFianzas(forzar=false) {
   const btn = document.getElementById('btn-cargar-fianzas');
   btn.disabled = true; btn.textContent = 'Cargando...';
@@ -1059,7 +1082,7 @@ async function cargarFianzas(forzar=false) {
   try {
     const [rF, rS] = await Promise.all([
       fetch(forzar ? '/api/fianzas/cache/reload' : '/api/fianzas', { method: forzar ? 'POST' : 'GET' }).then(r=>r.json()),
-      fetch('/api/fianzas/solicitudes').then(r=>r.json())
+      asFianzasGet({ token: FIANZAS_TOKEN, action: 'get_solicitudes' })
     ]);
     if (!rF.ok) throw new Error(rF.error || 'Error cargando fianzas');
     fianzasData = rF.data || [];
@@ -1231,14 +1254,9 @@ function notificadoCell(f) {
 
 async function toggleNotificado(solicitudId, notificado) {
   try {
-    const r = await fetch('/api/fianzas/notificar', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ solicitud_id: solicitudId, notificado })
-    });
-    const d = await r.json();
+    const d = await asFianzasPost({ token: FIANZAS_TOKEN, action: 'marcar_notificado', id: solicitudId, notificado });
     if (!d.ok) throw new Error(d.error);
-    const rs = await fetch('/api/fianzas/solicitudes').then(r=>r.json());
+    const rs = await asFianzasGet({ token: FIANZAS_TOKEN, action: 'get_solicitudes' });
     solicitudesData = rs.ok ? (rs.data || []) : solicitudesData;
     renderFianzas();
   } catch(e) { alert('Error: ' + e.message); }
@@ -1275,15 +1293,10 @@ async function ejecutarSolicitud(proyectoId, numero, cliente, importe, metodo, f
   try {
     const notas = document.getElementById('fianza-notas')?.value || '';
     const importeReal = parseFloat(document.getElementById('fianza-importe')?.value) || importe;
-    const r = await fetch('/api/fianzas/solicitar', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ proyecto_id: proyectoId, numero_proyecto: numero, cliente, importe: importeReal, metodo, fecha_evento: fechaEvento, solicitado_por: userInfo?.nombre || '', notas })
-    });
-    const d = await r.json();
+    const d = await asFianzasPost({ token: FIANZAS_TOKEN, action: 'crear_solicitud', proyecto_id: proyectoId, numero_proyecto: numero, cliente, importe: importeReal, metodo, fecha_evento: fechaEvento, solicitado_por: userInfo?.nombre || '', notas });
     if (!d.ok) throw new Error(d.error || 'Error al crear solicitud');
     // Refrescar solicitudes
-    const rs = await fetch('/api/fianzas/solicitudes').then(r=>r.json());
+    const rs = await asFianzasGet({ token: FIANZAS_TOKEN, action: 'get_solicitudes' });
     solicitudesData = rs.ok ? (rs.data || []) : solicitudesData;
     renderFianzas();
   } catch(e) { alert('Error: ' + e.message); }
@@ -1314,17 +1327,21 @@ async function ejecutarDevuelta(solicitudId, proyectoId) {
   document.getElementById('modal-fianza').style.display = 'none';
   try {
     const notas = document.getElementById('fianza-notas-dev')?.value || '';
-    const r = await fetch('/api/fianzas/devolver', {
+    // 1. Marcar devuelta en Sheet directamente desde browser
+    const d = await asFianzasPost({ token: FIANZAS_TOKEN, action: 'marcar_devuelta', id: solicitudId, notas });
+    if (!d.ok) throw new Error(d.error || 'Error al marcar devuelta en Sheet');
+    // 2. PATCH a Rentman via Railway
+    const r2 = await fetch('/api/fianzas/rentman-devuelta', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ solicitud_id: solicitudId, proyecto_id: proyectoId, notas })
+      body: JSON.stringify({ proyecto_id: proyectoId })
     });
-    const d = await r.json();
-    if (!d.ok) throw new Error(d.error || 'Error al marcar devuelta');
-    // Refrescar todo
+    const d2 = await r2.json();
+    if (!d2.ok) console.warn('Aviso: no se pudo actualizar Rentman:', d2.error);
+    // 3. Refrescar
     const [rF, rS] = await Promise.all([
       fetch('/api/fianzas/cache/reload', { method: 'POST' }).then(r=>r.json()),
-      fetch('/api/fianzas/solicitudes').then(r=>r.json())
+      asFianzasGet({ token: FIANZAS_TOKEN, action: 'get_solicitudes' })
     ]);
     fianzasData = rF.ok ? (rF.data || []) : fianzasData;
     solicitudesData = rS.ok ? (rS.data || []) : solicitudesData;
@@ -1335,14 +1352,9 @@ async function ejecutarDevuelta(solicitudId, proyectoId) {
 async function cancelarSolicitudFianza(solicitudId) {
   if (!confirm('¿Cancelar esta solicitud de devolución?')) return;
   try {
-    const r = await fetch('/api/fianzas/cancelar-solicitud', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ solicitud_id: solicitudId })
-    });
-    const d = await r.json();
+    const d = await asFianzasPost({ token: FIANZAS_TOKEN, action: 'cancelar_solicitud', id: solicitudId });
     if (!d.ok) throw new Error(d.error);
-    const rs = await fetch('/api/fianzas/solicitudes').then(r=>r.json());
+    const rs = await asFianzasGet({ token: FIANZAS_TOKEN, action: 'get_solicitudes' });
     solicitudesData = rs.ok ? (rs.data || []) : solicitudesData;
     renderFianzas();
   } catch(e) { alert('Error: ' + e.message); }

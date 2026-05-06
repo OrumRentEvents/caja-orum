@@ -331,8 +331,12 @@ async function fetchFianzasRentman() {
       try {
         const r = await fetch(`${RENTMAN_URL}/contacts/${id}`, { headers: { Authorization: `Bearer ${RENTMAN_TOKEN}` } });
         const d = await r.json();
-        if (d.data) contactoMap[id] = d.data.displayname || '';
-      } catch(e) {}
+        if (d.data) {
+          contactoMap[id] = d.data.displayname || [d.data.firstname, d.data.surname].filter(Boolean).join(' ') || '';
+        } else {
+          console.warn(`[Fianzas] Contacto ${id} sin data:`, JSON.stringify(d).substring(0,200));
+        }
+      } catch(e) { console.warn(`[Fianzas] Error contacto ${id}:`, e.message); }
     }));
   }
 
@@ -466,6 +470,20 @@ app.post('/api/fianzas/solicitar', auth, async (req, res) => {
     cacheSolicitudes.ts = 0; // invalidar caché
     cacheFianzas.ts = 0;
     res.json(d);
+  } catch(e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+app.post('/api/fianzas/rentman-devuelta', auth, async (req, res) => {
+  try {
+    const { proyecto_id } = req.body;
+    const r = await fetch(`${RENTMAN_URL}/projects/${proyecto_id}`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${RENTMAN_TOKEN}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ custom: { custom_5: '2' } })
+    });
+    if (!r.ok) { const err = await r.text(); return res.status(r.status).json({ ok: false, error: err }); }
+    cacheFianzas.ts = 0;
+    res.json({ ok: true });
   } catch(e) { res.status(500).json({ ok: false, error: e.message }); }
 });
 
