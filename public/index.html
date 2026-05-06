@@ -209,6 +209,7 @@ tr:hover td{background:var(--gray-bg)}
       <select id="fianzas-filtro-estado" onchange="renderFianzas()" style="padding:8px 12px;border:1.5px solid var(--gray-light);border-radius:8px;font-size:14px;outline:none">
         <option value="">Todos</option>
         <option value="Pagada">Pagada</option>
+        <option value="Solicitud enviada">📋 Solicitud enviada</option>
         <option value="Devuelta">Devuelta</option>
       </select>
       <label>Notificado</label>
@@ -1093,7 +1094,9 @@ function renderFianzas() {
   const filtroNotificado = document.getElementById('fianzas-filtro-notificado')?.value || '';
 
   let lista = fianzasData.filter(f => {
-    if (filtroEstado && f.estado !== filtroEstado) return false;
+    if (filtroEstado === 'Solicitud enviada') {
+      if (!getSolicitudPendiente(f.id)) return false;
+    } else if (filtroEstado && f.estado !== filtroEstado) return false;
     if (filtroMetodo && f.metodo !== filtroMetodo) return false;
     if (q && !f.cliente.toLowerCase().includes(q) && !f.nombre.toLowerCase().includes(q) && !f.numero.includes(q)) return false;
     if (filtroNotificado) {

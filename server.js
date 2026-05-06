@@ -432,23 +432,12 @@ async function asFianzasGet(params) {
   catch(e) { throw new Error('AS Fianzas no JSON: ' + text.substring(0, 300)); }
 }
 
-async function asFianzasPost(body) {
-  const bodyStr = JSON.stringify(body);
-  // Primera llamada — obtiene el redirect de Google
-  const r1 = await fetch(AS_FIANZAS_URL, { method: 'POST', redirect: 'manual', headers: { 'Content-Type': 'application/json' }, body: bodyStr });
-  let finalUrl = AS_FIANZAS_URL;
-  if ([301,302,307,308].includes(r1.status)) {
-    finalUrl = r1.headers.get('location') || AS_FIANZAS_URL;
-  } else {
-    const text = await r1.text();
-    try { return JSON.parse(text); } catch(e) { throw new Error('AS Fianzas no JSON: ' + text.substring(0,300)); }
-  }
-  // Segunda llamada — POST a la URL final con el body original
-  const r2 = await fetch(finalUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: bodyStr });
-  const text = await r2.text();
-  try { return JSON.parse(text); }
-  catch(e) { throw new Error('AS Fianzas no JSON: ' + text.substring(0, 300)); }
+// Alias: todos los POST ahora son GET con params
+async function asFianzasPost(params) {
+  return asFianzasGet(params);
 }
+
+
 
 // ── SOLICITUDES FIANZAS ───────────────────────────────────────
 // Caché de solicitudes en memoria
@@ -471,7 +460,7 @@ app.get('/api/fianzas/solicitudes', auth, async (req, res) => {
 
 app.post('/api/fianzas/solicitar', auth, async (req, res) => {
   try {
-    const d = await asFianzasPost({ token: FIANZAS_TOKEN, action: 'crear_solicitud', ...req.body });
+    const d = await asFianzasGet({ token: FIANZAS_TOKEN, action: 'crear_solicitud', ...req.body });
     cacheSolicitudes.ts = 0; // invalidar caché
     cacheFianzas.ts = 0;
     res.json(d);
@@ -496,7 +485,7 @@ app.post('/api/fianzas/devolver', auth, async (req, res) => {
   try {
     const { solicitud_id, proyecto_id, notas } = req.body;
     // 1. Marcar devuelta en Sheet
-    const d = await asFianzasPost({ token: FIANZAS_TOKEN, action: 'marcar_devuelta', id: solicitud_id, notas: notas || '' });
+    const d = await asFianzasGet({ token: FIANZAS_TOKEN, action: 'marcar_devuelta', id: solicitud_id, notas: notas || '' });
     if (!d.ok) return res.status(500).json(d);
     // 2. Actualizar custom_5=2 en Rentman
     await fetch(`${RENTMAN_URL}/projects/${proyecto_id}`, {
@@ -513,7 +502,7 @@ app.post('/api/fianzas/devolver', auth, async (req, res) => {
 app.post('/api/fianzas/notificar', auth, async (req, res) => {
   try {
     const { solicitud_id, notificado } = req.body;
-    const d = await asFianzasPost({ token: FIANZAS_TOKEN, action: 'marcar_notificado', id: solicitud_id, notificado: notificado !== false });
+    const d = await asFianzasGet({ token: FIANZAS_TOKEN, action: 'marcar_notificado', id: solicitud_id, notificado: String(notificado !== false) });
     cacheSolicitudes.ts = 0;
     res.json(d);
   } catch(e) { res.status(500).json({ ok: false, error: e.message }); }
@@ -521,7 +510,7 @@ app.post('/api/fianzas/notificar', auth, async (req, res) => {
 
 app.post('/api/fianzas/cancelar-solicitud', auth, async (req, res) => {
   try {
-    const d = await asFianzasPost({ token: FIANZAS_TOKEN, action: 'cancelar_solicitud', id: req.body.solicitud_id });
+    const d = await asFianzasGet({ token: FIANZAS_TOKEN, action: 'cancelar_solicitud', id: req.body.solicitud_id });
     cacheSolicitudes.ts = 0;
     res.json(d);
   } catch(e) { res.status(500).json({ ok: false, error: e.message }); }
