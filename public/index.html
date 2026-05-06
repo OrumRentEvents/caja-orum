@@ -208,9 +208,14 @@ tr:hover td{background:var(--gray-bg)}
       <label>Estado</label>
       <select id="fianzas-filtro-estado" onchange="renderFianzas()" style="padding:8px 12px;border:1.5px solid var(--gray-light);border-radius:8px;font-size:14px;outline:none">
         <option value="">Todos</option>
-        <option value="Pendiente">Pendiente</option>
         <option value="Pagada">Pagada</option>
         <option value="Devuelta">Devuelta</option>
+      </select>
+      <label>Notificado</label>
+      <select id="fianzas-filtro-notificado" onchange="renderFianzas()" style="padding:8px 12px;border:1.5px solid var(--gray-light);border-radius:8px;font-size:14px;outline:none">
+        <option value="">Todos</option>
+        <option value="NO">⏳ Pendiente notificar</option>
+        <option value="SI">✅ Notificado</option>
       </select>
       <label>Método</label>
       <select id="fianzas-filtro-metodo" onchange="renderFianzas()" style="padding:8px 12px;border:1.5px solid var(--gray-light);border-radius:8px;font-size:14px;outline:none">
@@ -1082,10 +1087,17 @@ function renderFianzas() {
   const filtroMetodo = document.getElementById('fianzas-filtro-metodo')?.value || '';
   const q = (document.getElementById('fianzas-buscar')?.value || '').toLowerCase();
 
+  const filtroNotificado = document.getElementById('fianzas-filtro-notificado')?.value || '';
+
   let lista = fianzasData.filter(f => {
     if (filtroEstado && f.estado !== filtroEstado) return false;
     if (filtroMetodo && f.metodo !== filtroMetodo) return false;
     if (q && !f.cliente.toLowerCase().includes(q) && !f.nombre.toLowerCase().includes(q) && !f.numero.includes(q)) return false;
+    if (filtroNotificado) {
+      const sol = solicitudesData.find(s => String(s.proyecto_id) === String(f.id) && s.estado === 'DEVUELTA');
+      const notif = sol ? sol.notificado : 'NO';
+      if (notif !== filtroNotificado) return false;
+    }
     return true;
   });
 
@@ -1182,6 +1194,7 @@ function renderFianzas() {
           <th onclick="setFianzaSort('importe')" class="${'importe'===fianzasSortCol?'sorted':''}">Importe ${sf('importe')}</th>
           <th>Método</th>
           <th onclick="setFianzaSort('estado')" class="${'estado'===fianzasSortCol?'sorted':''}">Estado ${sf('estado')}</th>
+          <th>Notificado</th>
           ${!soloLectura ? '<th>Acción</th>' : ''}
         </tr></thead>
         <tbody>${lista.map(f => `<tr style="${getSolicitudPendiente(f.id)?'background:#fffbeb':''}">
@@ -1191,6 +1204,7 @@ function renderFianzas() {
           <td><strong class="imp pos">${fmt(f.importe)}</strong></td>
           <td>${metodoBadge(f)}</td>
           <td>${estadoBadge(f)}</td>
+          <td>${notificadoCell(f)}</td>
           ${!soloLectura ? `<td>${accionBtn(f)}</td>` : ''}
         </tr>`).join('')}</tbody>
       </table></div>`}
@@ -1198,14 +1212,49 @@ function renderFianzas() {
 }
 
 // ── ACCIONES FIANZAS ──────────────────────────────────────────
+function notificadoCell(f) {
+  const sol = solicitudesData.find(s => String(s.proyecto_id) === String(f.id) && s.estado === 'DEVUELTA');
+  if (f.estado !== 'Devuelta') return '<span style="color:var(--gray);font-size:12px">—</span>';
+  if (!sol) return '<span style="color:var(--gray);font-size:12px">—</span>';
+  const notif = sol.notificado === 'SI';
+  const puedeMarcar = ['caja','admin'].includes(userInfo?.rol || '');
+  if (notif) {
+    const cell = `<span style="color:#16a34a;font-weight:600;font-size:13px">✅ Notificado</span>`;
+    if (puedeMarcar) return `<div style="display:flex;align-items:center;gap:8px">${cell}<button onclick="toggleNotificado('${sol.id}',false)" style="padding:2px 8px;background:none;border:1px solid var(--gray-light);border-radius:6px;font-size:11px;color:var(--gray);cursor:pointer">Deshacer</button></div>`;
+    return cell;
+  } else {
+    const cell = `<span style="color:#d97706;font-weight:600;font-size:13px">⏳ Pendiente</span>`;
+    if (puedeMarcar) return `<div style="display:flex;align-items:center;gap:8px">${cell}<button onclick="toggleNotificado('${sol.id}',true)" style="padding:4px 10px;background:#16a34a;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">✓ Marcar</button></div>`;
+    return cell;
+  }
+}
+
+async function toggleNotificado(solicitudId, notificado) {
+  try {
+    const r = await fetch('/api/fianzas/notificar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ solicitud_id: solicitudId, notificado })
+    });
+    const d = await r.json();
+    if (!d.ok) throw new Error(d.error);
+    const rs = await fetch('/api/fianzas/solicitudes').then(r=>r.json());
+    solicitudesData = rs.ok ? (rs.data || []) : solicitudesData;
+    renderFianzas();
+  } catch(e) { alert('Error: ' + e.message); }
+}
+
 function solicitarDevolucionFianza(proyectoId, numero, cliente, importe, metodo, fechaEvento) {
   document.getElementById('modal-fianza-title').textContent = '📋 Solicitar Devolución de Fianza';
   document.getElementById('modal-fianza-body').innerHTML = `
     <div style="background:var(--gray-bg);border-radius:10px;padding:16px;margin-bottom:20px">
       <div style="font-size:13px;color:var(--gray);margin-bottom:4px">#${numero} · ${cliente}</div>
       <div style="font-size:13px;color:var(--gray);margin-bottom:12px">${metodo}${fechaEvento ? ' · Evento: ' + fechaEvento : ''}</div>
-      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--gray);margin-bottom:4px">Importe a devolver</div>
-      <div style="font-size:36px;font-weight:800;color:#16a34a;letter-spacing:-1px">${fmt(importe)}</div>
+      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--gray);margin-bottom:8px">Importe a devolver</div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <input type="number" id="fianza-importe" value="${importe}" step="0.01" min="0" style="font-size:28px;font-weight:800;color:#16a34a;border:2px solid #16a34a;border-radius:8px;padding:6px 12px;width:160px;outline:none;text-align:right">
+        <span style="font-size:24px;font-weight:800;color:#16a34a">€</span>
+      </div>
     </div>
     <div style="margin-bottom:16px">
       <label style="font-size:12px;font-weight:600;color:var(--gray);display:block;margin-bottom:8px">Notas para Ana</label>
@@ -1225,10 +1274,11 @@ async function ejecutarSolicitud(proyectoId, numero, cliente, importe, metodo, f
   document.getElementById('modal-fianza').style.display = 'none';
   try {
     const notas = document.getElementById('fianza-notas')?.value || '';
+    const importeReal = parseFloat(document.getElementById('fianza-importe')?.value) || importe;
     const r = await fetch('/api/fianzas/solicitar', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ proyecto_id: proyectoId, numero_proyecto: numero, cliente, importe, metodo, fecha_evento: fechaEvento, solicitado_por: userInfo?.nombre || '', notas })
+      body: JSON.stringify({ proyecto_id: proyectoId, numero_proyecto: numero, cliente, importe: importeReal, metodo, fecha_evento: fechaEvento, solicitado_por: userInfo?.nombre || '', notas })
     });
     const d = await r.json();
     if (!d.ok) throw new Error(d.error || 'Error al crear solicitud');

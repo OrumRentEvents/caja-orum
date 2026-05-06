@@ -487,6 +487,15 @@ app.post('/api/fianzas/devolver', auth, async (req, res) => {
   } catch(e) { res.status(500).json({ ok: false, error: e.message }); }
 });
 
+app.post('/api/fianzas/notificar', auth, async (req, res) => {
+  try {
+    const { solicitud_id, notificado } = req.body;
+    const d = await asFianzasPost({ token: FIANZAS_TOKEN, action: 'marcar_notificado', id: solicitud_id, notificado: notificado !== false });
+    cacheSolicitudes.ts = 0;
+    res.json(d);
+  } catch(e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
 app.post('/api/fianzas/cancelar-solicitud', auth, async (req, res) => {
   try {
     const d = await asFianzasPost({ token: FIANZAS_TOKEN, action: 'cancelar_solicitud', id: req.body.solicitud_id });
