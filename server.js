@@ -512,12 +512,10 @@ app.post('/api/fianzas/cancelar-solicitud', auth, async (req, res) => {
 // ── TEST PAYMENTS RENTMAN (solo lectura, para verificar estructura) ──
 app.get('/api/test/payments', authAdmin, async (req, res) => {
   try {
-    const { desde, hasta } = req.query;
-    const d = desde || new Date().toISOString().substring(0,10);
-    const h = hasta || d;
-    const url = `${RENTMAN_URL}/payments?limit=5&paymentdate%5Bgte%5D=${encodeURIComponent(d+' 00:00:00')}&paymentdate%5Blte%5D=${encodeURIComponent(h+' 23:59:59')}`;
-    const r = await fetch(url, { headers: { Authorization: `Bearer ${RENTMAN_TOKEN}` } });
-    const data = await r.json();
+    const url = RENTMAN_URL + '/payments?limit=5';
+    const r = await fetch(url, { headers: { Authorization: 'Bearer ' + RENTMAN_TOKEN } });
+    const text = await r.text();
+    const data = JSON.parse(text);
     res.json(data);
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
