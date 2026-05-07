@@ -520,5 +520,15 @@ app.get('/api/test/payments', authAdmin, async (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+app.get('/api/test/invoice/:id', authAdmin, async (req, res) => {
+  try {
+    const url = RENTMAN_URL + '/invoices/' + req.params.id;
+    const r = await fetch(url, { headers: { Authorization: 'Bearer ' + RENTMAN_TOKEN } });
+    const text = await r.text();
+    const data = JSON.parse(text);
+    res.json(data);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 app.get('*', (req,res) => res.sendFile(path.join(__dirname,'public','index.html')));
 app.listen(PORT, ()=>console.log('ORUM Caja puerto '+PORT));
