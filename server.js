@@ -530,6 +530,15 @@ app.get('/api/test/invoice/:id', authAdmin, async (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+app.get('/api/test/paymentmethods', authAdmin, async (req, res) => {
+  try {
+    const url = RENTMAN_URL + '/paymentmethods';
+    const r = await fetch(url, { headers: { Authorization: 'Bearer ' + RENTMAN_TOKEN } });
+    const text = await r.text();
+    try { res.json(JSON.parse(text)); } catch(e) { res.send(text); }
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 app.get('/api/test/invoice/:id/payments', authAdmin, async (req, res) => {
   try {
     const url = RENTMAN_URL + '/invoices/' + req.params.id + '/payments';
