@@ -509,5 +509,18 @@ app.post('/api/fianzas/cancelar-solicitud', auth, async (req, res) => {
   } catch(e) { res.status(500).json({ ok: false, error: e.message }); }
 });
 
+// ── TEST PAYMENTS RENTMAN (solo lectura, para verificar estructura) ──
+app.get('/api/test/payments', authAdmin, async (req, res) => {
+  try {
+    const { desde, hasta } = req.query;
+    const d = desde || new Date().toISOString().substring(0,10);
+    const h = hasta || d;
+    const url = `${RENTMAN_URL}/payments?limit=5&paymentdate%5Bgte%5D=${encodeURIComponent(d+' 00:00:00')}&paymentdate%5Blte%5D=${encodeURIComponent(h+' 23:59:59')}`;
+    const r = await fetch(url, { headers: { Authorization: `Bearer ${RENTMAN_TOKEN}` } });
+    const data = await r.json();
+    res.json(data);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 app.get('*', (req,res) => res.sendFile(path.join(__dirname,'public','index.html')));
 app.listen(PORT, ()=>console.log('ORUM Caja puerto '+PORT));
