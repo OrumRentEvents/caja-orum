@@ -503,20 +503,22 @@ function renderCaja(){
 function renderFiltrosCaja(){
   const bar=document.getElementById('filtros-caja-bar');if(!bar)return;
   const opts=[
-    {id:'todos',label:'Todos'},
-    {id:'efectivo-marbella',label:'💵 Ef. Marbella'},
-    {id:'tpv-marbella',label:'💳 TPV Marbella'},
-    {id:'efectivo-monda',label:'💵 Ef. Monda'},
-    {id:'tpv-monda',label:'💳 TPV Monda'},
-    {id:'transferencia',label:'🏦 Transf.'},
-    {id:'factura0',label:'📄 Factura 0€'},
-    {id:'sin-metodo',label:'❓ Sin método'},
+    ['todos','Todos'],
+    ['efectivo-marbella','💵 Ef. Marbella'],
+    ['tpv-marbella','💳 TPV Marbella'],
+    ['efectivo-monda','💵 Ef. Monda'],
+    ['tpv-monda','💳 TPV Monda'],
+    ['transferencia','🏦 Transf.'],
+    ['factura0','📄 Factura 0€'],
+    ['sin-metodo','❓ Sin método'],
   ];
-  bar.innerHTML='<span style="font-size:13px;font-weight:600;color:#374151;margin-right:4px">FILTRAR:</span>'+
-    opts.map(o=>{
-      const sel=cajaFiltroMetodo===o.id;
-      return '<button onclick="setCajaFiltro(''+o.id+'')" style="padding:5px 12px;border-radius:20px;border:1.5px solid '+(sel?'#2563eb':'#e2e8f0')+';background:'+(sel?'#eff6ff':'#fff')+';color:'+(sel?'#2563eb':'#6b7280')+';font-size:12px;font-weight:'+(sel?'600':'400')+';cursor:pointer">'+o.label+'</button>';
-    }).join('');
+  let html='<span style="font-size:13px;font-weight:600;color:#374151;margin-right:4px">FILTRAR:</span>';
+  opts.forEach(function(o){
+    const id=o[0],label=o[1],sel=cajaFiltroMetodo===id;
+    const bc=sel?'#2563eb':'#e2e8f0',bg=sel?'#eff6ff':'#fff',fc=sel?'#2563eb':'#6b7280',fw=sel?'600':'400';
+    html+='<button onclick="setCajaFiltro(\'' +id+ '\')" style="padding:5px 12px;border-radius:20px;border:1.5px solid '+bc+';background:'+bg+';color:'+fc+';font-size:12px;font-weight:'+fw+';cursor:pointer">'+label+'</button>';
+  });
+  bar.innerHTML=html;
 }
 
 function setCajaFiltro(m){
@@ -900,20 +902,7 @@ function renderNoConf(){
       </div>
     </div>`:''}
 
-    <div style="background:var(--white);border-radius:var(--radius);padding:12px 16px;margin-bottom:12px;box-shadow:var(--shadow);display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-      <span style="font-size:13px;font-weight:600;color:#374151;margin-right:4px">FILTRAR:</span>
-      ${[
-        {id:'todos',label:'Todos'},
-        {id:'efectivo-marbella',label:'💵 Ef. Marbella'},
-        {id:'efectivo-monda',label:'💵 Ef. Monda'},
-        {id:'sin-metodo',label:'❓ Sin método'},
-        {id:'confirmado',label:'✅ Recibidos'},
-        {id:'pendiente',label:'⏳ Pendientes'},
-      ].map(o=>{
-        const sel=ncFiltroMetodo===o.id;
-        return '<button onclick="setNcFiltro(\''+o.id+'\')" style="padding:5px 12px;border-radius:20px;border:1.5px solid '+(sel?'#2563eb':'#e2e8f0')+';background:'+(sel?'#eff6ff':'#fff')+';color:'+(sel?'#2563eb':'#6b7280')+';font-size:12px;font-weight:'+(sel?600:400)+';cursor:pointer">'+o.label+'</button>';
-      }).join('')}
-    </div>
+    <div id="filtros-nc-bar" style="background:var(--white);border-radius:var(--radius);padding:12px 16px;margin-bottom:12px;box-shadow:var(--shadow);display:flex;align-items:center;gap:8px;flex-wrap:wrap"></div>
     <div class="tabla-section">
       <div class="tabla-header">
         <div class="tabla-title">🍾 Proyectos No Confirmados <span class="badge badge-orange">${noConfsVista.length}</span></div>
@@ -1057,7 +1046,30 @@ function imprimirNC(caja){
   w.document.close();
 }
 
-function setNcFiltro(m){ ncFiltroMetodo=m; renderNoConf(); }
+function setNcFiltro(m){ ncFiltroMetodo=m; renderFiltrosNC(); renderNoConf(); }
+
+function renderFiltrosNC(){
+  const bar=document.getElementById('filtros-nc-bar');if(!bar)return;
+  const opts=[
+    ['todos','Todos'],
+    ['efectivo-marbella','💵 Ef. Marbella'],
+    ['efectivo-monda','💵 Ef. Monda'],
+    ['sin-metodo','❓ Sin método'],
+    ['confirmado','✅ Recibidos'],
+    ['pendiente','⏳ Pendientes'],
+  ];
+  let html='<span style="font-size:13px;font-weight:600;color:#374151;margin-right:4px">FILTRAR:</span>';
+  opts.forEach(function(o){
+    const id=o[0],label=o[1],sel=ncFiltroMetodo===id;
+    const bc=sel?'#2563eb':'#e2e8f0',bg=sel?'#eff6ff':'#fff',fc=sel?'#2563eb':'#6b7280',fw=sel?'600':'400';
+    html+='<button onclick="setNcFiltro(\''+id+'\')" style="padding:5px 12px;border-radius:20px;border:1.5px solid '+bc+';background:'+bg+';color:'+fc+';font-size:12px;font-weight:'+fw+';cursor:pointer">'+label+'</button>';
+  });
+  bar.innerHTML=html;
+  setTimeout(renderFiltrosNC, 0);
+}
+
+// Llamar renderFiltrosNC después de que el DOM se actualice
+// (se llama desde cargarNoConf y desde setNcFiltro)
 
 async function toggleNcConf(ncId, confirmar, metodo, importe, cliente, numero){
   try{
