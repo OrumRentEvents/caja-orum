@@ -856,7 +856,7 @@ function renderNoConf(){
   const pendConf=noConfsVista.filter(f=>estado[String(f.id)]&&!ncConfs[String(f.id)]?.confirmado).length;
 
   // Calcular efectivo NC por caja
-  const efNcMarb = noConfsVista.filter(f=>estado[String(f.id)]?.metodo==='efectivo-marbella').reduce((s,f)=>s+(f.total_pagado||f.importe||0),0);
+  const efNcMarb = noConfsVista.filter(f=>estado[String(f.id)]?.metodo==='efectivo-marbella').reduce((s,f)=>s+(f.total_pagado||f.importe||0),0); // incluye negativos
   const efNcMond = noConfsVista.filter(f=>estado[String(f.id)]?.metodo==='efectivo-monda').reduce((s,f)=>s+(f.total_pagado||f.importe||0),0);
   const retNcMarb = (retiradaNC.marbella||[]).reduce((s,r)=>s+r.importe,0);
   const retNcMond = (retiradaNC.monda||[]).reduce((s,r)=>s+r.importe,0);
@@ -884,7 +884,8 @@ function renderNoConf(){
           ${retListaMarb?`<div class="retiradas-lista">${retListaMarb}</div>`:''}
           <div style="font-size:13px;font-weight:700;margin-top:8px;padding-top:8px;border-top:1px solid var(--gray-light)">EFECTIVO EN CAJA <span style="float:right;color:var(--green)">${fmt(efNcMarb-retNcMarb)}</span></div>
           <button class="btn-retirada" onclick="registrarRetiradaNC('marbella')">− Registrar retirada</button>
-          <button onclick="imprimirNC('marbella')" style="margin-top:6px;padding:5px 10px;border:1.5px solid #2563eb;background:#eff6ff;color:#2563eb;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;width:100%">🖨️ Imprimir Marbella NC</button>
+          <button onclick="imprimirNC('marbella',false)" style="margin-top:6px;padding:5px 10px;border:1.5px solid #2563eb;background:#eff6ff;color:#2563eb;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;width:100%">🖨️ Imprimir Marbella NC (todo)</button>
+          <button onclick="imprimirNC('marbella',true)" style="margin-top:4px;padding:5px 10px;border:1.5px solid #f59e0b;background:#fffbeb;color:#b45309;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;width:100%">🖨️ Solo pendientes Marbella</button>
         </div>
       </div>
       <!-- Caja Monda NC -->
@@ -897,7 +898,8 @@ function renderNoConf(){
           ${retListaMond?`<div class="retiradas-lista">${retListaMond}</div>`:''}
           <div style="font-size:13px;font-weight:700;margin-top:8px;padding-top:8px;border-top:1px solid var(--gray-light)">EFECTIVO EN CAJA <span style="float:right;color:var(--green)">${fmt(efNcMond-retNcMond)}</span></div>
           <button class="btn-retirada" onclick="registrarRetiradaNC('monda')">− Registrar retirada</button>
-          <button onclick="imprimirNC('monda')" style="margin-top:6px;padding:5px 10px;border:1.5px solid #2563eb;background:#eff6ff;color:#2563eb;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;width:100%">🖨️ Imprimir Monda NC</button>
+          <button onclick="imprimirNC('monda',false)" style="margin-top:6px;padding:5px 10px;border:1.5px solid #2563eb;background:#eff6ff;color:#2563eb;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;width:100%">🖨️ Imprimir Monda NC (todo)</button>
+          <button onclick="imprimirNC('monda',true)" style="margin-top:4px;padding:5px 10px;border:1.5px solid #f59e0b;background:#fffbeb;color:#b45309;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;width:100%">🖨️ Solo pendientes Monda</button>
         </div>
       </div>
     </div>`:''}
@@ -997,50 +999,72 @@ function imprimirCaja(caja){
   w.document.close();
 }
 
-function imprimirNC(caja){
+function imprimirNC(caja, soloPendientes){
   const desde=document.getElementById('nc-desde').value;
   const hasta=document.getElementById('nc-hasta').value;
   const nombreCaja=caja==='marbella'?'Marbella':'Monda';
   const metodoId=caja==='marbella'?'efectivo-marbella':'efectivo-monda';
 
-  const facts=noConfs.filter(f=>estado[String(f.id)]?.metodo===metodoId);
-  const totalEf=facts.reduce((s,f)=>s+(f.total_pagado||f.importe||0),0);
+  // Todos los de esta caja con método asignado
+  let facts=noConfs.filter(f=>estado[String(f.id)]?.metodo===metodoId);
+
+  // Separar confirmados y pendientes
+  const factsPendientes=facts.filter(f=>!ncConfs[String(f.id)]?.confirmado);
+  const factsConfirmados=facts.filter(f=>ncConfs[String(f.id)]?.confirmado);
+
+  // Si solo pendientes, filtrar
+  const factsImprimir = soloPendientes ? factsPendientes : facts;
+
+  // Calcular totales correctamente (los negativos restan)
+  const totalEfPos=factsImprimir.filter(f=>(f.total_pagado||f.importe||0)>=0).reduce((s,f)=>s+(f.total_pagado||f.importe||0),0);
+  const totalEfNeg=factsImprimir.filter(f=>(f.total_pagado||f.importe||0)<0).reduce((s,f)=>s+(f.total_pagado||f.importe||0),0);
+  const totalEf=factsImprimir.reduce((s,f)=>s+(f.total_pagado||f.importe||0),0);
   const retiradas=retiradaNC[caja]||[];
   const totalRet=retiradas.reduce((s,r)=>s+r.importe,0);
 
-  const filas=facts.map(f=>{
+  const filas=factsImprimir.map(f=>{
     const conf=ncConfs[String(f.id)];
-    const estado_txt=conf?.confirmado?`✅ ${conf.usuario}`:'⏳ Pendiente';
-    return`<tr><td>${f.numero||f.id}</td><td>${f.cliente||'—'}</td><td>${f.fecha_pago||'—'}</td><td style="text-align:right">${fmt(f.total_pagado||f.importe||0)}</td><td>Ef. ${nombreCaja}</td><td>${estado_txt}</td></tr>`;
+    const imp=f.total_pagado||f.importe||0;
+    const estado_txt=conf?.confirmado?('✅ '+conf.usuario):'⏳ Pendiente';
+    const color=imp<0?'color:#dc2626':'';
+    return '<tr><td>'+( f.numero||f.id)+'</td><td>'+(f.cliente||'—')+'</td><td>'+(f.fecha_pago||'—')+'</td><td style="text-align:right;'+color+'">'+fmt(imp)+'</td><td>Ef. '+nombreCaja+'</td><td>'+estado_txt+'</td></tr>';
   }).join('');
 
-  const retFilas=retiradas.map(r=>`<tr><td colspan="5">${r.desc}</td><td style="text-align:right;color:#dc2626">-${fmt(r.importe)}</td></tr>`).join('');
+  const retFilas=retiradas.map(r=>'<tr><td colspan="5">'+r.desc+'</td><td style="text-align:right;color:#dc2626">-'+fmt(r.importe)+'</td></tr>').join('');
 
-  const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Caja NC ${nombreCaja} — ${desde}</title>
-  <style>body{font-family:Arial,sans-serif;font-size:12px;padding:20px;max-width:800px;margin:0 auto}
-  h1{font-size:18px;margin-bottom:4px}h2{font-size:14px;color:#666;margin-bottom:16px}
-  table{width:100%;border-collapse:collapse;margin-bottom:16px}
-  th{background:#111;color:#fff;padding:6px 8px;text-align:left;font-size:11px}
-  td{padding:5px 8px;border-bottom:1px solid #e5e7eb}
-  .resumen{background:#f9fafb;padding:12px;border-radius:8px;margin-bottom:16px}
-  .resumen div{display:flex;justify-content:space-between;padding:3px 0;font-size:12px}
-  .resumen .total{border-top:1px solid #e5e7eb;margin-top:6px;padding-top:6px;font-weight:700}
-  @media print{button{display:none}}</style></head><body>
-  <h1>ORUM Rent & Events — Caja No Confirmados ${nombreCaja}</h1>
-  <h2>Período: ${desde} al ${hasta}</h2>
-  <div class="resumen">
-    <div><span>+ Efectivo cobrado</span><span style="color:#16a34a">+${fmt(totalEf)}</span></div>
-    <div><span>− Retiradas</span><span style="color:#dc2626">-${fmt(totalRet)}</span></div>
-    <div class="total"><span>EFECTIVO EN CAJA</span><span style="color:#16a34a">${fmt(totalEf-totalRet)}</span></div>
-  </div>
-  <table><thead><tr><th>Nº Proyecto</th><th>Cliente</th><th>Fecha</th><th>Importe</th><th>Método</th><th>Estado</th></tr></thead>
-  <tbody>${filas}</tbody></table>
-  ${retFilas?`<table><thead><tr><th colspan="6">RETIRADAS</th></tr></thead><tbody>${retFilas}</tbody></table>`:''}
-  <div style="margin-top:30px;display:flex;justify-content:space-between">
-    <div style="text-align:center;width:200px"><div style="border-top:1px solid #111;padding-top:8px">Firma</div></div>
-    <div style="text-align:center"><div>Impreso: ${new Date().toLocaleString('es-ES')}</div></div>
-  </div>
-  <script>window.print();<\/script></body></html>`;
+  const titulo=soloPendientes?('Caja NC '+nombreCaja+' — Pendientes'):('Caja NC '+nombreCaja);
+  const subtitulo=soloPendientes?('Solo pendientes · '+factsPendientes.length+' registros'):('Todos · '+facts.length+' registros ('+factsConfirmados.length+' recibidos por Ana)');
+
+  const resumenExtra = totalEfNeg<0 ?
+    '<div><span>Devoluciones</span><span style="color:#dc2626">'+fmt(totalEfNeg)+'</span></div>' : '';
+
+  const html='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>'+titulo+' — '+desde+'</title>'
+  +'<style>body{font-family:Arial,sans-serif;font-size:12px;padding:20px;max-width:800px;margin:0 auto}'
+  +'h1{font-size:18px;margin-bottom:4px}h2{font-size:13px;color:#666;margin-bottom:4px}h3{font-size:12px;color:#999;margin-bottom:16px;font-weight:400}'
+  +'table{width:100%;border-collapse:collapse;margin-bottom:16px}'
+  +'th{background:#111;color:#fff;padding:6px 8px;text-align:left;font-size:11px}'
+  +'td{padding:5px 8px;border-bottom:1px solid #e5e7eb}'
+  +'.resumen{background:#f9fafb;padding:12px;border-radius:8px;margin-bottom:16px}'
+  +'.resumen div{display:flex;justify-content:space-between;padding:3px 0;font-size:12px}'
+  +'.resumen .total{border-top:1px solid #e5e7eb;margin-top:6px;padding-top:6px;font-weight:700}'
+  +'@media print{button{display:none}}</style></head><body>'
+  +'<h1>ORUM Rent & Events — '+titulo+'</h1>'
+  +'<h2>Período: '+desde+' al '+hasta+'</h2>'
+  +'<h3>'+subtitulo+'</h3>'
+  +'<div class="resumen">'
+  +'<div><span>Cobros positivos</span><span style="color:#16a34a">+'+fmt(totalEfPos)+'</span></div>'
+  +resumenExtra
+  +'<div><span>− Retiradas</span><span style="color:#dc2626">-'+fmt(totalRet)+'</span></div>'
+  +'<div class="total"><span>EFECTIVO EN CAJA</span><span style="color:#16a34a">'+fmt(totalEf-totalRet)+'</span></div>'
+  +'</div>'
+  +'<table><thead><tr><th>Nº Proyecto</th><th>Cliente</th><th>Fecha</th><th>Importe</th><th>Método</th><th>Estado</th></tr></thead>'
+  +'<tbody>'+filas+'</tbody></table>'
+  +(retFilas?'<table><thead><tr><th colspan="6">RETIRADAS</th></tr></thead><tbody>'+retFilas+'</tbody></table>':'')
+  +'<div style="margin-top:30px;display:flex;justify-content:space-between">'
+  +'<div style="text-align:center;width:200px"><div style="border-top:1px solid #111;padding-top:8px">Firma</div></div>'
+  +'<div style="text-align:center"><div>Impreso: '+new Date().toLocaleString('es-ES')+'</div></div>'
+  +'</div>'
+  +'<script>window.print();<\/script></body></html>';
 
   const w=window.open('','_blank');
   w.document.write(html);
