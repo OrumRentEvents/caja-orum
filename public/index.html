@@ -958,7 +958,8 @@ function imprimirCaja(caja){
   const filas=[...efFacts,...tpvFacts].map(f=>{
     const reg=estado[String(f.id)];
     const metNombre=reg?.metodo==='efectivo-marbella'?'Ef. Marbella':reg?.metodo==='efectivo-monda'?'Ef. Monda':reg?.metodo==='tpv-marbella'?'TPV Marbella':reg?.metodo==='tpv-monda'?'TPV Monda':reg?.metodo||'—';
-    return`<tr><td>${f.numero||f.id}</td><td>${f.cliente||'—'}</td><td>${f.fecha_pago||'—'}</td><td style="text-align:right">${fmt(f.total_pagado||f.importe||0)}</td><td>${metNombre}</td>${reg?.num_operacion?`<td>${reg.num_operacion}</td>`:'<td>—</td>'}</tr>`;
+    const numOp=reg?.numOp||reg?.num_operacion||'';
+    return`<tr><td>${f.numero||f.id}</td><td>${f.cliente||'—'}</td><td>${f.fecha_pago||'—'}</td><td style="text-align:right">${fmt(f.total_pagado||f.importe||0)}</td><td>${metNombre}</td><td>${numOp||'—'}</td></tr>`;
   }).join('');
 
   const retFilas=retiradas.map(r=>`<tr><td colspan="5">${r.desc}</td><td style="text-align:right;color:#dc2626">-${fmt(r.importe)}</td></tr>`).join('');
