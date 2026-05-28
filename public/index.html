@@ -295,7 +295,9 @@ let saldos={marbella:{efectivo_final:0,retiradas:[]},monda:{efectivo_final:0,ret
 let cierres={};
 let retiradaActual={marbella:[],monda:[]};
 let retiradaNC={marbella:[],monda:[]}; // Retiradas de efectivo NC
+let ncFiltroMetodo='todos'; // Filtro método en No Confirmados
 let sortCol='fecha_pago',sortDir=1;
+let cajaFiltroMetodo='todos'; // Filtro de método en Caja Diaria
 let sortColC='fecha_pago',sortDirC=1;
 let pendingNumOp=null;
 let facturasC=[],registrosC={},ticksC={};
@@ -487,10 +489,39 @@ function renderCaja(){
       <button class="btn-cierre btn-cierre-marbella" onclick="intentarCierre('marbella')" ${cM?'disabled':''}>🟣 ${cM?'✓ Cerrada':'Cierre Marbella'}</button>
       <button class="btn-cierre btn-cierre-monda" onclick="intentarCierre('monda')" ${cMo?'disabled':''}>🟢 ${cMo?'✓ Cerrada':'Cierre Monda'}</button>
       <button class="btn-cierre btn-cierre-global" onclick="generarResumen()">📋 Resumen Global</button>
+      <button class="btn-cierre" style="background:#eff6ff;border-color:#2563eb;color:#2563eb" onclick="imprimirCaja('marbella')">🖨️ Imprimir Marbella</button>
+      <button class="btn-cierre" style="background:#eff6ff;border-color:#2563eb;color:#2563eb" onclick="imprimirCaja('monda')">🖨️ Imprimir Monda</button>
     </div>
 
+    <div id="filtros-caja-bar" style="background:var(--white);border-radius:var(--radius);padding:12px 16px;margin-bottom:12px;box-shadow:var(--shadow);display:flex;align-items:center;gap:8px;flex-wrap:wrap"></div>
     <div id="tabla-wrapper"></div>`;
 
+  renderFiltrosCaja();
+  renderTabla();
+}
+
+function renderFiltrosCaja(){
+  const bar=document.getElementById('filtros-caja-bar');if(!bar)return;
+  const opts=[
+    {id:'todos',label:'Todos'},
+    {id:'efectivo-marbella',label:'💵 Ef. Marbella'},
+    {id:'tpv-marbella',label:'💳 TPV Marbella'},
+    {id:'efectivo-monda',label:'💵 Ef. Monda'},
+    {id:'tpv-monda',label:'💳 TPV Monda'},
+    {id:'transferencia',label:'🏦 Transf.'},
+    {id:'factura0',label:'📄 Factura 0€'},
+    {id:'sin-metodo',label:'❓ Sin método'},
+  ];
+  bar.innerHTML='<span style="font-size:13px;font-weight:600;color:#374151;margin-right:4px">FILTRAR:</span>'+
+    opts.map(o=>{
+      const sel=cajaFiltroMetodo===o.id;
+      return '<button onclick="setCajaFiltro(''+o.id+'')" style="padding:5px 12px;border-radius:20px;border:1.5px solid '+(sel?'#2563eb':'#e2e8f0')+';background:'+(sel?'#eff6ff':'#fff')+';color:'+(sel?'#2563eb':'#6b7280')+';font-size:12px;font-weight:'+(sel?'600':'400')+';cursor:pointer">'+o.label+'</button>';
+    }).join('');
+}
+
+function setCajaFiltro(m){
+  cajaFiltroMetodo=m;
+  renderFiltrosCaja();
   renderTabla();
 }
 
@@ -524,6 +555,14 @@ function renderCajaCard(caja,titulo,tots,totalCobrado,saldoAnt,ret,efCaja,cierre
 function getFiltered(){
   const q=(document.getElementById('buscador')?.value||'').toLowerCase();
   let l=facturas.filter(f=>!q||(f.numero||'').includes(q)||(f.cliente||'').toLowerCase().includes(q)||(String(f.proyecto_numero)||'').includes(q));
+  // Aplicar filtro de método
+  if(cajaFiltroMetodo && cajaFiltroMetodo!=='todos'){
+    l=l.filter(f=>{
+      const mid=estado[String(f.id)]?.metodo||'';
+      if(cajaFiltroMetodo==='sin-metodo') return !mid;
+      return mid===cajaFiltroMetodo;
+    });
+  }
   l.sort((a,b)=>{let va=a[sortCol]||0,vb=b[sortCol]||0;return typeof va==='string'?va.localeCompare(vb)*sortDir:(va-vb)*sortDir;});
   return l;
 }
@@ -797,7 +836,18 @@ function renderNoConf(){
   const esContab=userInfo&&['contabilidad','admin'].includes(userInfo.rol);
   const esAdmin=userInfo&&userInfo.rol==='admin';
   const esComercial=userInfo&&userInfo.rol==='comercial';
-  const noConfsVista = esComercial ? noConfs.filter(f=>!ncConfs[String(f.id)]?.confirmado) : noConfs;
+  let noConfsVista = esComercial ? noConfs.filter(f=>!ncConfs[String(f.id)]?.confirmado) : noConfs;
+  // Aplicar filtro de método NC
+  if(ncFiltroMetodo && ncFiltroMetodo!=='todos'){
+    noConfsVista = noConfsVista.filter(f=>{
+      const mid=estado[String(f.id)]?.metodo||'';
+      const conf=ncConfs[String(f.id)];
+      if(ncFiltroMetodo==='confirmado') return conf?.confirmado;
+      if(ncFiltroMetodo==='pendiente') return mid && !conf?.confirmado;
+      if(ncFiltroMetodo==='sin-metodo') return !mid;
+      return mid===ncFiltroMetodo;
+    });
+  }
   const totalEf=noConfsVista.reduce((s,f)=>{const st=estado[String(f.id)];return s+(st?f.total_pagado||f.importe||0:0);},0);
   const sin=noConfsVista.filter(f=>!estado[String(f.id)]).length;
   const confirmados=noConfs.filter(f=>ncConfs[String(f.id)]?.confirmado).length;
@@ -850,6 +900,20 @@ function renderNoConf(){
       </div>
     </div>`:''}
 
+    <div style="background:var(--white);border-radius:var(--radius);padding:12px 16px;margin-bottom:12px;box-shadow:var(--shadow);display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      <span style="font-size:13px;font-weight:600;color:#374151;margin-right:4px">FILTRAR:</span>
+      ${[
+        {id:'todos',label:'Todos'},
+        {id:'efectivo-marbella',label:'💵 Ef. Marbella'},
+        {id:'efectivo-monda',label:'💵 Ef. Monda'},
+        {id:'sin-metodo',label:'❓ Sin método'},
+        {id:'confirmado',label:'✅ Recibidos'},
+        {id:'pendiente',label:'⏳ Pendientes'},
+      ].map(o=>{
+        const sel=ncFiltroMetodo===o.id;
+        return '<button onclick="setNcFiltro(\''+o.id+'\')" style="padding:5px 12px;border-radius:20px;border:1.5px solid '+(sel?'#2563eb':'#e2e8f0')+';background:'+(sel?'#eff6ff':'#fff')+';color:'+(sel?'#2563eb':'#6b7280')+';font-size:12px;font-weight:'+(sel?600:400)+';cursor:pointer">'+o.label+'</button>';
+      }).join('')}
+    </div>
     <div class="tabla-section">
       <div class="tabla-header">
         <div class="tabla-title">🍾 Proyectos No Confirmados <span class="badge badge-orange">${noConfsVista.length}</span></div>
@@ -992,6 +1056,8 @@ function imprimirNC(caja){
   w.document.write(html);
   w.document.close();
 }
+
+function setNcFiltro(m){ ncFiltroMetodo=m; renderNoConf(); }
 
 async function toggleNcConf(ncId, confirmar, metodo, importe, cliente, numero){
   try{
