@@ -549,5 +549,19 @@ app.get('/api/test/invoice/:id/payments', authAdmin, async (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+
+// ── DIAGNÓSTICO INVOICEPAYMENTS ──────────────────────────────
+app.get('/api/test/invoicepayments', authAdmin, async (req, res) => {
+  try {
+    const desde = req.query.desde || new Date().toISOString().substring(0,10);
+    const hasta = req.query.hasta || desde;
+    const url = `${RENTMAN_URL}/invoicepayments?limit=10&paymentdate%5Bgte%5D=${encodeURIComponent(desde+' 00:00:00')}&paymentdate%5Blte%5D=${encodeURIComponent(hasta+' 23:59:59')}`;
+    const r = await fetch(url, { headers: { Authorization: 'Bearer ' + RENTMAN_TOKEN } });
+    const text = await r.text();
+    res.setHeader('Content-Type','application/json');
+    res.send(text);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 app.get('*', (req,res) => res.sendFile(path.join(__dirname,'public','index.html')));
 app.listen(PORT, ()=>console.log('ORUM Caja puerto '+PORT));
