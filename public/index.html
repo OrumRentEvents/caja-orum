@@ -271,6 +271,51 @@ tr:hover td{background:var(--gray-bg)}
   </div>
 </div>
 
+<!-- MODAL RETIRADA -->
+<div id="modal-retirada" style="display:none" class="modal-overlay" onclick="if(event.target===this)cerrarModalRetirada()">
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <div class="modal-title" id="modal-retirada-title">💸 Registrar Retirada</div>
+      <button class="btn-close" onclick="cerrarModalRetirada()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div style="background:var(--gray-bg);border-radius:10px;padding:14px;margin-bottom:16px;font-size:13px;color:var(--gray)">
+        <strong id="ret-sede-label" style="color:var(--black);font-size:14px"></strong>
+        <div style="margin-top:4px" id="ret-fecha-label"></div>
+      </div>
+      <!-- Selector tipo -->
+      <div style="margin-bottom:14px">
+        <label style="font-size:12px;font-weight:600;color:var(--gray);display:block;margin-bottom:8px">TIPO DE MOVIMIENTO</label>
+        <div style="display:flex;gap:8px">
+          <button id="ret-btn-retirada" onclick="setTipoRetirada('retirada')" style="flex:1;padding:10px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:2px solid var(--red);background:var(--red-bg);color:var(--red)">💸 Retirada</button>
+          <button id="ret-btn-factura" onclick="setTipoRetirada('factura')" style="flex:1;padding:10px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:2px solid var(--gray-light);background:var(--white);color:var(--gray)">📄 Pago de factura</button>
+        </div>
+      </div>
+      <div class="form-group" style="margin-bottom:14px">
+        <label style="font-size:12px;font-weight:600;color:var(--gray);display:block;margin-bottom:6px">IMPORTE (€)</label>
+        <input type="number" id="ret-importe" min="0.01" step="0.01" placeholder="0,00" style="width:100%;padding:12px;border:1.5px solid var(--gray-light);border-radius:8px;font-size:20px;font-weight:700;outline:none;text-align:center" oninput="actualizarPreviewRetirada()">
+      </div>
+      <div class="form-group" style="margin-bottom:16px">
+        <label style="font-size:12px;font-weight:600;color:var(--gray);display:block;margin-bottom:6px" id="ret-notas-label">NOTAS (opcional)</label>
+        <textarea id="ret-desc" rows="2" placeholder="Ej: Retirada para depósito bancario" style="width:100%;padding:10px;border:1.5px solid var(--gray-light);border-radius:8px;font-size:14px;outline:none;resize:vertical;font-family:inherit;box-sizing:border-box"></textarea>
+      </div>
+      <!-- Preview recibo -->
+      <div id="ret-preview" style="display:none;border:1.5px dashed var(--gray-light);border-radius:10px;padding:14px;margin-bottom:16px;font-size:12px">
+        <div id="prev-titulo" style="font-weight:700;font-size:13px;margin-bottom:8px;text-align:center">RECIBO DE RETIRADA</div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="color:var(--gray)">Sede:</span><strong id="prev-sede"></strong></div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="color:var(--gray)">Fecha:</span><strong id="prev-fecha"></strong></div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="color:var(--gray)">Caja:</span><strong id="prev-tipo"></strong></div>
+        <div style="display:flex;justify-content:space-between;margin-top:6px;padding-top:6px;border-top:1px solid var(--gray-light)"><span style="color:var(--gray)">Importe:</span><strong id="prev-importe" style="font-size:16px;color:var(--red)"></strong></div>
+      </div>
+      <div id="ret-error" style="display:none" class="alerta">⚠️ Introduce un importe válido mayor que 0.</div>
+      <div style="display:flex;gap:10px">
+        <button onclick="cerrarModalRetirada()" style="flex:1;padding:11px;border:1.5px solid var(--gray-light);background:var(--white);border-radius:8px;font-size:14px;cursor:pointer">Cancelar</button>
+        <button id="ret-btn-confirmar" onclick="confirmarRetirada()" style="flex:1;padding:11px;background:var(--red);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">🖨️ Imprimir y Confirmar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
 const AS_FIANZAS_URL = 'https://script.google.com/macros/s/AKfycbywPrFiicFAK0f0ayIOa27JHqUXOviaAU_WlwmrDYNqq_g8Oe0ap14i8FDgXfYO5Is-wQ/exec';
 const FIANZAS_TOKEN = 'ORUMx2026#Fianzas$Secret';
@@ -658,13 +703,42 @@ async function guardarRegistro(fId,mId,m,f,esNC,numOp){
 }
 
 // ── RETIRADAS ─────────────────────────────────────────────────
-function registrarRetirada(caja){
-  const imp=parseFloat(prompt(`Importe de retirada en ${caja==='marbella'?'Marbella':'Monda'} (€):`));
-  if(isNaN(imp)||imp<=0)return;
-  const desc=prompt('Descripción (opcional):')||'Retirada';
-  retiradaActual[caja].push({importe:imp,desc});
-  renderCaja();
+let _retiradaCtx = null; // {caja, esNC, tipo}
+let _tipoRetirada = 'retirada'; // 'retirada' | 'factura'
+
+function setTipoRetirada(tipo){
+  _tipoRetirada = tipo;
+  const esFactura = tipo === 'factura';
+  // Botones
+  document.getElementById('ret-btn-retirada').style.cssText = 'flex:1;padding:10px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:2px solid ' + (!esFactura ? 'var(--red);background:var(--red-bg);color:var(--red)' : 'var(--gray-light);background:var(--white);color:var(--gray)');
+  document.getElementById('ret-btn-factura').style.cssText = 'flex:1;padding:10px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:2px solid ' + (esFactura ? 'var(--orange);background:var(--orange-bg);color:var(--orange)' : 'var(--gray-light);background:var(--white);color:var(--gray)');
+  // Label notas
+  document.getElementById('ret-notas-label').textContent = esFactura ? 'PROVEEDOR / Nº FACTURA (opcional)' : 'NOTAS (opcional)';
+  // Placeholder notas
+  document.getElementById('ret-desc').placeholder = esFactura ? 'Ej: Factura BUNZL nº 2026-0123' : 'Ej: Retirada para depósito bancario';
+  // Actualizar preview si ya hay importe
+  actualizarPreviewRetirada();
 }
+
+function _abrirModalRetirada(caja, esNC){
+  _retiradaCtx = {caja, esNC};
+  _tipoRetirada = 'retirada';
+  const sede = caja==='marbella'?'Marbella':'Monda';
+  const tipoCaja = esNC ? 'No Confirmados' : 'Confirmados';
+  document.getElementById('modal-retirada-title').textContent = '💸 Retirada — Caja ' + sede;
+  document.getElementById('ret-sede-label').textContent = (esNC ? '🍾' : '🏦') + ' Caja ' + tipoCaja + ' — ' + sede;
+  document.getElementById('ret-fecha-label').textContent = '📅 ' + new Date().toLocaleDateString('es-ES', {weekday:'long',year:'numeric',month:'long',day:'numeric'});
+  document.getElementById('ret-importe').value = '';
+  document.getElementById('ret-desc').value = '';
+  document.getElementById('ret-preview').style.display = 'none';
+  document.getElementById('ret-error').style.display = 'none';
+  // Reset tipo a retirada
+  setTipoRetirada('retirada');
+  document.getElementById('modal-retirada').style.display = 'flex';
+  setTimeout(()=>document.getElementById('ret-importe').focus(), 100);
+}
+
+function registrarRetirada(caja){ _abrirModalRetirada(caja, false); }
 
 // ── CIERRE CON BLOQUEO ────────────────────────────────────────
 async function intentarCierre(caja){
@@ -932,13 +1006,172 @@ function renderNoConf(){
     </div>`;
 }
 
-function registrarRetiradaNC(caja){
-  const imp=parseFloat(prompt(`Importe de retirada NC ${caja==='marbella'?'Marbella':'Monda'} (€):`));
-  if(isNaN(imp)||imp<=0)return;
-  const desc=prompt('Descripción (opcional):')||'Retirada NC';
-  if(!retiradaNC[caja])retiradaNC[caja]=[];
-  retiradaNC[caja].push({importe:imp,desc});
-  renderNoConf();
+function registrarRetiradaNC(caja){ _abrirModalRetirada(caja, true); }
+
+function actualizarPreviewRetirada(){
+  const imp = parseFloat(document.getElementById('ret-importe').value);
+  const prev = document.getElementById('ret-preview');
+  if(!_retiradaCtx || isNaN(imp) || imp <= 0){ prev.style.display='none'; return; }
+  const sede = _retiradaCtx.caja==='marbella'?'Marbella':'Monda';
+  const tipoCaja = _retiradaCtx.esNC?'No Confirmados':'Confirmados';
+  const tipoMov = _tipoRetirada==='factura'?'Pago de Factura':'Retirada';
+  const fecha = new Date().toLocaleDateString('es-ES',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
+  document.getElementById('prev-titulo').textContent = 'RECIBO DE ' + tipoMov.toUpperCase();
+  document.getElementById('prev-sede').textContent = sede;
+  document.getElementById('prev-fecha').textContent = fecha;
+  document.getElementById('prev-tipo').textContent = tipoCaja + ' · ' + tipoMov;
+  document.getElementById('prev-importe').textContent = fmt(imp);
+  prev.style.display = 'block';
+}
+
+function cerrarModalRetirada(){
+  document.getElementById('modal-retirada').style.display = 'none';
+  _retiradaCtx = null;
+}
+
+function confirmarRetirada(){
+  const imp = parseFloat(document.getElementById('ret-importe').value);
+  if(isNaN(imp)||imp<=0){
+    document.getElementById('ret-error').style.display='flex';
+    document.getElementById('ret-importe').focus();
+    return;
+  }
+  document.getElementById('ret-error').style.display='none';
+  const tipoMov = _tipoRetirada;
+  const defaultDesc = tipoMov==='factura' ? 'Pago de factura' : (_retiradaCtx.esNC ? 'Retirada NC' : 'Retirada');
+  const desc = document.getElementById('ret-desc').value.trim() || defaultDesc;
+  const {caja, esNC} = _retiradaCtx;
+  const labelDesc = tipoMov==='factura' ? '[FACTURA] ' + desc : desc;
+
+  // Abrir recibo de impresión
+  abrirReciboRetirada(imp, desc, caja, esNC, tipoMov);
+
+  // Registrar en sistema
+  if(esNC){
+    if(!retiradaNC[caja]) retiradaNC[caja]=[];
+    retiradaNC[caja].push({importe:imp, desc:labelDesc});
+    cerrarModalRetirada();
+    renderNoConf();
+  } else {
+    retiradaActual[caja].push({importe:imp, desc:labelDesc});
+    cerrarModalRetirada();
+    renderCaja();
+  }
+}
+
+function abrirReciboRetirada(imp, desc, caja, esNC, tipoMov){
+  tipoMov = tipoMov || 'retirada';
+  const sede = caja==='marbella'?'Marbella':'Monda';
+  const tipoCaja = esNC?'Caja No Confirmados':'Caja Confirmados';
+  const tipoLabel = tipoMov==='factura'?'Pago de Factura':'Retirada de Efectivo';
+  const tituloDoc = tipoMov==='factura'?'RECIBO DE PAGO':'RECIBO DE RETIRADA';
+  const colorAccent = tipoMov==='factura'?'#ea580c':'#dc2626';
+  const colorBg = tipoMov==='factura'?'#fff7ed':'#fef2f2';
+  const colorBrd = tipoMov==='factura'?'#fed7aa':'#fecaca';
+  const fechaLarga = new Date().toLocaleDateString('es-ES',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+  const fechaCorta = new Date().toLocaleString('es-ES',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
+  const importeFmt = fmt(imp);
+
+  const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
+<title>Recibo Retirada — ${sede} — ${fechaCorta}</title>
+<style>
+  @page { size: A5; margin: 15mm; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Arial, sans-serif; font-size: 12px; color: #111; background: #fff; padding: 0; }
+  .recibo { max-width: 148mm; margin: 0 auto; padding: 10mm; border: 1px solid #e5e7eb; }
+  .cabecera { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 2px solid #111; }
+  .empresa { font-size: 18px; font-weight: 900; letter-spacing: -0.5px; }
+  .empresa-sub { font-size: 10px; color: #6b7280; margin-top: 2px; }
+  .doc-info { text-align: right; }
+  .doc-tipo { font-size: 14px; font-weight: 700; }
+  .doc-fecha { font-size: 10px; color: #6b7280; margin-top: 2px; }
+  .datos-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+  .dato { background: #f9fafb; border-radius: 6px; padding: 8px 10px; }
+  .dato-label { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: #6b7280; margin-bottom: 3px; }
+  .dato-valor { font-size: 13px; font-weight: 700; }
+  .importe-box { background: #fef2f2; border: 1.5px solid #fecaca; border-radius: 8px; padding: 12px; text-align: center; margin-bottom: 16px; }
+  .importe-label { font-size: 10px; font-weight: 600; text-transform: uppercase; color: #dc2626; margin-bottom: 4px; }
+  .importe-valor { font-size: 28px; font-weight: 900; color: #dc2626; letter-spacing: -1px; }
+  .desc-box { font-size: 11px; color: #6b7280; border: 1px solid #e5e7eb; border-radius: 6px; padding: 8px 10px; margin-bottom: 20px; }
+  .desc-label { font-weight: 700; color: #374151; margin-bottom: 2px; }
+  .firmas { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; margin-top: 10px; }
+  .firma-bloque { text-align: center; }
+  .firma-linea { border-bottom: 1.5px solid #111; height: 40px; margin-bottom: 6px; }
+  .firma-label { font-size: 9px; font-weight: 700; text-transform: uppercase; color: #6b7280; letter-spacing: .3px; }
+  .firma-sub { font-size: 8px; color: #9ca3af; margin-top: 2px; }
+  .pie { margin-top: 16px; padding-top: 10px; border-top: 1px solid #e5e7eb; font-size: 9px; color: #9ca3af; text-align: center; }
+  @media print { button { display: none !important; } }
+  .btn-print { display: block; width: 100%; margin-top: 14px; padding: 10px; background: #111; color: #fff; border: none; border-radius: 6px; font-size: 13px; font-weight: 700; cursor: pointer; }
+</style></head><body>
+<div class="recibo">
+  <div class="cabecera">
+    <div>
+      <div class="empresa">ORUM</div>
+      <div class="empresa-sub">Rent &amp; Events · Servicios y Alquiler para Eventos SL</div>
+    </div>
+    <div class="doc-info">
+      <div class="doc-tipo" style="color:${colorAccent}">${tituloDoc}</div>
+      <div class="doc-fecha">${fechaCorta}</div>
+    </div>
+  </div>
+
+  <div class="datos-grid">
+    <div class="dato">
+      <div class="dato-label">Sede</div>
+      <div class="dato-valor">${sede}</div>
+    </div>
+    <div class="dato">
+      <div class="dato-label">Tipo de Caja</div>
+      <div class="dato-valor">${tipoCaja}</div>
+    </div>
+    <div class="dato">
+      <div class="dato-label">Tipo de Movimiento</div>
+      <div class="dato-valor" style="color:${colorAccent}">${tipoLabel}</div>
+    </div>
+    <div class="dato">
+      <div class="dato-label">Fecha y Hora</div>
+      <div class="dato-valor">${fechaLarga}</div>
+    </div>
+  </div>
+
+  <div class="importe-box" style="background:${colorBg};border-color:${colorBrd}">
+    <div class="importe-label" style="color:${colorAccent}">${tipoMov==='factura'?'Importe Pagado':'Importe Retirado'}</div>
+    <div class="importe-valor" style="color:${colorAccent}">${importeFmt}</div>
+  </div>
+
+  <div class="desc-box">
+    <div class="desc-label">${tipoMov==='factura'?'Proveedor / Nº Factura':'Concepto'}</div>
+    <div>${desc || '—'}</div>
+  </div>
+
+  <div class="firmas">
+    <div class="firma-bloque">
+      <div class="firma-linea"></div>
+      <div class="firma-label">Entrega el dinero</div>
+      <div class="firma-sub">Nombre y firma</div>
+    </div>
+    <div class="firma-bloque">
+      <div class="firma-linea"></div>
+      <div class="firma-label">Responsable</div>
+      <div class="firma-sub">Nombre y firma</div>
+    </div>
+    <div class="firma-bloque">
+      <div class="firma-linea"></div>
+      <div class="firma-label">Recibe el dinero</div>
+      <div class="firma-sub">Nombre y firma</div>
+    </div>
+  </div>
+
+  <div class="pie">ORUM Rent &amp; Events · Documento generado el ${fechaCorta} · Conservar como justificante</div>
+
+  <button class="btn-print" onclick="window.print()">🖨️ Imprimir Recibo</button>
+</div>
+<script>window.onload = () => window.print();<\/script>
+</body></html>`;
+
+  const w = window.open('', '_blank');
+  w.document.write(html);
+  w.document.close();
 }
 
 // ── IMPRESIÓN ─────────────────────────────────────────────────
