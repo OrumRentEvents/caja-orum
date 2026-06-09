@@ -409,17 +409,21 @@ async function cargarCobros(){
   document.getElementById('caja-content').innerHTML='<div class="loading"><div class="spinner"></div><p>Cargando facturas de Rentman...</p></div>';
   document.getElementById('buscador').style.display='none';
   try{
-    const[rF,rR,rS,rC]=await Promise.all([
+    const[rF,rR,rS,rC,rRet]=await Promise.all([
       fetch(`${API}/caja/facturas?desde=${desde}&hasta=${hasta}`).then(r=>r.json()),
       fetch(`/api/caja/registros`).then(r=>r.json()),
       fetch('/api/saldos').then(r=>r.json()),
       fetch('/api/cierres').then(r=>r.json()),
+      fetch('/api/retiradas').then(r=>r.json()),
     ]);
     facturas=rF.facturas||[];
     noConfs=rF.no_confirmados||[];
     saldos=rS||saldos;
     cierres=rC||{};
-    retiradaActual={marbella:[],monda:[]};
+    retiradaActual={
+      marbella: (rRet.marbella||[]).map(r=>({importe:r.importe,desc:r.desc})),
+      monda:    (rRet.monda||[]).map(r=>({importe:r.importe,desc:r.desc}))
+    };
     estado={};
     Object.entries(rR||{}).forEach(([id,reg])=>{if(reg.metodo_pago)estado[id]={metodo:reg.metodo_pago,numOp:reg.num_operacion||''};});
     document.getElementById('buscador').style.display='';
@@ -838,6 +842,8 @@ async function confirmarCierre(caja,desde,hasta,ef,tpv,transf,ret,saldoAnt,efFin
     retiradas:retiradaActual[caja],saldo_anterior:saldoAnt,saldo_final:efFinal,usuario:firma
   })});
   cerrarModal();
+  // Limpiar retiradas persistidas para esta caja (ya quedaron registradas en el cierre)
+  fetch(`/api/retiradas/${caja}?esNC=false`, {method:'DELETE'}).catch(()=>{});
   // Recargar cierres y saldos
   const[rS,rC]=await Promise.all([fetch('/api/saldos').then(r=>r.json()),fetch('/api/cierres').then(r=>r.json())]);
   saldos=rS;cierres=rC;
@@ -877,12 +883,17 @@ async function cargarNoConf(){
   if(!desde||!hasta)return;
   document.getElementById('noconf-content').innerHTML='<div class="loading"><div class="spinner"></div><p>Cargando...</p></div>';
   try{
-    const [r, rConfs] = await Promise.all([
+    const [r, rConfs, rRetNC] = await Promise.all([
       fetch(`/api/noconfirmados?desde=${desde}&hasta=${hasta}`).then(r=>r.json()),
-      fetch('/api/nc/confirmaciones').then(r=>r.json())
+      fetch('/api/nc/confirmaciones').then(r=>r.json()),
+      fetch('/api/retiradas').then(r=>r.json()),
     ]);
 
     ncConfs = rConfs || {};
+    retiradaNC = {
+      marbella: (rRetNC.marbella_nc||[]).map(r=>({importe:r.importe,desc:r.desc})),
+      monda:    (rRetNC.monda_nc||[]).map(r=>({importe:r.importe,desc:r.desc}))
+    };
 
     noConfs = (r.registros||[]).map(reg => ({
       id: reg.id,
@@ -1046,15 +1057,20 @@ function confirmarRetirada(){
   // Abrir recibo de impresión
   abrirReciboRetirada(imp, desc, caja, esNC, tipoMov);
 
-  // Registrar en sistema
+  // Registrar en sistema y persistir
+  cerrarModalRetirada();
+  fetch('/api/retirada', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ caja, esNC, importe:imp, desc:labelDesc, tipo:tipoMov, usuario:userInfo?.nombre||'' })
+  }).catch(e=>console.error('[retirada]', e));
+
   if(esNC){
     if(!retiradaNC[caja]) retiradaNC[caja]=[];
     retiradaNC[caja].push({importe:imp, desc:labelDesc});
-    cerrarModalRetirada();
     renderNoConf();
   } else {
     retiradaActual[caja].push({importe:imp, desc:labelDesc});
-    cerrarModalRetirada();
     renderCaja();
   }
 }

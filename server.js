@@ -43,7 +43,8 @@ const cache = {
   ticks:      {},
   cierres:    {},
   saldos:     {},
-  nc_confs:   {}
+  nc_confs:   {},
+  retiradas:  { marbella:[], monda:[], marbella_nc:[], monda_nc:[] }
 };
 
 app.use(express.json());
@@ -102,12 +103,13 @@ async function asGetNC(params) {
 async function recargarCache() {
   try {
     console.log('[Cache] Cargando...');
-    const [rReg, rTick, rCierres, rSaldos, rNC] = await Promise.all([
+    const [rReg, rTick, rCierres, rSaldos, rNC, rRet] = await Promise.all([
       asGet({ token:RUTAS_TOKEN, action:'get_registros', desde:'', hasta:'' }),
       asGet({ token:RUTAS_TOKEN, action:'get_ticks',     desde:'', hasta:'' }),
       asGet({ token:RUTAS_TOKEN, action:'get_cierres' }),
       asGet({ token:RUTAS_TOKEN, action:'get_saldos'  }),
       asGet({ token:RUTAS_TOKEN, action:'get_nc_confs'}),
+      asGet({ token:RUTAS_TOKEN, action:'get_retiradas'}).catch(()=>({data:{marbella:[],monda:[],marbella_nc:[],monda_nc:[]}})),
     ]);
     // Registros: convertir array a objeto keyed por factura_id
     cache.registros = {};
@@ -120,7 +122,15 @@ async function recargarCache() {
     cache.saldos = rSaldos.data || {};
     // NC Confirmaciones
     cache.nc_confs = rNC.data || {};
-    console.log(`[Cache] OK — registros:${Object.keys(cache.registros).length} ticks:${Object.keys(cache.ticks).length}`);
+    // Retiradas pendientes (no cerradas aún)
+    const retData = rRet.data || {};
+    cache.retiradas = {
+      marbella:    Array.isArray(retData.marbella)    ? retData.marbella    : [],
+      monda:       Array.isArray(retData.monda)       ? retData.monda       : [],
+      marbella_nc: Array.isArray(retData.marbella_nc) ? retData.marbella_nc : [],
+      monda_nc:    Array.isArray(retData.monda_nc)    ? retData.monda_nc    : [],
+    };
+    console.log(`[Cache] OK — registros:${Object.keys(cache.registros).length} ticks:${Object.keys(cache.ticks).length} retiradas_marb:${cache.retiradas.marbella.length}`);
   } catch(e) { console.error('[Cache] Error:', e.message); }
 }
 
@@ -213,6 +223,32 @@ app.get('/api/cierre/verificar', auth, (req,res) => {
     return res.json({ok:false, puede_cerrar:false, mensaje:`Esta caja ya fue cerrada el ${new Date(c.ts).toLocaleString('es-ES')} por ${c.usuario}`});
   }
   return res.json({ok:true, puede_cerrar:true, mensaje:null});
+});
+
+// ── RETIRADAS PERSISTENTES ───────────────────────────────────
+app.get('/api/retiradas', auth, (req,res) => res.json(cache.retiradas));
+
+app.post('/api/retirada', auth, async (req,res) => {
+  const { caja, esNC, importe, desc, tipo, usuario } = req.body;
+  if (!caja || !importe) return res.status(400).json({error:'caja e importe requeridos'});
+  const key = esNC ? caja+'_nc' : caja;
+  if (!cache.retiradas[key]) cache.retiradas[key] = [];
+  const reg = { importe: parseFloat(importe), desc: desc||'Retirada', tipo: tipo||'retirada', usuario: usuario||'', ts: new Date().toISOString() };
+  cache.retiradas[key].push(reg);
+  res.json({ok:true});
+  asPost({ token:CAJA_TOKEN, action:'add_retirada', caja, esNC:!!esNC, importe:reg.importe, desc:reg.desc, tipo:reg.tipo, usuario:reg.usuario, ts:reg.ts })
+    .catch(e => console.error('[BG retirada]', e.message));
+});
+
+app.delete('/api/retiradas/:caja', auth, async (req,res) => {
+  // Limpiar retiradas de una caja tras cierre
+  const { caja } = req.params;
+  const { esNC } = req.query;
+  const key = (esNC==='true') ? caja+'_nc' : caja;
+  cache.retiradas[key] = [];
+  res.json({ok:true});
+  asPost({ token:CAJA_TOKEN, action:'clear_retiradas', caja, esNC:esNC==='true' })
+    .catch(e => console.error('[BG clear_ret]', e.message));
 });
 
 // ── SALDOS ────────────────────────────────────────────────────
