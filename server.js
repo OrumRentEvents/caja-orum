@@ -1,19 +1,17 @@
 const express = require('express');
 const session = require('express-session');
 const path = require('path');
-
 const app = express();
 const PORT = process.env.PORT || 3000;
-
 const USERS = {
   marina: { pass:'Orum2026#Mar', rol:'comercial',    nombre:'Marina' },
   danilo: { pass:'Orum2026#Dan', rol:'comercial',    nombre:'Danilo' },
   maria:  { pass:'Orum2026#Mia', rol:'caja',         nombre:'María' },
+  lucas:  { pass:'Orum2026#Luc', rol:'caja',         nombre:'Lucas' },
   isabel: { pass:'Orum2026#Isa', rol:'contabilidad', nombre:'Isabel' },
   ana:    { pass:'Orum2026#Ana', rol:'contabilidad', nombre:'Ana' },
   sergio: { pass:'Orum2026#Ser', rol:'admin',        nombre:'Sergio' }
 };
-
 // Mapeo custom_4 → método de pago fianzas
 const FIANZA_METODOS = {
   '0': 'Transferencia Bancaria',
@@ -23,11 +21,9 @@ const FIANZA_METODOS = {
   '6': 'TPV Marbella',
   '7': 'TPV Monda'
 };
-
 // Caché de fianzas en memoria
 const cacheFianzas = { data: [], ts: 0 };
 const FIANZAS_TTL = 5 * 60 * 1000; // 5 minutos
-
 const AS_RUTAS_URL   = 'https://script.google.com/macros/s/AKfycbxaSfXi-D3Sx8Lpek6pHPaA-2_NgrXW6CTM0d37LlCX-x0hqRLM6BwyH-BIinyiJlAi/exec';
 const AS_NC_URL      = 'https://script.google.com/macros/s/AKfycbx1ayolXUAmk95s8M2bUS_46O7HQrM4gmQgh1mQF9zOCuOvEQfp59K94TnDYpopE73QmA/exec';
 const AS_FIANZAS_URL = process.env.AS_FIANZAS_URL || 'PON_AQUI_URL_FIANZAS_SCRIPT';
@@ -36,7 +32,6 @@ const RUTAS_TOKEN    = 'ORUMx2026CajaStats';
 const FIANZAS_TOKEN  = 'ORUMx2026#Fianzas$Secret';
 const RENTMAN_TOKEN  = process.env.RENTMAN_TOKEN || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpYXQiOjE3NzMxNTM0MjIsIm1lZGV3ZXJrZXIiOjIzNSwiYWNjb3VudCI6InNlcnZpY2lvc3lhbHF1aWxlcnBhcmFldmVudG9zc2wiLCJjbGllbnRfdHlwZSI6Im9wZW5hcGkiLCJjbGllbnQubmFtZSI6Im9wZW5hcGkiLCJleHAiOjIwODg3NzI2MjIsImlzcyI6IntcIm5hbWVcIjpcImJhY2tlbmRcIixcInZlcnNpb25cIjpcIjQuODI4LjAuNlwifSJ9.hyHIfRnBGkLunqFAzG40c95AjpkWJfywelT_RiTcXDs';
 const RENTMAN_URL    = 'https://api.rentman.net';
-
 // ── Caché en memoria ──────────────────────────────────────────
 const cache = {
   registros:  {},
@@ -46,15 +41,13 @@ const cache = {
   nc_confs:   {},
   retiradas:  { marbella:[], monda:[], marbella_nc:[], monda_nc:[] }
 };
-
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(session({ secret:'orum-caja-2026-secret', resave:false, saveUninitialized:false, cookie:{ maxAge:8*60*60*1000 } }));
-
 function auth(req,res,next) { if(!req.session.user) return res.status(401).json({error:'No autenticado'}); next(); }
 function authAdmin(req,res,next) { if(!req.session.user) return res.status(401).json({error:'No autenticado'}); if(req.session.user.rol!=='admin') return res.status(403).json({error:'Sin permisos'}); next(); }
 function authContab(req,res,next) { if(!req.session.user) return res.status(401).json({error:'No autenticado'}); if(!['contabilidad','admin'].includes(req.session.user.rol)) return res.status(403).json({error:'Sin permisos'}); next(); }
-
+function authCaja(req,res,next) { if(!req.session.user) return res.status(401).json({error:'No autenticado'}); if(!['caja','admin'].includes(req.session.user.rol)) return res.status(403).json({error:'Sin permisos'}); next(); }
 // ── Helper AS GET (sigue redirects) ──────────────────────────
 async function asGet(params) {
   const qs = new URLSearchParams(params).toString();
@@ -69,7 +62,6 @@ async function asGet(params) {
   try { return JSON.parse(text); }
   catch(e) { throw new Error('AS no JSON: ' + text.substring(0,300)); }
 }
-
 // ── Helper AS POST (sigue redirects) ─────────────────────────
 async function asPost(body) {
   let url = AS_RUTAS_URL;
@@ -83,7 +75,6 @@ async function asPost(body) {
   try { return JSON.parse(text); }
   catch(e) { throw new Error('AS no JSON: ' + text.substring(0,300)); }
 }
-
 // ── Helper AS NC GET ──────────────────────────────────────────
 async function asGetNC(params) {
   const qs = new URLSearchParams(params).toString();
@@ -98,7 +89,19 @@ async function asGetNC(params) {
   try { return JSON.parse(text); }
   catch(e) { throw new Error('NC no JSON: ' + text.substring(0,300)); }
 }
-
+// ── Helper AS NC POST (sigue redirects) ────────────────────────
+async function asPostNC(body) {
+  let url = AS_NC_URL;
+  let r;
+  for (let i=0; i<6; i++) {
+    r = await fetch(url, { method:'POST', redirect:'manual', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    if ([301,302,307,308].includes(r.status)) { url = r.headers.get('location'); if (!url) break; }
+    else break;
+  }
+  const text = await r.text();
+  try { return JSON.parse(text); }
+  catch(e) { throw new Error('NC POST no JSON: ' + text.substring(0,300)); }
+}
 // ── Cargar caché desde Sheet ──────────────────────────────────
 async function recargarCache() {
   try {
@@ -133,10 +136,8 @@ async function recargarCache() {
     console.log(`[Cache] OK — registros:${Object.keys(cache.registros).length} ticks:${Object.keys(cache.ticks).length} retiradas_marb:${cache.retiradas.marbella.length}`);
   } catch(e) { console.error('[Cache] Error:', e.message); }
 }
-
 // Carga inicial al arrancar
 recargarCache();
-
 // ── AUTH ──────────────────────────────────────────────────────
 app.post('/api/login', (req,res) => {
   const { usuario, password } = req.body;
@@ -147,7 +148,6 @@ app.post('/api/login', (req,res) => {
 });
 app.post('/api/logout', (req,res) => { req.session.destroy(); res.json({ok:true}); });
 app.get('/api/me', auth, (req,res) => res.json(req.session.user));
-
 // ── TICKS ─────────────────────────────────────────────────────
 app.get('/api/ticks', auth, (req,res) => {
   const { desde, hasta } = req.query;
@@ -159,7 +159,6 @@ app.get('/api/ticks', auth, (req,res) => {
   });
   res.json(f);
 });
-
 app.post('/api/tick', authContab, async (req,res) => {
   const { key, valor, nota, usuario } = req.body;
   if (!key) return res.status(400).json({error:'key requerida'});
@@ -169,7 +168,6 @@ app.post('/api/tick', authContab, async (req,res) => {
   asPost({ token:CAJA_TOKEN, action:'set_tick', key, valor:valor??null, nota:nota||'', usuario:usuario||'' })
     .catch(e => console.error('[BG tick]', e.message));
 });
-
 // ── REGISTROS CAJA ────────────────────────────────────────────
 app.get('/api/caja/registros', auth, (req,res) => {
   const { desde, hasta } = req.query;
@@ -180,7 +178,6 @@ app.get('/api/caja/registros', auth, (req,res) => {
   });
   res.json(f);
 });
-
 app.post('/api/caja/registro', auth, async (req,res) => {
   const { factura_id, metodo_pago, ubicacion, tipo, importe, cliente, numero, fecha_pago, es_abrebotellas, usuario, num_operacion } = req.body;
   if (!factura_id) return res.status(400).json({error:'factura_id requerido'});
@@ -194,10 +191,8 @@ app.post('/api/caja/registro', auth, async (req,res) => {
   asPost({ token:CAJA_TOKEN, action:'set_registro', ...req.body })
     .catch(e => console.error('[BG registro]', e.message));
 });
-
 // ── CIERRES ───────────────────────────────────────────────────
 app.get('/api/cierres', auth, (req,res) => res.json(cache.cierres));
-
 app.post('/api/cierre', auth, async (req,res) => {
   const { caja, desde, hasta, total_ef, total_tpv, total_transf, retiradas, saldo_anterior, saldo_final, usuario } = req.body;
   if (!caja||!desde||!hasta) return res.status(400).json({error:'caja, desde y hasta requeridos'});
@@ -209,7 +204,6 @@ app.post('/api/cierre', auth, async (req,res) => {
   asPost({ token:CAJA_TOKEN, action:'set_cierre', ...req.body })
     .catch(e => console.error('[BG cierre]', e.message));
 });
-
 app.get('/api/cierre/verificar', auth, (req,res) => {
   const { caja, desde } = req.query;
   if (!caja||!desde) return res.status(400).json({error:'caja y desde requeridos'});
@@ -224,10 +218,8 @@ app.get('/api/cierre/verificar', auth, (req,res) => {
   }
   return res.json({ok:true, puede_cerrar:true, mensaje:null});
 });
-
 // ── RETIRADAS PERSISTENTES ───────────────────────────────────
 app.get('/api/retiradas', auth, (req,res) => res.json(cache.retiradas));
-
 app.post('/api/retirada', auth, async (req,res) => {
   const { caja, esNC, importe, desc, tipo, usuario } = req.body;
   if (!caja || !importe) return res.status(400).json({error:'caja e importe requeridos'});
@@ -239,7 +231,6 @@ app.post('/api/retirada', auth, async (req,res) => {
   asPost({ token:CAJA_TOKEN, action:'add_retirada', caja, esNC:!!esNC, importe:reg.importe, desc:reg.desc, tipo:reg.tipo, usuario:reg.usuario, ts:reg.ts })
     .catch(e => console.error('[BG retirada]', e.message));
 });
-
 app.delete('/api/retiradas/:caja', auth, async (req,res) => {
   // Limpiar retiradas de una caja tras cierre
   const { caja } = req.params;
@@ -250,10 +241,8 @@ app.delete('/api/retiradas/:caja', auth, async (req,res) => {
   asPost({ token:CAJA_TOKEN, action:'clear_retiradas', caja, esNC:esNC==='true' })
     .catch(e => console.error('[BG clear_ret]', e.message));
 });
-
 // ── SALDOS ────────────────────────────────────────────────────
 app.get('/api/saldos', auth, (req,res) => res.json(cache.saldos));
-
 // ── HISTORIAL ─────────────────────────────────────────────────
 app.get('/api/historial', authAdmin, async (req,res) => {
   try {
@@ -265,10 +254,8 @@ app.get('/api/historial', authAdmin, async (req,res) => {
     res.json(obj);
   } catch(e) { res.status(500).json({error:e.message}); }
 });
-
 // ── NC CONFIRMACIONES ─────────────────────────────────────────
 app.get('/api/nc/confirmaciones', auth, (req,res) => res.json(cache.nc_confs));
-
 app.post('/api/nc/confirmar', authContab, async (req,res) => {
   const { nc_id, confirmar } = req.body;
   if (!nc_id) return res.status(400).json({error:'nc_id requerido'});
@@ -278,7 +265,6 @@ app.post('/api/nc/confirmar', authContab, async (req,res) => {
   asPost({ token:CAJA_TOKEN, action:'set_nc_conf', ...req.body })
     .catch(e => console.error('[BG nc_conf]', e.message));
 });
-
 // ── PROXY NO CONFIRMADOS ──────────────────────────────────────
 app.get('/api/noconfirmados', auth, async (req,res) => {
   try {
@@ -286,7 +272,37 @@ app.get('/api/noconfirmados', auth, async (req,res) => {
     res.json(data);
   } catch(e) { res.status(500).json({error:e.message}); }
 });
-
+// ── ELIMINAR REGISTROS NC (borrado real, solo confirmados por Ana) ──
+app.post('/api/nc/eliminar', authCaja, async (req,res) => {
+  try {
+    const { caja, usuario } = req.body;
+    if (!caja || !['marbella','monda'].includes(caja)) return res.status(400).json({error:'caja inválida'});
+    const metodoId = caja==='marbella' ? 'efectivo-marbella' : 'efectivo-monda';
+    // Solo los ids de esa sede que Ana ya marcó como "Recibido"
+    const ids = Object.keys(cache.registros).filter(id => {
+      const r = cache.registros[id];
+      const conf = cache.nc_confs[id];
+      return r && r.es_abrebotellas && r.metodo_pago===metodoId && conf && conf.confirmado===true;
+    });
+    if (ids.length===0) return res.json({ok:true, eliminados:0});
+    // 1. Borrado de raíz en la hoja NO_CONFIRMADOS
+    const ncResp = await asPostNC({ token: RUTAS_TOKEN, action:'eliminar_registros', ids, usuario: usuario||'' });
+    if (!ncResp || !ncResp.ok) return res.status(500).json({error:'Error borrando en hoja NC: ' + (ncResp && ncResp.error ? ncResp.error : 'desconocido')});
+    // 2. Limpiar rastro en la Caja Sheet (memoria + persistencia)
+    ids.forEach(id => { delete cache.registros[id]; delete cache.nc_confs[id]; });
+    const keyRet = `${caja}_nc`;
+    cache.retiradas[keyRet] = [];
+    res.json({ok:true, eliminados: ids.length});
+    ids.forEach(id => {
+      asPost({ token:CAJA_TOKEN, action:'set_registro', factura_id:id, metodo_pago:null })
+        .catch(e => console.error('[BG nc_eliminar registro]', e.message));
+      asPost({ token:CAJA_TOKEN, action:'set_nc_conf', nc_id:id, confirmar:false })
+        .catch(e => console.error('[BG nc_eliminar conf]', e.message));
+    });
+    asPost({ token:CAJA_TOKEN, action:'clear_retiradas', caja, esNC:true })
+      .catch(e => console.error('[BG nc_eliminar retiradas]', e.message));
+  } catch(e) { res.status(500).json({error:e.message}); }
+});
 // ── FACTURAS RENTMAN (invoicepayments directo) ────────────────
 app.get('/api/caja/facturas', auth, async (req,res) => {
   try {
@@ -307,7 +323,6 @@ app.get('/api/caja/facturas', auth, async (req,res) => {
     res.json({ facturas: all });
   } catch(e) { res.status(500).json({error:e.message}); }
 });
-
 // ── CONTACTO RENTMAN ──────────────────────────────────────────
 app.get('/api/contacto/:id', auth, async (req,res) => {
   try {
@@ -316,7 +331,6 @@ app.get('/api/contacto/:id', auth, async (req,res) => {
     res.json({ ok:true, data: data.data||null });
   } catch(e) { res.status(500).json({ok:false, error:e.message}); }
 });
-
 // ── PROYECTO RENTMAN ───────────────────────────────────────────
 app.get('/api/proyecto/:id', auth, async (req,res) => {
   try {
@@ -325,13 +339,11 @@ app.get('/api/proyecto/:id', auth, async (req,res) => {
     res.json({ ok:true, data: data.data||null });
   } catch(e) { res.status(500).json({ok:false, error:e.message}); }
 });
-
 // ── RECARGAR CACHÉ (admin) ────────────────────────────────────
 app.post('/api/cache/reload', authAdmin, async (req,res) => {
   res.json({ok:true, mensaje:'Recargando...'});
   recargarCache();
 });
-
 // ── FIANZAS ────────────────────────────────────────────────────
 async function fetchFianzasRentman() {
   let all = [];
@@ -347,7 +359,6 @@ async function fetchFianzasRentman() {
     if (items.length < limit) break;
     offset += limit;
   }
-
   // Los campos custom vienen dentro de p.custom.custom_3 etc.
   const proyectos = all.filter(p => {
     const c = p.custom || {};
@@ -355,9 +366,7 @@ async function fetchFianzasRentman() {
     const c5 = String(c.custom_5 != null ? c.custom_5 : '0');
     return c3 > 0 && (c5 === '1' || c5 === '2');
   });
-
   const estadoMap = { '0': 'Pendiente', '1': 'Pagada', '2': 'Devuelta' };
-
   // Enriquecer clientes en batch de 20
   const contactoIds = [...new Set(proyectos.map(p => p.customer).filter(Boolean).map(c => c.replace('/contacts/', '')))];
   const contactoMap = {};
@@ -375,7 +384,6 @@ async function fetchFianzasRentman() {
       } catch(e) { console.warn(`[Fianzas] Error contacto ${id}:`, e.message); }
     }));
   }
-
   // Enriquecer comerciales
   const comercialIds = [...new Set(proyectos.map(p => p.account_manager).filter(Boolean).map(c => c.replace('/crew/', '')))];
   const comercialMap = {};
@@ -389,7 +397,6 @@ async function fetchFianzasRentman() {
       } catch(e) {}
     }));
   }
-
   return proyectos.map(p => {
     const c = p.custom || {};
     const cId = (p.customer || '').replace('/contacts/', '');
@@ -412,7 +419,6 @@ async function fetchFianzasRentman() {
     };
   });
 }
-
 app.get('/api/fianzas', auth, async (req, res) => {
   try {
     const ahora = Date.now();
@@ -425,7 +431,6 @@ app.get('/api/fianzas', auth, async (req, res) => {
     res.json({ ok: true, data, cached: false });
   } catch(e) { res.status(500).json({ ok: false, error: e.message }); }
 });
-
 app.post('/api/fianzas/:id/estado', auth, async (req, res) => {
   try {
     const { estado } = req.body; // '0'=Pendiente, '1'=Pagada, '2'=Devuelta
@@ -443,7 +448,6 @@ app.post('/api/fianzas/:id/estado', auth, async (req, res) => {
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ ok: false, error: e.message }); }
 });
-
 app.post('/api/fianzas/cache/reload', auth, async (req, res) => {
   try {
     const data = await fetchFianzasRentman();
@@ -452,7 +456,6 @@ app.post('/api/fianzas/cache/reload', auth, async (req, res) => {
     res.json({ ok: true, data, count: data.length });
   } catch(e) { res.status(500).json({ ok: false, error: e.message }); }
 });
-
 // ── Helper AS Fianzas ─────────────────────────────────────────
 async function asFianzasGet(params) {
   const qs = new URLSearchParams(params).toString();
@@ -467,19 +470,14 @@ async function asFianzasGet(params) {
   try { return JSON.parse(text); }
   catch(e) { throw new Error('AS Fianzas no JSON: ' + text.substring(0, 300)); }
 }
-
 // Alias: todos los POST ahora son GET con params
 async function asFianzasPost(params) {
   return asFianzasGet(params);
 }
-
-
-
 // ── SOLICITUDES FIANZAS ───────────────────────────────────────
 // Caché de solicitudes en memoria
 const cacheSolicitudes = { data: [], ts: 0 };
 const SOLICITUDES_TTL = 2 * 60 * 1000; // 2 minutos
-
 app.get('/api/fianzas/solicitudes', auth, async (req, res) => {
   try {
     const ahora = Date.now();
@@ -493,7 +491,6 @@ app.get('/api/fianzas/solicitudes', auth, async (req, res) => {
     res.json({ ok: true, data: cacheSolicitudes.data });
   } catch(e) { res.status(500).json({ ok: false, error: e.message }); }
 });
-
 app.post('/api/fianzas/solicitar', auth, async (req, res) => {
   try {
     const d = await asFianzasGet({ token: FIANZAS_TOKEN, action: 'crear_solicitud', ...req.body });
@@ -502,7 +499,6 @@ app.post('/api/fianzas/solicitar', auth, async (req, res) => {
     res.json(d);
   } catch(e) { res.status(500).json({ ok: false, error: e.message }); }
 });
-
 app.post('/api/fianzas/rentman-devuelta', auth, async (req, res) => {
   try {
     const { proyecto_id } = req.body;
@@ -516,7 +512,6 @@ app.post('/api/fianzas/rentman-devuelta', auth, async (req, res) => {
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ ok: false, error: e.message }); }
 });
-
 app.post('/api/fianzas/devolver', auth, async (req, res) => {
   try {
     const { solicitud_id, proyecto_id, notas } = req.body;
@@ -527,7 +522,6 @@ app.post('/api/fianzas/devolver', auth, async (req, res) => {
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ ok: false, error: e.message }); }
 });
-
 app.post('/api/fianzas/notificar', auth, async (req, res) => {
   try {
     const { solicitud_id, notificado } = req.body;
@@ -536,7 +530,6 @@ app.post('/api/fianzas/notificar', auth, async (req, res) => {
     res.json(d);
   } catch(e) { res.status(500).json({ ok: false, error: e.message }); }
 });
-
 app.post('/api/fianzas/cancelar-solicitud', auth, async (req, res) => {
   try {
     const d = await asFianzasGet({ token: FIANZAS_TOKEN, action: 'cancelar_solicitud', id: req.body.solicitud_id });
@@ -544,7 +537,6 @@ app.post('/api/fianzas/cancelar-solicitud', auth, async (req, res) => {
     res.json(d);
   } catch(e) { res.status(500).json({ ok: false, error: e.message }); }
 });
-
 // ── TEST PAYMENTS RENTMAN (solo lectura, para verificar estructura) ──
 app.get('/api/test/payments', authAdmin, async (req, res) => {
   try {
@@ -555,7 +547,6 @@ app.get('/api/test/payments', authAdmin, async (req, res) => {
     res.json(data);
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
-
 app.get('/api/test/invoice/:id', authAdmin, async (req, res) => {
   try {
     const url = RENTMAN_URL + '/invoices/' + req.params.id;
@@ -565,7 +556,6 @@ app.get('/api/test/invoice/:id', authAdmin, async (req, res) => {
     res.json(data);
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
-
 app.get('/api/test/paymentmethods', authAdmin, async (req, res) => {
   try {
     const url = RENTMAN_URL + '/paymentmethods';
@@ -574,7 +564,6 @@ app.get('/api/test/paymentmethods', authAdmin, async (req, res) => {
     try { res.json(JSON.parse(text)); } catch(e) { res.send(text); }
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
-
 app.get('/api/test/invoice/:id/payments', authAdmin, async (req, res) => {
   try {
     const url = RENTMAN_URL + '/invoices/' + req.params.id + '/payments';
@@ -584,8 +573,6 @@ app.get('/api/test/invoice/:id/payments', authAdmin, async (req, res) => {
     res.json(data);
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
-
-
 // ── DIAGNÓSTICO INVOICEPAYMENTS ──────────────────────────────
 app.get('/api/test/invoicepayments', authAdmin, async (req, res) => {
   try {
@@ -598,6 +585,5 @@ app.get('/api/test/invoicepayments', authAdmin, async (req, res) => {
     res.send(text);
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
-
 app.get('*', (req,res) => res.sendFile(path.join(__dirname,'public','index.html')));
 app.listen(PORT, ()=>console.log('ORUM Caja puerto '+PORT));
