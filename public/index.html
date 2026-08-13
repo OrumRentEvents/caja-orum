@@ -911,6 +911,7 @@ function renderNoConf(){
           ${retListaMarb?`<div class="retiradas-lista">${retListaMarb}</div>`:''}
           <div style="font-size:13px;font-weight:700;margin-top:8px;padding-top:8px;border-top:1px solid var(--gray-light)">EFECTIVO EN CAJA <span style="float:right;color:var(--green)">${fmt(efNcMarb-retNcMarb)}</span></div>
           <button class="btn-retirada" onclick="registrarRetiradaNC('marbella')">− Registrar retirada</button>
+          <button onclick="vaciarRetiradasNC('marbella')" style="margin-top:4px;padding:5px 10px;border:1.5px solid #6b7280;background:#f9fafb;color:#374151;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;width:100%">🗑️ Vaciar retiradas</button>
           <button onclick="imprimirNC('marbella',false)" style="margin-top:6px;padding:5px 10px;border:1.5px solid #2563eb;background:#eff6ff;color:#2563eb;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;width:100%">🖨️ Imprimir Marbella NC (todo)</button>
           <button onclick="imprimirNC('marbella',true)" style="margin-top:4px;padding:5px 10px;border:1.5px solid #f59e0b;background:#fffbeb;color:#b45309;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;width:100%">🖨️ Solo pendientes Marbella</button>
           <button onclick="eliminarRegistroNC('marbella')" style="margin-top:4px;padding:5px 10px;border:1.5px solid #dc2626;background:#fef2f2;color:#dc2626;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;width:100%">🗑️ Eliminar confirmados Marbella</button>
@@ -926,6 +927,7 @@ function renderNoConf(){
           ${retListaMond?`<div class="retiradas-lista">${retListaMond}</div>`:''}
           <div style="font-size:13px;font-weight:700;margin-top:8px;padding-top:8px;border-top:1px solid var(--gray-light)">EFECTIVO EN CAJA <span style="float:right;color:var(--green)">${fmt(efNcMond-retNcMond)}</span></div>
           <button class="btn-retirada" onclick="registrarRetiradaNC('monda')">− Registrar retirada</button>
+          <button onclick="vaciarRetiradasNC('monda')" style="margin-top:4px;padding:5px 10px;border:1.5px solid #6b7280;background:#f9fafb;color:#374151;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;width:100%">🗑️ Vaciar retiradas</button>
           <button onclick="imprimirNC('monda',false)" style="margin-top:6px;padding:5px 10px;border:1.5px solid #2563eb;background:#eff6ff;color:#2563eb;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;width:100%">🖨️ Imprimir Monda NC (todo)</button>
           <button onclick="imprimirNC('monda',true)" style="margin-top:4px;padding:5px 10px;border:1.5px solid #f59e0b;background:#fffbeb;color:#b45309;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;width:100%">🖨️ Solo pendientes Monda</button>
           <button onclick="eliminarRegistroNC('monda')" style="margin-top:4px;padding:5px 10px;border:1.5px solid #dc2626;background:#fef2f2;color:#dc2626;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;width:100%">🗑️ Eliminar confirmados Monda</button>
@@ -960,6 +962,16 @@ function renderNoConf(){
     </div>`;
 }
 function registrarRetiradaNC(caja){ _abrirModalRetirada(caja, true); }
+async function vaciarRetiradasNC(caja){
+  const nombreSede = caja==='marbella'?'Marbella':'Monda';
+  const total = (retiradaNC[caja]||[]).reduce((s,r)=>s+r.importe,0);
+  if(!confirm(`¿Vaciar todas las retiradas registradas de ${nombreSede} NC (-${fmt(total)})?\n\nEsto solo borra el listado de retiradas, no afecta a los proyectos ni a lo cobrado.`)) return;
+  try{
+    await fetch(`/api/retiradas/${caja}?esNC=true`, {method:'DELETE'});
+    retiradaNC[caja]=[];
+    renderNoConf();
+  }catch(e){ alert('Error al vaciar retiradas: '+e.message); }
+}
 async function eliminarRegistroNC(caja){
   const nombreSede = caja==='marbella'?'Marbella':'Monda';
   if(!confirm(`¿Ya imprimiste y firmaste el listado en papel de ${nombreSede} NC y entregaste el dinero?\n\nEsta acción borrará PERMANENTEMENTE de la hoja de origen todos los registros de ${nombreSede} ya marcados como "✅ Recibido" por Ana, junto con sus retiradas. No se puede deshacer.`)) return;
