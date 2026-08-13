@@ -277,15 +277,24 @@ app.post('/api/nc/eliminar', authCaja, async (req,res) => {
   try {
     const { caja, usuario } = req.body;
     if (!caja || !['marbella','monda'].includes(caja)) return res.status(400).json({error:'caja inválida'});
-    const metodoId = caja==='marbella' ? 'efectivo-marbella' : 'efectivo-monda';
+    const metodoId    = caja==='marbella' ? 'efectivo-marbella' : 'efectivo-monda';
+    const metodoLabel = caja==='marbella' ? 'Efectivo Marbella' : 'Efectivo Monda';
     const esTrue = v => v===true || v==='true' || v==='TRUE' || v===1;
-    // Solo los ids de esa sede que Ana ya marcó como "Recibido"
-    const ids = Object.keys(cache.registros).filter(id => {
+    // Fuente de verdad del método en No Confirmados: la columna "Método" de la propia hoja NC
+    let registrosNC = [];
+    try {
+      const ncData = await asGetNC({ token: RUTAS_TOKEN, action:'registros', desde:'', hasta:'' });
+      registrosNC = ncData.registros || [];
+    } catch(e) { console.error('[nc_eliminar] Error leyendo hoja NC:', e.message); }
+    const idsDesdeNC = registrosNC.filter(r => r.metodo === metodoLabel).map(r => String(r.id));
+    // Por si el método fue reasignado manualmente en Caja (Caja Sheet) en vez de en la hoja NC
+    const idsDesdeCaja = Object.keys(cache.registros).filter(id => {
       const r = cache.registros[id];
-      const conf = cache.nc_confs[id];
-      const esRegistroNC = String(id).startsWith('NC_') || esTrue(r && r.es_abrebotellas);
-      return r && esRegistroNC && r.metodo_pago===metodoId && conf && esTrue(conf.confirmado);
+      return r && r.metodo_pago === metodoId && String(id).startsWith('NC_');
     });
+    const candidatos = [...new Set([...idsDesdeNC, ...idsDesdeCaja])];
+    // Solo los ids de esa sede que Ana ya marcó como "Recibido"
+    const ids = candidatos.filter(id => cache.nc_confs[id] && esTrue(cache.nc_confs[id].confirmado));
     if (ids.length===0) return res.json({ok:true, eliminados:0});
     // 1. Borrado de raíz en la hoja NO_CONFIRMADOS
     const ncResp = await asPostNC({ token: RUTAS_TOKEN, action:'eliminar_registros', ids, usuario: usuario||'' });
