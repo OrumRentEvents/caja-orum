@@ -133,7 +133,6 @@ tr:hover td{background:var(--gray-bg)}
 </style>
 </head>
 <body>
-
 <div id="login-screen">
   <div class="login-card">
     <div style="text-align:center;font-size:28px;font-weight:900;letter-spacing:-1px;margin-bottom:20px">ORUM</div>
@@ -145,7 +144,6 @@ tr:hover td{background:var(--gray-bg)}
     <div class="login-error" id="login-error"></div>
   </div>
 </div>
-
 <div id="app">
   <div class="topbar">
     <div><div class="topbar-logo">ORUM Rent & Events</div><div class="topbar-subtitle">Sistema de Caja 2026</div></div>
@@ -161,7 +159,6 @@ tr:hover td{background:var(--gray-bg)}
     <div class="tab" onclick="showTab('historial')" id="tab-historial" style="display:none">📋 Historial</div>
     <div class="tab" onclick="showTab('fianzas')" id="tab-fianzas" style="display:none">💰 Fianzas</div>
   </div>
-
   <div id="panel-caja" class="main">
     <div class="filtros-bar">
       <label>Desde</label><input type="date" id="fecha-desde">
@@ -172,17 +169,16 @@ tr:hover td{background:var(--gray-bg)}
     </div>
     <div id="caja-content"><div class="empty-state"><div class="icon">📅</div><p>Selecciona fechas y pulsa "Cargar cobros"</p></div></div>
   </div>
-
   <div id="panel-noconf" class="main" style="display:none">
     <div class="filtros-bar">
       <label>Desde</label><input type="date" id="nc-desde">
       <label>Hasta</label><input type="date" id="nc-hasta">
       <button class="btn-hoy" onclick="setHoyNC()">📅 Hoy</button>
       <button class="btn-cargar" onclick="cargarNoConf()">↻ Cargar</button>
+      <input type="text" class="inp-buscar" id="nc-buscador" placeholder="🔍 Buscar cliente / nº proyecto..." oninput="renderNoConf()">
     </div>
     <div id="noconf-content"><div class="empty-state"><div class="icon">🍾</div><p>Carga los cobros no confirmados</p></div></div>
   </div>
-
   <div id="panel-contabilidad" class="main" style="display:none">
     <div class="filtros-bar">
       <label>Desde</label><input type="date" id="contab-desde">
@@ -192,7 +188,6 @@ tr:hover td{background:var(--gray-bg)}
     </div>
     <div id="contab-content"><div class="empty-state"><div class="icon">📊</div><p>Selecciona rango y carga</p></div></div>
   </div>
-
   <div id="panel-historial" class="main" style="display:none">
     <div class="filtros-bar">
       <label>Desde</label><input type="date" id="hist-desde">
@@ -202,7 +197,6 @@ tr:hover td{background:var(--gray-bg)}
     <div id="historial-content"><div class="empty-state"><div class="icon">📋</div><p>Carga el historial</p></div></div>
   </div>
 </div>
-
   <div id="panel-fianzas" class="main" style="display:none">
     <div class="filtros-bar">
       <label>Estado</label>
@@ -234,7 +228,6 @@ tr:hover td{background:var(--gray-bg)}
     </div>
     <div id="fianzas-content"><div class="empty-state"><div class="icon">💰</div><p>Cargando fianzas...</p></div></div>
   </div>
-
 <!-- MODAL FIANZA DETALLE -->
 <div id="modal-fianza" style="display:none" class="modal-overlay" onclick="if(event.target===this)document.getElementById('modal-fianza').style.display='none'">
   <div class="modal modal-sm">
@@ -242,12 +235,10 @@ tr:hover td{background:var(--gray-bg)}
     <div class="modal-body" id="modal-fianza-body"></div>
   </div>
 </div>
-
 <!-- MODAL FIANZA -->
 <div id="modal-cierre" style="display:none" class="modal-overlay" onclick="if(event.target===this)cerrarModal()">
   <div class="modal"><div class="modal-header"><div class="modal-title" id="modal-title">Cierre</div><button class="btn-close" onclick="cerrarModal()">✕</button></div><div class="modal-body" id="modal-body"></div></div>
 </div>
-
 <!-- MODAL NUM OPERACION -->
 <div id="modal-numop" style="display:none" class="modal-overlay">
   <div class="modal modal-sm">
@@ -262,7 +253,6 @@ tr:hover td{background:var(--gray-bg)}
     </div>
   </div>
 </div>
-
 <!-- MODAL BLOQUEO -->
 <div id="modal-bloqueo" style="display:none" class="modal-overlay">
   <div class="modal modal-sm">
@@ -270,7 +260,6 @@ tr:hover td{background:var(--gray-bg)}
     <div class="modal-body" id="modal-bloqueo-body"></div>
   </div>
 </div>
-
 <!-- MODAL RETIRADA -->
 <div id="modal-retirada" style="display:none" class="modal-overlay" onclick="if(event.target===this)cerrarModalRetirada()">
   <div class="modal modal-sm">
@@ -315,13 +304,11 @@ tr:hover td{background:var(--gray-bg)}
     </div>
   </div>
 </div>
-
 <script>
 const AS_FIANZAS_URL = 'https://script.google.com/macros/s/AKfycbywPrFiicFAK0f0ayIOa27JHqUXOviaAU_WlwmrDYNqq_g8Oe0ap14i8FDgXfYO5Is-wQ/exec';
 const FIANZAS_TOKEN = 'ORUMx2026#Fianzas$Secret';
 const API = 'https://orum-api.dashboardorum.workers.dev';
 const NC_URL = 'https://script.google.com/macros/s/AKfycbx1ayolXUAmk95s8M2bUS_46O7HQrM4gmQgh1mQF9zOCuOvEQfp59K94TnDYpopE73QmA/exec';
-
 const METODOS = [
   {id:'efectivo-marbella',label:'💵 Ef. Marbella',ubicacion:'marbella',tipo:'efectivo',nombre:'Efectivo Marbella',esTpv:false},
   {id:'tpv-marbella',label:'💳 TPV Marbella',ubicacion:'marbella',tipo:'tpv',nombre:'TPV Marbella',esTpv:true},
@@ -334,7 +321,6 @@ const METODOS_NC = [
   {id:'efectivo-marbella',label:'💵 Efectivo Marbella',ubicacion:'marbella',tipo:'efectivo'},
   {id:'efectivo-monda',label:'💵 Efectivo Monda',ubicacion:'monda',tipo:'efectivo'},
 ];
-
 let estado={}, facturas=[], noConfs=[], ncConfs={}, userInfo=null;
 let saldos={marbella:{efectivo_final:0,retiradas:[]},monda:{efectivo_final:0,retiradas:[]}};
 let cierres={};
@@ -346,7 +332,6 @@ let cajaFiltroMetodo='todos'; // Filtro de método en Caja Diaria
 let sortColC='fecha_pago',sortDirC=1;
 let pendingNumOp=null;
 let facturasC=[],registrosC={},ticksC={};
-
 // ── AUTH ──────────────────────────────────────────────────────
 async function doLogin(){
   const u=document.getElementById('inp-usuario').value.trim();
@@ -359,7 +344,6 @@ async function doLogin(){
 document.getElementById('inp-pass').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
 async function doLogout(){await fetch('/api/logout',{method:'POST'});location.reload();}
 async function checkSession(){const r=await fetch('/api/me');if(!r.ok)return;userInfo=await r.json();iniciarApp();}
-
 function iniciarApp(){
   document.getElementById('login-screen').style.display='none';
   document.getElementById('app').style.display='block';
@@ -385,7 +369,6 @@ function iniciarApp(){
   document.getElementById('hist-desde').value=p;
   document.getElementById('hist-hasta').value=hoy;
 }
-
 function showTab(t){
   ['caja','noconf','contabilidad','historial','fianzas'].forEach(x=>{
     const p=document.getElementById('panel-'+x);
@@ -395,10 +378,8 @@ function showTab(t){
   });
   if(t==='fianzas' && fianzasData.length===0) cargarFianzas(false);
 }
-
 function setHoy(){const h=new Date().toISOString().substring(0,10);document.getElementById('fecha-desde').value=h;document.getElementById('fecha-hasta').value=h;cargarCobros();}
 function setHoyNC(){const h=new Date().toISOString().substring(0,10);document.getElementById('nc-desde').value=h;document.getElementById('nc-hasta').value=h;cargarNoConf();}
-
 // ── CARGAR ────────────────────────────────────────────────────
 async function cargarCobros(){
   const desde=document.getElementById('fecha-desde').value;
@@ -432,23 +413,19 @@ async function cargarCobros(){
   }catch(e){document.getElementById('caja-content').innerHTML=`<div class="empty-state"><div class="icon">⚠️</div><p>Error: ${e.message}</p></div>`;}
   btn.disabled=false;btn.innerHTML='↻ Cargar cobros';
 }
-
 // Cache compartida de contactos y proyectos
 const _cacheContactos={}, _cacheProyectos={};
-
 async function fetchContacto(id){
   if(_cacheContactos[id]!==undefined)return _cacheContactos[id];
   try{const r=await fetch(`${API}/contacto/${id}`).then(r=>r.json());const n=(r.ok&&r.data)?(r.data.displayname||''):'';_cacheContactos[id]=n;return n;}
   catch(e){_cacheContactos[id]='';return '';}
 }
-
 async function fetchProyecto(id){
   if(!id)return null;
   if(_cacheProyectos[id]!==undefined)return _cacheProyectos[id];
   try{const r=await fetch(`${API}/proyecto/${id}`).then(r=>r.json());const d=(r.ok&&r.data)?r.data:null;_cacheProyectos[id]=d;return d;}
   catch(e){_cacheProyectos[id]=null;return null;}
 }
-
 async function enriquecerLista(lista, renderFn){
   // Clientes
   const ids=[...new Set(lista.map(f=>f.cliente_id).filter(Boolean))];
@@ -469,13 +446,11 @@ async function enriquecerLista(lista, renderFn){
     if(renderFn)renderFn();
   }
 }
-
 async function enriquecerClientes(lista){
   await enriquecerLista([...facturas,...noConfs,...facturasC], ()=>{
     if(document.getElementById('tabla-wrapper'))renderTabla();
   });
 }
-
 // ── TOTALES ───────────────────────────────────────────────────
 function calcTotales(){
   const t={marbella:{ef:0,tpv:0,cef:0,ctpv:0},monda:{ef:0,tpv:0,cef:0,ctpv:0},transf:0};
@@ -489,21 +464,16 @@ function calcTotales(){
   });
   return t;
 }
-
 function getRetiradaTotal(caja){return(retiradaActual[caja]||[]).reduce((s,r)=>s+r.importe,0);}
-
 function periodoKey(){const d=document.getElementById('fecha-desde').value;const h=document.getElementById('fecha-hasta').value;return`${d}_${h}`;}
-
 function estaCerrada(caja){
   const pk=periodoKey();
   return !!(cierres[caja]&&cierres[caja][pk]);
 }
-
 function infoCierre(caja){
   const pk=periodoKey();
   return cierres[caja]?.[pk]||null;
 }
-
 // ── RENDER CAJA ───────────────────────────────────────────────
 function renderCaja(){
   const t=calcTotales();
@@ -511,16 +481,13 @@ function renderCaja(){
   const totalMo=t.monda.ef+t.monda.tpv;
   const total=totalM+totalMo+t.transf;
   const sin=facturas.filter(f=>!estado[String(f.id)]).length;
-
   const saldoAntM=saldos.marbella?.efectivo_final||0;
   const saldoAntMo=saldos.monda?.efectivo_final||0;
   const retM=getRetiradaTotal('marbella');
   const retMo=getRetiradaTotal('monda');
   const efCajaM=saldoAntM+t.marbella.ef-retM;
   const efCajaMo=saldoAntMo+t.monda.ef-retMo;
-
   const cM=infoCierre('marbella'),cMo=infoCierre('monda');
-
   document.getElementById('caja-content').innerHTML=`
     <div class="kpi-grid">
       <div class="kpi-card"><div class="kpi-label">Total Cobrado</div><div class="kpi-value">${fmt(total)}</div><div class="kpi-sub">${facturas.length} facturas · ${sin} sin asignar</div></div>
@@ -528,12 +495,10 @@ function renderCaja(){
       <div class="kpi-card kpi-tpv"><div class="kpi-label">TPV Total</div><div class="kpi-value">${fmt(t.marbella.tpv+t.monda.tpv)}</div><div class="kpi-sub">Marbella + Monda</div></div>
       <div class="kpi-card kpi-transferencia"><div class="kpi-label">Transferencias</div><div class="kpi-value">${fmt(t.transf)}</div></div>
     </div>
-
     <div class="cajas-grid">
       ${renderCajaCard('marbella','🏙️ Caja Marbella',t.marbella,totalM,saldoAntM,retM,efCajaM,cM)}
       ${renderCajaCard('monda','🏡 Caja Monda',t.monda,totalMo,saldoAntMo,retMo,efCajaMo,cMo)}
     </div>
-
     <div class="cierres-row">
       <button class="btn-cierre btn-cierre-marbella" onclick="intentarCierre('marbella')" ${cM?'disabled':''}>🟣 ${cM?'✓ Cerrada':'Cierre Marbella'}</button>
       <button class="btn-cierre btn-cierre-monda" onclick="intentarCierre('monda')" ${cMo?'disabled':''}>🟢 ${cMo?'✓ Cerrada':'Cierre Monda'}</button>
@@ -541,14 +506,11 @@ function renderCaja(){
       <button class="btn-cierre" style="background:#eff6ff;border-color:#2563eb;color:#2563eb" onclick="imprimirCaja('marbella')">🖨️ Imprimir Marbella</button>
       <button class="btn-cierre" style="background:#eff6ff;border-color:#2563eb;color:#2563eb" onclick="imprimirCaja('monda')">🖨️ Imprimir Monda</button>
     </div>
-
     <div id="filtros-caja-bar" style="background:var(--white);border-radius:var(--radius);padding:12px 16px;margin-bottom:12px;box-shadow:var(--shadow);display:flex;align-items:center;gap:8px;flex-wrap:wrap"></div>
     <div id="tabla-wrapper"></div>`;
-
   renderFiltrosCaja();
   renderTabla();
 }
-
 function renderFiltrosCaja(){
   const bar=document.getElementById('filtros-caja-bar');if(!bar)return;
   const opts=[
@@ -569,18 +531,15 @@ function renderFiltrosCaja(){
   });
   bar.innerHTML=html;
 }
-
 function setCajaFiltro(m){
   cajaFiltroMetodo=m;
   renderFiltrosCaja();
   renderTabla();
 }
-
 function renderCajaCard(caja,titulo,tots,totalCobrado,saldoAnt,ret,efCaja,cierre){
   const color=caja==='marbella'?'var(--purple)':'var(--green)';
   const retLista=(retiradaActual[caja]||[]).map(r=>`<div class="retirada-item"><span>${r.desc}</span><span style="color:var(--red)">-${fmt(r.importe)}</span></div>`).join('');
   const cierreInfo=cierre?`<div class="cierre-badge cerrado">✓ Cerrada · ${new Date(cierre.ts).toLocaleString('es-ES')} · ${cierre.usuario}</div>`:`<div class="cierre-badge abierto">⏳ Pendiente de cierre</div>`;
-
   return`<div class="caja-card">
     <div class="caja-header"><div class="caja-title">${titulo}</div><div class="caja-total" style="color:${color}">${fmt(totalCobrado)}</div></div>
     <div class="caja-desglose">
@@ -601,7 +560,6 @@ function renderCajaCard(caja,titulo,tots,totalCobrado,saldoAnt,ret,efCaja,cierre
     ${cierreInfo}
   </div>`;
 }
-
 // ── TABLA FACTURAS ────────────────────────────────────────────
 function getFiltered(){
   const q=(document.getElementById('buscador')?.value||'').toLowerCase();
@@ -619,7 +577,6 @@ function getFiltered(){
 }
 function setSort(c){sortCol===c?sortDir*=-1:(sortCol=c,sortDir=1);renderTabla();}
 function si(c){return sortCol!==c?'↕':sortDir===1?'↑':'↓';}
-
 function renderTabla(){
   const w=document.getElementById('tabla-wrapper');if(!w)return;
   const l=getFiltered();
@@ -642,7 +599,6 @@ function renderTabla(){
     </table></div>`}
   </div>`;
 }
-
 function renderFila(f){
   const k=String(f.id),st=estado[k],mid=st?.metodo||'',numOp=st?.numOp||'';
   const m=METODOS.find(x=>x.id===mid);
@@ -658,7 +614,6 @@ function renderFila(f){
     <td><div class="metodo-sel">${bots}${numOpHtml}</div></td>
   </tr>`;
 }
-
 // ── NUM OPERACION ─────────────────────────────────────────────
 function clickMetodo(fId,mId,esNC){
   const k=String(fId);
@@ -680,7 +635,6 @@ function confirmarNumOp(){
   if(pendingNumOp){asignarMetodo(pendingNumOp.fId,pendingNumOp.mId,pendingNumOp.esNC,n);pendingNumOp=null;}
 }
 document.getElementById('inp-numop').addEventListener('keydown',e=>{if(e.key==='Enter')confirmarNumOp();if(e.key==='Escape')cancelarNumOp();});
-
 async function guardarNumOp(fId,numOp){
   const k=String(fId);if(!estado[k])return;
   estado[k].numOp=numOp;
@@ -688,7 +642,6 @@ async function guardarNumOp(fId,numOp){
   const m=METODOS.find(x=>x.id===estado[k].metodo);
   await guardarRegistro(fId,estado[k].metodo,m,f,false,numOp);
 }
-
 async function asignarMetodo(fId,mId,esNC,numOp){
   const k=String(fId);
   if(!mId){delete estado[k];}else{estado[k]={metodo:mId,numOp:numOp||''};}
@@ -697,7 +650,6 @@ async function asignarMetodo(fId,mId,esNC,numOp){
   await guardarRegistro(fId,mId,m,f,esNC,numOp||'');
   if(esNC)renderNoConf();else renderCaja();
 }
-
 async function guardarRegistro(fId,mId,m,f,esNC,numOp){
   await fetch('/api/caja/registro',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
     factura_id:fId,metodo_pago:mId||null,ubicacion:m?.ubicacion,tipo:m?.tipo,
@@ -705,11 +657,9 @@ async function guardarRegistro(fId,mId,m,f,esNC,numOp){
     fecha_pago:f?.fecha_pago||'',es_abrebotellas:esNC,usuario:userInfo?.nombre||'',num_operacion:numOp||''
   })});
 }
-
 // ── RETIRADAS ─────────────────────────────────────────────────
 let _retiradaCtx = null; // {caja, esNC, tipo}
 let _tipoRetirada = 'retirada'; // 'retirada' | 'factura'
-
 function setTipoRetirada(tipo){
   _tipoRetirada = tipo;
   const esFactura = tipo === 'factura';
@@ -723,7 +673,6 @@ function setTipoRetirada(tipo){
   // Actualizar preview si ya hay importe
   actualizarPreviewRetirada();
 }
-
 function _abrirModalRetirada(caja, esNC){
   _retiradaCtx = {caja, esNC};
   _tipoRetirada = 'retirada';
@@ -741,21 +690,17 @@ function _abrirModalRetirada(caja, esNC){
   document.getElementById('modal-retirada').style.display = 'flex';
   setTimeout(()=>document.getElementById('ret-importe').focus(), 100);
 }
-
 function registrarRetirada(caja){ _abrirModalRetirada(caja, false); }
-
 // ── CIERRE CON BLOQUEO ────────────────────────────────────────
 async function intentarCierre(caja){
   const desde=document.getElementById('fecha-desde').value;
   const hasta=document.getElementById('fecha-hasta').value;
-
   // 1. Verificar que todas las facturas tienen método asignado
   const sinAsignar=facturas.filter(f=>!estado[String(f.id)]);
   if(sinAsignar.length>0){
     mostrarBloqueo(`⚠️ Hay <strong>${sinAsignar.length} facturas sin método de pago asignado</strong>.<br><br>Asigna el método a todas las facturas antes de cerrar.`);
     return;
   }
-
   // 2. Verificar que los TPV tienen número de operación
   const sinNumOp=facturas.filter(f=>{
     const st=estado[String(f.id)];
@@ -766,25 +711,21 @@ async function intentarCierre(caja){
     mostrarBloqueo(`⚠️ Hay <strong>${sinNumOp.length} cobros TPV sin número de operación</strong>.<br><br>Introduce el número de operación de cada TPV antes de cerrar.`);
     return;
   }
-
   // 3. Verificar períodos anteriores cerrados
   const r=await fetch(`/api/cierre/verificar?caja=${caja}&desde=${desde}`).then(r=>r.json());
   if(!r.puede_cerrar){
     mostrarBloqueo(`🔒 ${r.mensaje}`);
     return;
   }
-
   // 4. Todo OK → generar cierre
   generarCierre(caja);
 }
-
 function mostrarBloqueo(msg){
   document.getElementById('modal-bloqueo-body').innerHTML=`
     <p style="font-size:14px;line-height:1.6;margin-bottom:20px">${msg}</p>
     <button onclick="document.getElementById('modal-bloqueo').style.display='none'" style="width:100%;padding:11px;background:var(--black);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">Entendido</button>`;
   document.getElementById('modal-bloqueo').style.display='flex';
 }
-
 function generarCierre(caja){
   const desde=document.getElementById('fecha-desde').value;
   const hasta=document.getElementById('fecha-hasta').value;
@@ -795,7 +736,6 @@ function generarCierre(caja){
   const efFinal=saldoAnt+tots.ef-ret;
   const listaFacturas=facturas.filter(f=>{const m=METODOS.find(x=>x.id===estado[String(f.id)]?.metodo);return m?.ubicacion===caja;});
   const titulo=caja==='marbella'?'🟣 Cierre Caja Marbella':'🟢 Cierre Caja Monda';
-
   document.getElementById('modal-title').textContent=titulo;
   document.getElementById('modal-body').innerHTML=`
     <div style="text-align:center;margin-bottom:20px"><strong style="font-size:18px">ORUM Rent & Events</strong><p style="color:var(--gray);font-size:12px;margin-top:4px">${desde} al ${hasta}</p></div>
@@ -834,7 +774,6 @@ function generarCierre(caja){
     </div>`;
   document.getElementById('modal-cierre').style.display='flex';
 }
-
 async function confirmarCierre(caja,desde,hasta,ef,tpv,transf,ret,saldoAnt,efFinal){
   const firma=document.getElementById('firma-nombre')?.value||userInfo?.nombre||'';
   await fetch('/api/cierre',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
@@ -850,7 +789,6 @@ async function confirmarCierre(caja,desde,hasta,ef,tpv,transf,ret,saldoAnt,efFin
   retiradaActual[caja]=[];
   renderCaja();
 }
-
 function generarResumen(){
   const t=calcTotales();
   const total=(t.marbella.ef+t.marbella.tpv)+(t.monda.ef+t.monda.tpv)+t.transf;
@@ -866,7 +804,6 @@ function generarResumen(){
     <button class="btn-imprimir" onclick="imprimirCierre('Resumen Global')">🖨️ Imprimir / PDF</button>`;
   document.getElementById('modal-cierre').style.display='flex';
 }
-
 function cerrarModal(){document.getElementById('modal-cierre').style.display='none';}
 function imprimirCierre(titulo){
   const firma=document.getElementById('firma-nombre')?.value||'';
@@ -875,7 +812,6 @@ function imprimirCierre(titulo){
   w.document.write(`<html><head><title>${titulo}</title><style>body{font-family:sans-serif;padding:32px;max-width:640px;margin:0 auto}table{width:100%;border-collapse:collapse}th,td{padding:6px 10px;border-bottom:1px solid #eee}.btn-imprimir{display:none}</style></head><body><h2>${titulo}</h2>${contenido}<p style="margin-top:24px;font-size:12px;color:#666">Firmado: ${firma} · ${new Date().toLocaleString('es-ES')}</p><script>window.onload=()=>window.print()<\/script></body></html>`);
   w.document.close();
 }
-
 // ── NO CONFIRMADOS ────────────────────────────────────────────
 async function cargarNoConf(){
   const desde=document.getElementById('nc-desde').value;
@@ -888,13 +824,11 @@ async function cargarNoConf(){
       fetch('/api/nc/confirmaciones').then(r=>r.json()),
       fetch('/api/retiradas').then(r=>r.json()),
     ]);
-
     ncConfs = rConfs || {};
     retiradaNC = {
       marbella: (rRetNC.marbella_nc||[]).map(r=>({importe:r.importe,desc:r.desc})),
       monda:    (rRetNC.monda_nc||[]).map(r=>({importe:r.importe,desc:r.desc}))
     };
-
     noConfs = (r.registros||[]).map(reg => ({
       id: reg.id,
       numero: reg.numero_proyecto,
@@ -906,7 +840,6 @@ async function cargarNoConf(){
       metodo_guardado: reg.metodo,
       email: reg.email,
     }));
-
     // Aplicar métodos guardados
     noConfs.forEach(f => {
       if (f.metodo_guardado) {
@@ -914,16 +847,24 @@ async function cargarNoConf(){
         estado[String(f.id)] = { metodo: mid, numOp: '' };
       }
     });
-
     renderNoConf();
   }catch(e){document.getElementById('noconf-content').innerHTML=`<div class="empty-state"><p>Error: ${e.message}</p></div>`;}
 }
-
 function renderNoConf(){
   const esContab=userInfo&&['contabilidad','admin'].includes(userInfo.rol);
   const esAdmin=userInfo&&userInfo.rol==='admin';
   const esComercial=userInfo&&userInfo.rol==='comercial';
+  const puedeVerCajasNC=userInfo&&['admin','caja'].includes(userInfo.rol);
   let noConfsVista = esComercial ? noConfs.filter(f=>!ncConfs[String(f.id)]?.confirmado) : noConfs;
+  // Aplicar búsqueda
+  const qNC=(document.getElementById('nc-buscador')?.value||'').toLowerCase();
+  if(qNC){
+    noConfsVista = noConfsVista.filter(f=>
+      (String(f.numero||'')).toLowerCase().includes(qNC) ||
+      (String(f.proyecto_numero||'')).toLowerCase().includes(qNC) ||
+      (f.cliente||'').toLowerCase().includes(qNC)
+    );
+  }
   // Aplicar filtro de método NC
   if(ncFiltroMetodo && ncFiltroMetodo!=='todos'){
     noConfsVista = noConfsVista.filter(f=>{
@@ -939,24 +880,20 @@ function renderNoConf(){
   const sin=noConfsVista.filter(f=>!estado[String(f.id)]).length;
   const confirmados=noConfs.filter(f=>ncConfs[String(f.id)]?.confirmado).length;
   const pendConf=noConfsVista.filter(f=>estado[String(f.id)]&&!ncConfs[String(f.id)]?.confirmado).length;
-
   // Calcular efectivo NC por caja
   const efNcMarb = noConfsVista.filter(f=>estado[String(f.id)]?.metodo==='efectivo-marbella').reduce((s,f)=>s+(f.total_pagado||f.importe||0),0); // incluye negativos
   const efNcMond = noConfsVista.filter(f=>estado[String(f.id)]?.metodo==='efectivo-monda').reduce((s,f)=>s+(f.total_pagado||f.importe||0),0);
   const retNcMarb = (retiradaNC.marbella||[]).reduce((s,r)=>s+r.importe,0);
   const retNcMond = (retiradaNC.monda||[]).reduce((s,r)=>s+r.importe,0);
-
   const retListaMarb=(retiradaNC.marbella||[]).map(r=>`<div class="retirada-item"><span>${r.desc}</span><span style="color:var(--red)">-${fmt(r.importe)}</span></div>`).join('');
   const retListaMond=(retiradaNC.monda||[]).map(r=>`<div class="retirada-item"><span>${r.desc}</span><span style="color:var(--red)">-${fmt(r.importe)}</span></div>`).join('');
-
   document.getElementById('noconf-content').innerHTML=`
     <div class="kpi-grid" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr))">
       <div class="kpi-card kpi-efectivo"><div class="kpi-label">Total No Confirmados</div><div class="kpi-value">${fmt(totalEf)}</div><div class="kpi-sub">${noConfs.length} registros · ${sin} sin método</div></div>
       <div class="kpi-card" style="border-left:4px solid #22c55e"><div class="kpi-label">Recibidos por Ana</div><div class="kpi-value" style="color:#22c55e">${confirmados}</div><div class="kpi-sub">de ${noConfs.length} registros</div></div>
       <div class="kpi-card" style="border-left:4px solid #f59e0b"><div class="kpi-label">Pendiente confirmar</div><div class="kpi-value" style="color:#f59e0b">${pendConf}</div><div class="kpi-sub">con método asignado</div></div>
     </div>
-
-    ${esAdmin?`
+    ${puedeVerCajasNC?`
     <!-- CAJAS NC -->
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
       <!-- Caja Marbella NC -->
@@ -971,6 +908,7 @@ function renderNoConf(){
           <button class="btn-retirada" onclick="registrarRetiradaNC('marbella')">− Registrar retirada</button>
           <button onclick="imprimirNC('marbella',false)" style="margin-top:6px;padding:5px 10px;border:1.5px solid #2563eb;background:#eff6ff;color:#2563eb;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;width:100%">🖨️ Imprimir Marbella NC (todo)</button>
           <button onclick="imprimirNC('marbella',true)" style="margin-top:4px;padding:5px 10px;border:1.5px solid #f59e0b;background:#fffbeb;color:#b45309;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;width:100%">🖨️ Solo pendientes Marbella</button>
+          <button onclick="eliminarRegistroNC('marbella')" style="margin-top:4px;padding:5px 10px;border:1.5px solid #dc2626;background:#fef2f2;color:#dc2626;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;width:100%">🗑️ Eliminar confirmados Marbella</button>
         </div>
       </div>
       <!-- Caja Monda NC -->
@@ -985,10 +923,10 @@ function renderNoConf(){
           <button class="btn-retirada" onclick="registrarRetiradaNC('monda')">− Registrar retirada</button>
           <button onclick="imprimirNC('monda',false)" style="margin-top:6px;padding:5px 10px;border:1.5px solid #2563eb;background:#eff6ff;color:#2563eb;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;width:100%">🖨️ Imprimir Monda NC (todo)</button>
           <button onclick="imprimirNC('monda',true)" style="margin-top:4px;padding:5px 10px;border:1.5px solid #f59e0b;background:#fffbeb;color:#b45309;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;width:100%">🖨️ Solo pendientes Monda</button>
+          <button onclick="eliminarRegistroNC('monda')" style="margin-top:4px;padding:5px 10px;border:1.5px solid #dc2626;background:#fef2f2;color:#dc2626;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;width:100%">🗑️ Eliminar confirmados Monda</button>
         </div>
       </div>
     </div>`:''}
-
     <div id="filtros-nc-bar" style="background:var(--white);border-radius:var(--radius);padding:12px 16px;margin-bottom:12px;box-shadow:var(--shadow);display:flex;align-items:center;gap:8px;flex-wrap:wrap"></div>
     <div class="tabla-section">
       <div class="tabla-header">
@@ -1016,9 +954,18 @@ function renderNoConf(){
       </table></div>`}
     </div>`;
 }
-
 function registrarRetiradaNC(caja){ _abrirModalRetirada(caja, true); }
-
+async function eliminarRegistroNC(caja){
+  const nombreSede = caja==='marbella'?'Marbella':'Monda';
+  if(!confirm(`¿Ya imprimiste y firmaste el listado en papel de ${nombreSede} NC y entregaste el dinero?\n\nEsta acción borrará PERMANENTEMENTE de la hoja de origen todos los registros de ${nombreSede} ya marcados como "✅ Recibido" por Ana, junto con sus retiradas. No se puede deshacer.`)) return;
+  try{
+    const r = await fetch('/api/nc/eliminar', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({caja, usuario:userInfo?.nombre||''})}).then(r=>r.json());
+    if(!r.ok){ alert('Error: '+(r.error||'desconocido')); return; }
+    if(r.eliminados===0){ alert(`No hay registros confirmados por Ana en ${nombreSede} para eliminar.`); return; }
+    alert(`✅ ${r.eliminados} registro(s) eliminado(s) de ${nombreSede} NC.`);
+    cargarNoConf();
+  }catch(e){ alert('Error: '+e.message); }
+}
 function actualizarPreviewRetirada(){
   const imp = parseFloat(document.getElementById('ret-importe').value);
   const prev = document.getElementById('ret-preview');
@@ -1034,12 +981,10 @@ function actualizarPreviewRetirada(){
   document.getElementById('prev-importe').textContent = fmt(imp);
   prev.style.display = 'block';
 }
-
 function cerrarModalRetirada(){
   document.getElementById('modal-retirada').style.display = 'none';
   _retiradaCtx = null;
 }
-
 function confirmarRetirada(){
   const imp = parseFloat(document.getElementById('ret-importe').value);
   if(isNaN(imp)||imp<=0){
@@ -1053,10 +998,8 @@ function confirmarRetirada(){
   const desc = document.getElementById('ret-desc').value.trim() || defaultDesc;
   const {caja, esNC} = _retiradaCtx;
   const labelDesc = tipoMov==='factura' ? '[FACTURA] ' + desc : desc;
-
   // Abrir recibo de impresión
   abrirReciboRetirada(imp, desc, caja, esNC, tipoMov);
-
   // Registrar en sistema y persistir
   cerrarModalRetirada();
   fetch('/api/retirada', {
@@ -1064,7 +1007,6 @@ function confirmarRetirada(){
     headers:{'Content-Type':'application/json'},
     body: JSON.stringify({ caja, esNC, importe:imp, desc:labelDesc, tipo:tipoMov, usuario:userInfo?.nombre||'' })
   }).catch(e=>console.error('[retirada]', e));
-
   if(esNC){
     if(!retiradaNC[caja]) retiradaNC[caja]=[];
     retiradaNC[caja].push({importe:imp, desc:labelDesc});
@@ -1074,7 +1016,6 @@ function confirmarRetirada(){
     renderCaja();
   }
 }
-
 function abrirReciboRetirada(imp, desc, caja, esNC, tipoMov){
   tipoMov = tipoMov || 'retirada';
   const sede = caja==='marbella'?'Marbella':'Monda';
@@ -1087,7 +1028,6 @@ function abrirReciboRetirada(imp, desc, caja, esNC, tipoMov){
   const fechaLarga = new Date().toLocaleDateString('es-ES',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
   const fechaCorta = new Date().toLocaleString('es-ES',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
   const importeFmt = fmt(imp);
-
   const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
 <title>Recibo Retirada — ${sede} — ${fechaCorta}</title>
 <style>
@@ -1130,7 +1070,6 @@ function abrirReciboRetirada(imp, desc, caja, esNC, tipoMov){
       <div class="doc-fecha">${fechaCorta}</div>
     </div>
   </div>
-
   <div class="datos-grid">
     <div class="dato">
       <div class="dato-label">Sede</div>
@@ -1149,17 +1088,14 @@ function abrirReciboRetirada(imp, desc, caja, esNC, tipoMov){
       <div class="dato-valor">${fechaLarga}</div>
     </div>
   </div>
-
   <div class="importe-box" style="background:${colorBg};border-color:${colorBrd}">
     <div class="importe-label" style="color:${colorAccent}">${tipoMov==='factura'?'Importe Pagado':'Importe Retirado'}</div>
     <div class="importe-valor" style="color:${colorAccent}">${importeFmt}</div>
   </div>
-
   <div class="desc-box">
     <div class="desc-label">${tipoMov==='factura'?'Proveedor / Nº Factura':'Concepto'}</div>
     <div>${desc || '—'}</div>
   </div>
-
   <div class="firmas">
     <div class="firma-bloque">
       <div class="firma-linea"></div>
@@ -1177,19 +1113,15 @@ function abrirReciboRetirada(imp, desc, caja, esNC, tipoMov){
       <div class="firma-sub">Nombre y firma</div>
     </div>
   </div>
-
   <div class="pie">ORUM Rent &amp; Events · Documento generado el ${fechaCorta} · Conservar como justificante</div>
-
   <button class="btn-print" onclick="window.print()">🖨️ Imprimir Recibo</button>
 </div>
 <script>window.onload = () => window.print();<\/script>
 </body></html>`;
-
   const w = window.open('', '_blank');
   w.document.write(html);
   w.document.close();
 }
-
 // ── IMPRESIÓN ─────────────────────────────────────────────────
 function imprimirCaja(caja){
   const desde=document.getElementById('fecha-desde').value;
@@ -1197,7 +1129,6 @@ function imprimirCaja(caja){
   const nombreCaja=caja==='marbella'?'Marbella':'Monda';
   const metodoEf=caja==='marbella'?'efectivo-marbella':'efectivo-monda';
   const metodoTpv=caja==='marbella'?'tpv-marbella':'tpv-monda';
-
   const efFacts=facturas.filter(f=>estado[String(f.id)]?.metodo===metodoEf);
   const tpvFacts=facturas.filter(f=>estado[String(f.id)]?.metodo===metodoTpv);
   const totalEf=efFacts.reduce((s,f)=>s+(f.total_pagado||f.importe||0),0);
@@ -1205,16 +1136,13 @@ function imprimirCaja(caja){
   const retiradas=retiradaActual[caja]||[];
   const totalRet=retiradas.reduce((s,r)=>s+r.importe,0);
   const saldoAnt=saldos[caja]?.efectivo_final||0;
-
   const filas=[...efFacts,...tpvFacts].map(f=>{
     const reg=estado[String(f.id)];
     const metNombre=reg?.metodo==='efectivo-marbella'?'Ef. Marbella':reg?.metodo==='efectivo-monda'?'Ef. Monda':reg?.metodo==='tpv-marbella'?'TPV Marbella':reg?.metodo==='tpv-monda'?'TPV Monda':reg?.metodo||'—';
     const numOp=reg?.numOp||reg?.num_operacion||'';
     return`<tr><td>${f.numero||f.id}</td><td>${f.cliente||'—'}</td><td>${f.fecha_pago||'—'}</td><td style="text-align:right">${fmt(f.total_pagado||f.importe||0)}</td><td>${metNombre}</td><td>${numOp||'—'}</td></tr>`;
   }).join('');
-
   const retFilas=retiradas.map(r=>`<tr><td colspan="5">${r.desc}</td><td style="text-align:right;color:#dc2626">-${fmt(r.importe)}</td></tr>`).join('');
-
   const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Caja ${nombreCaja} — ${desde}</title>
   <style>body{font-family:Arial,sans-serif;font-size:12px;padding:20px;max-width:800px;margin:0 auto}
   h1{font-size:18px;margin-bottom:4px}h2{font-size:14px;color:#666;margin-bottom:16px}
@@ -1242,35 +1170,28 @@ function imprimirCaja(caja){
     <div style="text-align:center"><div>Impreso: ${new Date().toLocaleString('es-ES')}</div></div>
   </div>
   <script>window.print();<\/script></body></html>`;
-
   const w=window.open('','_blank');
   w.document.write(html);
   w.document.close();
 }
-
 function imprimirNC(caja, soloPendientes){
   const desde=document.getElementById('nc-desde').value;
   const hasta=document.getElementById('nc-hasta').value;
   const nombreCaja=caja==='marbella'?'Marbella':'Monda';
   const metodoId=caja==='marbella'?'efectivo-marbella':'efectivo-monda';
-
   // Todos los de esta caja con método asignado
   let facts=noConfs.filter(f=>estado[String(f.id)]?.metodo===metodoId);
-
   // Separar confirmados y pendientes
   const factsPendientes=facts.filter(f=>!ncConfs[String(f.id)]?.confirmado);
   const factsConfirmados=facts.filter(f=>ncConfs[String(f.id)]?.confirmado);
-
   // Si solo pendientes, filtrar
   const factsImprimir = soloPendientes ? factsPendientes : facts;
-
   // Calcular totales correctamente (los negativos restan)
   const totalEfPos=factsImprimir.filter(f=>(f.total_pagado||f.importe||0)>=0).reduce((s,f)=>s+(f.total_pagado||f.importe||0),0);
   const totalEfNeg=factsImprimir.filter(f=>(f.total_pagado||f.importe||0)<0).reduce((s,f)=>s+(f.total_pagado||f.importe||0),0);
   const totalEf=factsImprimir.reduce((s,f)=>s+(f.total_pagado||f.importe||0),0);
   const retiradas=retiradaNC[caja]||[];
   const totalRet=retiradas.reduce((s,r)=>s+r.importe,0);
-
   const filas=factsImprimir.map(f=>{
     const conf=ncConfs[String(f.id)];
     const imp=f.total_pagado||f.importe||0;
@@ -1278,15 +1199,11 @@ function imprimirNC(caja, soloPendientes){
     const color=imp<0?'color:#dc2626':'';
     return '<tr><td>'+( f.numero||f.id)+'</td><td>'+(f.cliente||'—')+'</td><td>'+(f.fecha_pago||'—')+'</td><td style="text-align:right;'+color+'">'+fmt(imp)+'</td><td>Ef. '+nombreCaja+'</td><td>'+estado_txt+'</td></tr>';
   }).join('');
-
   const retFilas=retiradas.map(r=>'<tr><td colspan="5">'+r.desc+'</td><td style="text-align:right;color:#dc2626">-'+fmt(r.importe)+'</td></tr>').join('');
-
   const titulo=soloPendientes?('Caja NC '+nombreCaja+' — Pendientes'):('Caja NC '+nombreCaja);
   const subtitulo=soloPendientes?('Solo pendientes · '+factsPendientes.length+' registros'):('Todos · '+facts.length+' registros ('+factsConfirmados.length+' recibidos por Ana)');
-
   const resumenExtra = totalEfNeg<0 ?
     '<div><span>Devoluciones</span><span style="color:#dc2626">'+fmt(totalEfNeg)+'</span></div>' : '';
-
   const html='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>'+titulo+' — '+desde+'</title>'
   +'<style>body{font-family:Arial,sans-serif;font-size:12px;padding:20px;max-width:800px;margin:0 auto}'
   +'h1{font-size:18px;margin-bottom:4px}h2{font-size:13px;color:#666;margin-bottom:4px}h3{font-size:12px;color:#999;margin-bottom:16px;font-weight:400}'
@@ -1314,14 +1231,11 @@ function imprimirNC(caja, soloPendientes){
   +'<div style="text-align:center"><div>Impreso: '+new Date().toLocaleString('es-ES')+'</div></div>'
   +'</div>'
   +'<script>window.print();<\/script></body></html>';
-
   const w=window.open('','_blank');
   w.document.write(html);
   w.document.close();
 }
-
 function setNcFiltro(m){ ncFiltroMetodo=m; renderFiltrosNC(); renderNoConf(); }
-
 function renderFiltrosNC(){
   const bar=document.getElementById('filtros-nc-bar');if(!bar)return;
   const opts=[
@@ -1341,10 +1255,8 @@ function renderFiltrosNC(){
   bar.innerHTML=html;
   setTimeout(renderFiltrosNC, 0);
 }
-
 // Llamar renderFiltrosNC después de que el DOM se actualice
 // (se llama desde cargarNoConf y desde setNcFiltro)
-
 async function toggleNcConf(ncId, confirmar, metodo, importe, cliente, numero){
   try{
     const r=await fetch('/api/nc/confirmar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nc_id:ncId,confirmar,metodo,importe,cliente,numero,usuario:userInfo?.nombre||''})}).then(r=>r.json());
@@ -1352,7 +1264,6 @@ async function toggleNcConf(ncId, confirmar, metodo, importe, cliente, numero){
     else alert('Error: '+r.error);
   }catch(e){alert('Error: '+e.message);}
 }
-
 // ── CONTABILIDAD ──────────────────────────────────────────────
 async function cargarContabilidad(){
   const desde=document.getElementById('contab-desde').value;
@@ -1377,14 +1288,11 @@ async function cargarContabilidad(){
     enriquecerLista(facturasC, renderContab);
   }catch(e){document.getElementById('contab-content').innerHTML=`<div class="empty-state"><p>Error: ${e.message}</p></div>`;}
 }
-
 function setContabSort(c){contabSortCol===c?contabSortDirC*=-1:(contabSortCol=c,contabSortDirC=1);renderContab();}
 let contabSortCol='fecha_pago',contabSortDirC=1;
 function sc(c){return contabSortCol!==c?'↕':contabSortDirC===1?'↑':'↓';}
-
 // Estado de filtros contabilidad (persiste entre renders)
 let contabFiltros = new Set(['efectivo-marbella','tpv-marbella','efectivo-monda','tpv-monda','transferencia','factura0','sin-metodo']);
-
 function toggleFiltroContab(id){
   if(contabFiltros.has(id)) contabFiltros.delete(id); else contabFiltros.add(id);
   renderContab();
@@ -1394,20 +1302,16 @@ function selTodosFiltros(sel){
   if(sel) todos.forEach(x=>contabFiltros.add(x)); else contabFiltros.clear();
   renderContab();
 }
-
 function renderContab(){
   const q=(document.getElementById('contab-buscar')?.value||'').toLowerCase();
-
   // Calcular método de cada factura para filtros y resumen
   function getMetodoId(f){
     const reg=registrosC[String(f.id)];
     if(!reg||!reg.metodo_pago) return 'sin-metodo';
     return reg.metodo_pago;
   }
-
   // Filtrar por búsqueda
   let lBase=facturasC.filter(f=>!q||(f.numero||'').includes(q)||(f.cliente||'').toLowerCase().includes(q));
-
   // Resumen por método (sobre lBase sin filtro de método)
   const GRUPOS = [
     {id:'efectivo-marbella', label:'💵 Ef. Marbella', color:'#16a34a'},
@@ -1424,20 +1328,16 @@ function renderContab(){
     const verif = items.reduce((s,f)=>s+(ticksC[`${f.fecha_pago}_${f.id}`]?f.total_pagado||f.importe||0:0),0);
     return {...g, count:items.length, total, verif};
   }).filter(g=>g.count>0);
-
   // Aplicar filtro de método
   let l=lBase.filter(f=>contabFiltros.has(getMetodoId(f)));
   l.sort((a,b)=>{let va=a[contabSortCol]||0,vb=b[contabSortCol]||0;return typeof va==='string'?va.localeCompare(vb)*contabSortDirC:(va-vb)*contabSortDirC;});
-
   const totalV=l.reduce((s,f)=>s+(ticksC[`${f.fecha_pago}_${f.id}`]?f.total_pagado||f.importe||0:0),0);
   const todosActivos=GRUPOS.every(g=>contabFiltros.has(g.id));
-
   document.getElementById('contab-content').innerHTML=`
     <div class="kpi-grid" style="margin-bottom:16px">
       <div class="kpi-card"><div class="kpi-label">Total Facturas</div><div class="kpi-value">${l.length}<span style="color:var(--gray);font-size:14px;font-weight:400"> / ${lBase.length}</span></div></div>
       <div class="kpi-card kpi-efectivo"><div class="kpi-label">Total Verificado</div><div class="kpi-value">${fmt(totalV)}</div></div>
     </div>
-
     <!-- RESUMEN POR MÉTODO -->
     <div class="tabla-section" style="margin-bottom:16px">
       <div class="tabla-header"><div class="tabla-title">📋 Resumen por Método</div></div>
@@ -1450,7 +1350,6 @@ function renderContab(){
           </div>`).join('')}
       </div>
     </div>
-
     <!-- FILTROS CHECKBOX -->
     <div class="tabla-section" style="margin-bottom:16px">
       <div style="padding:12px 16px;display:flex;flex-wrap:wrap;gap:10px;align-items:center">
@@ -1465,7 +1364,6 @@ function renderContab(){
         </button>
       </div>
     </div>
-
     <div class="tabla-section">
       <div class="tabla-header"><div class="tabla-title">📊 Facturas <span style="color:var(--gray);font-size:13px;font-weight:400">(${l.length})</span></div></div>
       ${l.length===0?'<div class="empty-state"><p>No hay facturas con los filtros seleccionados</p></div>':`
@@ -1495,13 +1393,11 @@ function renderContab(){
       </table></div>`}
     </div>`;
 }
-
 async function toggleTick(key,el){
   const checked=el.classList.contains('checked');
   const r=await fetch('/api/tick',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key,valor:checked?null:true,usuario:userInfo?.nombre||''})});
   if(r.ok){el.classList.toggle('checked');el.textContent=el.classList.contains('checked')?'✓':'';ticksC[key]=el.classList.contains('checked')?true:null;renderContab();}
 }
-
 // ── HISTORIAL ─────────────────────────────────────────────────
 async function cargarHistorial(){
   if(userInfo?.rol!=='admin')return;
@@ -1563,13 +1459,10 @@ async function cargarHistorial(){
       </div>`;
   }catch(e){document.getElementById('historial-content').innerHTML=`<div class="empty-state"><p>Error: ${e.message}</p></div>`;}
 }
-
 // ── FIANZAS ───────────────────────────────────────────────────
 let fianzasData = [];
 let solicitudesData = [];
 let fianzasSortCol = 'fecha_inicio', fianzasSortDir = 1;
-
-
 async function cargarFianzas(forzar=false) {
   const btn = document.getElementById('btn-cargar-fianzas');
   btn.disabled = true; btn.textContent = 'Cargando...';
@@ -1588,21 +1481,17 @@ async function cargarFianzas(forzar=false) {
   }
   btn.disabled = false; btn.textContent = '↻ Actualizar';
 }
-
 function setFianzaSort(col) {
   fianzasSortCol === col ? fianzasSortDir *= -1 : (fianzasSortCol = col, fianzasSortDir = 1);
   renderFianzas();
 }
 function sf(c) { return fianzasSortCol !== c ? '↕' : fianzasSortDir === 1 ? '↑' : '↓'; }
-
 function getSolicitudPendiente(proyectoId) {
   return solicitudesData.find(s => String(s.proyecto_id) === String(proyectoId) && s.estado === 'PENDIENTE') || null;
 }
-
 function getSolicitudDevuelta(proyectoId) {
   return solicitudesData.find(s => String(s.proyecto_id) === String(proyectoId) && s.estado === 'DEVUELTA') || null;
 }
-
 // Estado real: combina Rentman + Sheet
 function getEstadoReal(f) {
   if (f.estado === 'Devuelta') return 'Devuelta'; // Rentman ya dice devuelta
@@ -1612,15 +1501,12 @@ function getEstadoReal(f) {
   if (solPend) return 'SolicitudEnviada';
   return f.estado; // Pagada
 }
-
 function renderFianzas() {
   const rol = userInfo?.rol || '';
   const filtroEstado = document.getElementById('fianzas-filtro-estado')?.value || '';
   const filtroMetodo = document.getElementById('fianzas-filtro-metodo')?.value || '';
   const q = (document.getElementById('fianzas-buscar')?.value || '').toLowerCase();
-
   const filtroNotificado = document.getElementById('fianzas-filtro-notificado')?.value || '';
-
   let lista = fianzasData.filter(f => {
     if (filtroEstado === 'Solicitud enviada') {
       if (!getSolicitudPendiente(f.id)) return false;
@@ -1639,12 +1525,10 @@ function renderFianzas() {
     }
     return true;
   });
-
   lista.sort((a, b) => {
     if (fianzasSortCol === 'importe') return (a.importe - b.importe) * fianzasSortDir;
     return String(a[fianzasSortCol]||'').localeCompare(String(b[fianzasSortCol]||'')) * fianzasSortDir;
   });
-
   // KPIs
   const total = fianzasData.reduce((s, f) => s + f.importe, 0);
   const pendientes = fianzasData.filter(f => f.estado === 'Pendiente');
@@ -1652,15 +1536,12 @@ function renderFianzas() {
   const devueltas = fianzasData.filter(f => f.estado === 'Devuelta');
   const solPendientes = solicitudesData.filter(s => s.estado === 'PENDIENTE');
   const totalSolPendiente = solPendientes.reduce((s, x) => s + x.importe, 0);
-
   const esCaja      = ['caja', 'admin'].includes(rol);       // María: solicitar devolución
   const esContab    = ['contabilidad', 'admin'].includes(rol); // Ana: confirmar devuelta
   const soloLectura = rol === 'comercial';
-
   const btnRecarga = rol === 'admin'
     ? `<button onclick="cargarFianzas(true)" style="padding:8px 16px;background:var(--black);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;margin-left:auto">🔄 Forzar recarga</button>`
     : '';
-
   const estadoBadge = (f) => {
     const estado = getEstadoReal(f);
     const solPend = getSolicitudPendiente(f.id);
@@ -1676,7 +1557,6 @@ function renderFianzas() {
     if (f.estado === 'Pagada') return `<span style="background:#eff6ff;color:#1e40af;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600">💰 Pagada</span>`;
     return `<span style="background:#fef9c3;color:#854d0e;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600">⏳ Pendiente cobro</span>`;
   };
-
   const metodoBadge = (f) => {
     const colores = {
       'Transferencia Bancaria': { bg: '#f5f3ff', color: '#6d28d9' },
@@ -1689,7 +1569,6 @@ function renderFianzas() {
     const c = colores[f.metodo] || { bg: '#f1f5f9', color: '#64748b' };
     return `<span style="background:${c.bg};color:${c.color};padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600">${f.metodo}</span>`;
   };
-
   const accionBtn = (f) => {
     if (soloLectura) return '';
     const estado = getEstadoReal(f);
@@ -1709,7 +1588,6 @@ function renderFianzas() {
     }
     return '';
   };
-
   const alertaSolicitudes = solPendientes.length > 0 && esContab ? `
     <div style="background:#fef3c7;border:1px solid #fcd34d;border-radius:10px;padding:14px 18px;margin-bottom:16px;display:flex;align-items:center;gap:12px">
       <span style="font-size:20px">📋</span>
@@ -1718,7 +1596,6 @@ function renderFianzas() {
         <div style="font-size:13px;color:#b45309">Total: ${fmt(totalSolPendiente)} — Ana recibe email de resumen cada viernes a las 8:00</div>
       </div>
     </div>` : '';
-
   document.getElementById('fianzas-content').innerHTML = `
     ${alertaSolicitudes}
     <div class="kpi-grid" style="margin-bottom:16px">
@@ -1727,7 +1604,6 @@ function renderFianzas() {
       <div class="kpi-card kpi-tpv"><div class="kpi-label">Cobradas / Retenidas</div><div class="kpi-value">${fmt(pagadas.reduce((s,f)=>s+f.importe,0))}</div><div class="kpi-sub">${pagadas.length} fianzas · ${solPendientes.length} con solicitud</div></div>
       <div class="kpi-card kpi-efectivo"><div class="kpi-label">Devueltas</div><div class="kpi-value">${fmt(devueltas.reduce((s,f)=>s+f.importe,0))}</div><div class="kpi-sub">${devueltas.length} fianzas</div></div>
     </div>
-
     <div class="tabla-section">
       <div class="tabla-header">
         <div class="tabla-title">💰 Fianzas <span class="badge badge-gray">${lista.length}</span>${filtroEstado||filtroMetodo||q?`<span class="badge badge-orange">Filtrado</span>`:''}</div>
@@ -1758,13 +1634,11 @@ function renderFianzas() {
       </table></div>`}
     </div>`;
 }
-
 // ── EVENT DELEGATION FIANZAS ─────────────────────────────────
 document.addEventListener('click', function(e) {
   const btn = e.target.closest('[data-cancelar]');
   if (btn) { modalCancelarSolicitud(btn.dataset.cancelar); }
 });
-
 // ── ACCIONES FIANZAS ──────────────────────────────────────────
 function notificadoCell(f) {
   const sol = getSolicitudDevuelta(f.id);
@@ -1783,7 +1657,6 @@ function notificadoCell(f) {
     return cell;
   }
 }
-
 async function toggleNotificado(solicitudId, notificado) {
   try {
     const r = await fetch('/api/fianzas/notificar', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ solicitud_id: solicitudId, notificado }) });
@@ -1794,7 +1667,6 @@ async function toggleNotificado(solicitudId, notificado) {
     renderFianzas();
   } catch(e) { alert('Error: ' + e.message); }
 }
-
 function solicitarDevolucionFianza(proyectoId, numero, cliente, importe, metodo, fechaEvento) {
   document.getElementById('modal-fianza-title').textContent = '📋 Solicitar Devolución de Fianza';
   document.getElementById('modal-fianza-body').innerHTML = `
@@ -1820,7 +1692,6 @@ function solicitarDevolucionFianza(proyectoId, numero, cliente, importe, metodo,
     </div>`;
   document.getElementById('modal-fianza').style.display = 'flex';
 }
-
 async function ejecutarSolicitud(proyectoId, numero, cliente, importe, metodo, fechaEvento) {
   document.getElementById('modal-fianza').style.display = 'none';
   try {
@@ -1835,7 +1706,6 @@ async function ejecutarSolicitud(proyectoId, numero, cliente, importe, metodo, f
     renderFianzas();
   } catch(e) { alert('Error: ' + e.message); }
 }
-
 function confirmarDevueltaFianza(solicitudId, proyectoId, cliente, importe) {
   document.getElementById('modal-fianza-title').textContent = '✅ Confirmar Devolución Ejecutada';
   document.getElementById('modal-fianza-body').innerHTML = `
@@ -1858,7 +1728,6 @@ function confirmarDevueltaFianza(solicitudId, proyectoId, cliente, importe) {
     </div>`;
   document.getElementById('modal-fianza').style.display = 'flex';
 }
-
 async function ejecutarDevuelta(solicitudId, proyectoId) {
   document.getElementById('modal-fianza').style.display = 'none';
   try {
@@ -1877,7 +1746,6 @@ async function ejecutarDevuelta(solicitudId, proyectoId) {
     renderFianzas();
   } catch(e) { alert('Error: ' + e.message); }
 }
-
 function modalCancelarSolicitud(solicitudId) {
   document.getElementById('modal-fianza-title').textContent = '↩ Deshacer Solicitud de Devolución';
   document.getElementById('modal-fianza-body').innerHTML = `
@@ -1893,7 +1761,6 @@ function modalCancelarSolicitud(solicitudId) {
   document.getElementById('btn-cancelar-no').onclick = () => document.getElementById('modal-fianza').style.display = 'none';
   document.getElementById('btn-cancelar-si').onclick = () => cancelarSolicitudFianza(solicitudId);
 }
-
 async function cancelarSolicitudFianza(solicitudId) {
   if (!confirm('¿Cancelar esta solicitud de devolución?')) return;
   try {
@@ -1905,8 +1772,6 @@ async function cancelarSolicitudFianza(solicitudId) {
     renderFianzas();
   } catch(e) { alert('Error: ' + e.message); }
 }
-
-
 function fmt(n){return(parseFloat(n)||0).toLocaleString('es-ES',{minimumFractionDigits:2,maximumFractionDigits:2})+' €';}
 checkSession();
 </script>
