@@ -278,11 +278,13 @@ app.post('/api/nc/eliminar', authCaja, async (req,res) => {
     const { caja, usuario } = req.body;
     if (!caja || !['marbella','monda'].includes(caja)) return res.status(400).json({error:'caja inválida'});
     const metodoId = caja==='marbella' ? 'efectivo-marbella' : 'efectivo-monda';
+    const esTrue = v => v===true || v==='true' || v==='TRUE' || v===1;
     // Solo los ids de esa sede que Ana ya marcó como "Recibido"
     const ids = Object.keys(cache.registros).filter(id => {
       const r = cache.registros[id];
       const conf = cache.nc_confs[id];
-      return r && r.es_abrebotellas && r.metodo_pago===metodoId && conf && conf.confirmado===true;
+      const esRegistroNC = String(id).startsWith('NC_') || esTrue(r && r.es_abrebotellas);
+      return r && esRegistroNC && r.metodo_pago===metodoId && conf && esTrue(conf.confirmado);
     });
     if (ids.length===0) return res.json({ok:true, eliminados:0});
     // 1. Borrado de raíz en la hoja NO_CONFIRMADOS
