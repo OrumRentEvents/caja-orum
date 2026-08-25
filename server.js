@@ -361,24 +361,57 @@ app.post('/api/nc/eliminar', authCaja, async (req,res) => {
       .catch(e => console.error('[BG nc_eliminar retiradas]', e.message));
   } catch(e) { res.status(500).json({error:e.message}); }
 });
-// ── FACTURAS RENTMAN (invoicepayments directo) ────────────────
+// ── FACTURAS/PAGOS (desde Supabase, sincronizado por ORUM CENTRAL) ──
+// Antes: paginaba /invoicepayments de Rentman en cada carga (10-18s).
+// Ahora: lee "pagos" (1 fila = 1 pago individual, igual que hacía
+// invoicepayments) ya sincronizado en tiempo real por ORUM CENTRAL, y
+// cruza con "facturas" (cliente) y "proyectos" (nº visible) en el mismo
+// Supabase - cero llamadas a Rentman en esta ruta.
 app.get('/api/caja/facturas', auth, async (req,res) => {
   try {
     const { desde, hasta } = req.query;
-    // Paginar invoicepayments directamente desde Rentman
-    let all = [];
+    if (!desde || !hasta) return res.status(400).json({ error: 'desde y hasta requeridos' });
+    if (!supabase) return res.status(500).json({ error: 'Supabase no configurado (faltan SUPABASE_URL/SUPABASE_SERVICE_KEY)' });
+    const desdeTs = `${desde}T00:00:00.000Z`;
+    const hastaTs = `${hasta}T23:59:59.999Z`;
+
+    let pagos = [];
     let offset = 0;
-    const limit = 100;
     while (true) {
-      const url = `${RENTMAN_URL}/invoicepayments?limit=${limit}&offset=${offset}&paymentdate%5Bgte%5D=${encodeURIComponent(desde+' 00:00:00')}&paymentdate%5Blte%5D=${encodeURIComponent(hasta+' 23:59:59')}`;
-      const r = await fetch(url, { headers:{ Authorization:`Bearer ${RENTMAN_TOKEN}` } });
-      const data = await r.json();
-      const items = data.data||[];
-      all = all.concat(items);
-      if (items.length < limit) break;
-      offset += limit;
+      const { data, error } = await supabase.from('pagos').select('*')
+        .gte('fecha_pago_ts', desdeTs).lte('fecha_pago_ts', hastaTs)
+        .range(offset, offset + 999);
+      if (error) throw error;
+      pagos = pagos.concat(data);
+      if (data.length < 1000) break;
+      offset += 1000;
     }
-    res.json({ facturas: all });
+    if (pagos.length === 0) return res.json({ facturas: [] });
+
+    const facturaIds = [...new Set(pagos.map(p => p.factura_id).filter(x => x != null))];
+    const proyectoIds = [...new Set(pagos.map(p => p.proyecto_id).filter(x => x != null))];
+    const [{ data: facturasData, error: errFact }, { data: proyectosData, error: errProy }] = await Promise.all([
+      facturaIds.length ? supabase.from('facturas').select('factura_id,cliente').in('factura_id', facturaIds) : Promise.resolve({ data: [] }),
+      proyectoIds.length ? supabase.from('proyectos').select('id,numero').in('id', proyectoIds) : Promise.resolve({ data: [] })
+    ]);
+    if (errFact) throw errFact;
+    if (errProy) throw errProy;
+    const clientePorFactura = {};
+    (facturasData || []).forEach(f => { clientePorFactura[f.factura_id] = f.cliente; });
+    const numeroPorProyecto = {};
+    (proyectosData || []).forEach(p => { numeroPorProyecto[p.id] = p.numero; });
+
+    const facturas = pagos.map(p => ({
+      id: p.pago_id,
+      numero: p.numero_factura,
+      cliente: clientePorFactura[p.factura_id] || '',
+      cliente_id: null, // ya viene resuelto por nombre - no hace falta /api/contacto/:id
+      proyecto_id: p.proyecto_id,
+      proyecto_numero: p.proyecto_id ? (numeroPorProyecto[p.proyecto_id] ?? null) : null,
+      fecha_pago: p.fecha_pago_raw,
+      total_pagado: p.importe
+    }));
+    res.json({ facturas });
   } catch(e) { res.status(500).json({error:e.message}); }
 });
 // ── CONTACTO RENTMAN ──────────────────────────────────────────

@@ -392,7 +392,7 @@ async function cargarCobros(){
   if(!desde||!hasta)return;
   const btn=document.getElementById('btn-cargar');
   btn.disabled=true;btn.textContent='Cargando...';
-  document.getElementById('caja-content').innerHTML='<div class="loading"><div class="spinner"></div><p>Cargando facturas de Rentman...</p></div>';
+  document.getElementById('caja-content').innerHTML='<div class="loading"><div class="spinner"></div><p>Cargando cobros...</p></div>';
   document.getElementById('buscador').style.display='none';
   try{
     const[rF,rR,rS,rC,rRet]=await Promise.all([
@@ -441,8 +441,10 @@ async function enriquecerLista(lista, renderFn){
     }));
     if(renderFn)renderFn();
   }
-  // Proyectos (número visible)
-  const pids=[...new Set(lista.map(f=>f.proyecto_id).filter(Boolean))];
+  // Proyectos (número visible) - las facturas ya vienen con proyecto_numero
+  // resuelto desde Supabase; solo se pide a Rentman lo que aún no lo tenga
+  // (p.ej. No Confirmados, que sigue otra fuente).
+  const pids=[...new Set(lista.filter(f=>!f.proyecto_numero).map(f=>f.proyecto_id).filter(Boolean))];
   for(let i=0;i<pids.length;i+=8){
     await Promise.all(pids.slice(i,i+8).map(async id=>{
       const p=await fetchProyecto(id);
