@@ -1,7 +1,35 @@
 const express = require('express');
 const session = require('express-session');
 const path = require('path');
+const { createClient } = require('@supabase/supabase-js');
 const app = express();
+
+// Sincronización en tiempo real a Supabase (Caja no pasa por ORUM CENTRAL,
+// así que se engancha aquí directo). Si faltan las variables, se omite sin
+// romper nada - Caja sigue funcionando igual que siempre, solo que ese
+// registro no llegaría a Supabase hasta el próximo sync de 15 min (si
+// existe algún proceso que lo recoja desde ahí más adelante).
+const supabase = (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_KEY)
+  ? createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
+  : null;
+async function supabaseCajaUpsert(row) {
+  if (!supabase) return;
+  try {
+    const { error } = await supabase.from('caja_registros').upsert(row, { onConflict: 'factura_id' });
+    if (error) console.error('[Supabase caja upsert]', error.message);
+  } catch (e) {
+    console.error('[Supabase caja upsert] excepción:', e.message);
+  }
+}
+async function supabaseCajaDelete(facturaId) {
+  if (!supabase) return;
+  try {
+    const { error } = await supabase.from('caja_registros').delete().eq('factura_id', String(facturaId));
+    if (error) console.error('[Supabase caja delete]', error.message);
+  } catch (e) {
+    console.error('[Supabase caja delete] excepción:', e.message);
+  }
+}
 const PORT = process.env.PORT || 3000;
 const USERS = {
   marina: { pass:'Orum2026#Mar', rol:'comercial',    nombre:'Marina' },
@@ -184,8 +212,16 @@ app.post('/api/caja/registro', auth, async (req,res) => {
   const key = String(factura_id);
   if (metodo_pago===null||metodo_pago===undefined) {
     delete cache.registros[key];
+    supabaseCajaDelete(key).catch(() => {}); // fire-and-forget, no bloquea la respuesta
   } else {
-    cache.registros[key] = { factura_id:key, metodo_pago, ubicacion, tipo, importe, cliente, numero, fecha_pago, es_abrebotellas, usuario, num_operacion:num_operacion||'', updated:new Date().toISOString() };
+    const registro = { factura_id:key, metodo_pago, ubicacion, tipo, importe, cliente, numero, fecha_pago, es_abrebotellas, usuario, num_operacion:num_operacion||'', updated:new Date().toISOString() };
+    cache.registros[key] = registro;
+    supabaseCajaUpsert({
+      factura_id: registro.factura_id, metodo_pago: registro.metodo_pago, ubicacion: registro.ubicacion,
+      tipo: registro.tipo, importe: registro.importe, cliente: registro.cliente, numero: registro.numero,
+      es_abrebotellas: !!registro.es_abrebotellas, usuario: registro.usuario, num_operacion: registro.num_operacion,
+      fecha_pago_raw: registro.fecha_pago, updated_raw: registro.updated
+    }).catch(() => {}); // fire-and-forget, no bloquea la respuesta
   }
   res.json({ok:true});
   asPost({ token:CAJA_TOKEN, action:'set_registro', ...req.body })
@@ -259,8 +295,19 @@ app.get('/api/nc/confirmaciones', auth, (req,res) => res.json(cache.nc_confs));
 app.post('/api/nc/confirmar', authContab, async (req,res) => {
   const { nc_id, confirmar } = req.body;
   if (!nc_id) return res.status(400).json({error:'nc_id requerido'});
-  if (confirmar===false) delete cache.nc_confs[String(nc_id)];
-  else cache.nc_confs[String(nc_id)] = { confirmado:true, usuario:req.body.usuario||'', ts:new Date().toISOString(), ...req.body };
+  const ncIdStr = String(nc_id);
+  if (confirmar===false) {
+    delete cache.nc_confs[ncIdStr];
+    if (supabase) supabase.from('caja_nc_confirmaciones').delete().eq('nc_id', ncIdStr).then(({error}) => { if (error) console.error('[Supabase nc_conf delete]', error.message); }).catch(() => {});
+  } else {
+    const ts = new Date().toISOString();
+    cache.nc_confs[ncIdStr] = { confirmado:true, usuario:req.body.usuario||'', ts, ...req.body };
+    if (supabase) supabase.from('caja_nc_confirmaciones').upsert({
+      nc_id: ncIdStr, confirmado: true, usuario: req.body.usuario || null, ts,
+      metodo: req.body.metodo || null, importe: req.body.importe ?? null,
+      cliente: req.body.cliente || null, numero: req.body.numero ?? null
+    }, { onConflict: 'nc_id' }).then(({error}) => { if (error) console.error('[Supabase nc_conf upsert]', error.message); }).catch(() => {});
+  }
   res.json({ok:true});
   asPost({ token:CAJA_TOKEN, action:'set_nc_conf', ...req.body })
     .catch(e => console.error('[BG nc_conf]', e.message));
