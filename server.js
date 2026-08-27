@@ -582,7 +582,7 @@ app.get('/api/registro-cobros', authCobros, async (req, res) => {
 
     const [{ data: overrides, error: errOv }, { data: proyectosData, error: errProy }] = await Promise.all([
       supabase.from('caja_registro_cobros').select('*'),
-      numeros.length ? supabase.from('proyectos').select('id,numero,estado,cancelado').in('numero', numeros) : Promise.resolve({ data: [] })
+      numeros.length ? supabase.from('proyectos').select('id,numero,estado,cancelado,cliente').in('numero', numeros) : Promise.resolve({ data: [] })
     ]);
     if (errOv) throw errOv;
     if (errProy) throw errProy;
@@ -680,7 +680,11 @@ app.get('/api/registro-cobros', authCobros, async (req, res) => {
       const finalizado = pendiente <= 0.01 && (estadoFianza === 'devuelta' || estadoFianza === 'no_aplica');
       return {
         numero_proyecto: numero,
-        cliente: f.cliente,
+        // Preferimos el cliente ya resuelto en Supabase (proyectos.cliente,
+        // sincronizado vía la caché de contactos de ORUM CENTRAL) sobre el
+        // de fetchFianzasRentman(), que resuelve en vivo contra Rentman en
+        // lotes de 20 y a veces falla (salía el ID en bruto como nombre).
+        cliente: (p && p.cliente) ? p.cliente : f.cliente,
         comercial: f.comercial,
         importe_proyecto: importeProyecto,
         importe_fianza: importeFianza,
