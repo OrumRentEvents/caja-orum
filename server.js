@@ -478,17 +478,12 @@ async function fetchFianzasRentman() {
       } catch(e) { console.warn(`[Fianzas] Error contacto ${id}:`, e.message); }
     }));
   }
-  // Reintento en serie para los que fallaron en el batch paralelo (fallo
-  // puntual de red al pedir 20 a la vez) - si no, se mostraba el ID en bruto
-  // como si fuera el nombre del cliente.
-  const contactosPendientes = contactoIds.filter(id => contactoMap[id] === undefined);
-  for (const id of contactosPendientes) {
-    try {
-      const r = await fetch(`${RENTMAN_URL}/contacts/${id}`, { headers: { Authorization: `Bearer ${RENTMAN_TOKEN}` } });
-      const d = await r.json();
-      if (d.data) contactoMap[id] = d.data.displayname || [d.data.firstname, d.data.surname].filter(Boolean).join(' ') || '';
-    } catch(e) { console.warn(`[Fianzas] Reintento fallido contacto ${id}:`, e.message); }
-  }
+  // NOTA (28 ago 2026): se quitó el reintento en serie que había aquí - con
+  // muchos contactos fallando de golpe alargaba muchísimo la carga (a veces
+  // se quedaba colgada). Ya no hace falta: /api/registro-cobros usa
+  // proyectos.cliente de Supabase como fuente principal (más fiable, sin
+  // depender de resolver en vivo contra Rentman), este resultado solo se
+  // usa de respaldo si el proyecto aún no está en Supabase.
   // Enriquecer comerciales
   const comercialIds = [...new Set(proyectos.map(p => p.account_manager).filter(Boolean).map(c => c.replace('/crew/', '')))];
   const comercialMap = {};
