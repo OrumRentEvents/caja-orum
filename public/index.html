@@ -158,6 +158,7 @@ tr:hover td{background:var(--gray-bg)}
     <div class="tab" onclick="showTab('contabilidad')" id="tab-contabilidad" style="display:none">📊 Contabilidad</div>
     <div class="tab" onclick="showTab('historial')" id="tab-historial" style="display:none">📋 Historial</div>
     <div class="tab" onclick="showTab('fianzas')" id="tab-fianzas" style="display:none">💰 Fianzas</div>
+    <div class="tab" onclick="showTab('cobros')" id="tab-cobros" style="display:none">🧾 Registro de Cobros</div>
   </div>
   <div id="panel-caja" class="main">
     <div class="filtros-bar">
@@ -233,11 +234,34 @@ tr:hover td{background:var(--gray-bg)}
     </div>
     <div id="fianzas-content"><div class="empty-state"><div class="icon">💰</div><p>Cargando fianzas...</p></div></div>
   </div>
+  <div id="panel-cobros" class="main" style="display:none">
+    <div class="filtros-bar">
+      <label>Fianza</label>
+      <select id="cobros-filtro-estado" onchange="renderCobros()" style="padding:8px 12px;border:1.5px solid var(--gray-light);border-radius:8px;font-size:14px;outline:none">
+        <option value="">Todas</option>
+        <option value="pendiente">Pendiente</option>
+        <option value="cobrada">Cobrada (por devolver)</option>
+        <option value="devuelta">Devuelta</option>
+        <option value="no_aplica">No aplica</option>
+      </select>
+      <input type="text" class="inp-buscar" id="cobros-buscar" placeholder="🔍 Buscar cliente / nº proyecto..." oninput="renderCobros()" style="width:220px">
+      <button class="btn-cargar" onclick="cargarRegistroCobros()" id="btn-cargar-cobros">↻ Actualizar</button>
+      <button onclick="abrirModalCobroManual()" style="padding:9px 16px;border:1.5px solid var(--black);background:var(--white);border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">+ Registro manual</button>
+    </div>
+    <div id="cobros-content"><div class="empty-state"><div class="icon">🧾</div><p>Cargando registro de cobros...</p></div></div>
+  </div>
 <!-- MODAL FIANZA DETALLE -->
 <div id="modal-fianza" style="display:none" class="modal-overlay" onclick="if(event.target===this)document.getElementById('modal-fianza').style.display='none'">
   <div class="modal modal-sm">
     <div class="modal-header"><div class="modal-title" id="modal-fianza-title">Fianza</div><button class="btn-close" onclick="document.getElementById('modal-fianza').style.display='none'">✕</button></div>
     <div class="modal-body" id="modal-fianza-body"></div>
+  </div>
+</div>
+<!-- MODAL HISTORIAL COBRO -->
+<div id="modal-cobro-historial" style="display:none" class="modal-overlay" onclick="if(event.target===this)document.getElementById('modal-cobro-historial').style.display='none'">
+  <div class="modal modal-sm">
+    <div class="modal-header"><div class="modal-title">🕓 Historial de cambios</div><button class="btn-close" onclick="document.getElementById('modal-cobro-historial').style.display='none'">✕</button></div>
+    <div class="modal-body" id="modal-cobro-historial-body"></div>
   </div>
 </div>
 <!-- MODAL FIANZA -->
@@ -337,6 +361,7 @@ let cajaFiltroMetodo='todos'; // Filtro de método en Caja Diaria
 let sortColC='fecha_pago',sortDirC=1;
 let pendingNumOp=null;
 let facturasC=[],registrosC={},ticksC={};
+let cobrosData=[]; // Registro de Cobros: factura+fianza combinados
 // ── AUTH ──────────────────────────────────────────────────────
 async function doLogin(){
   const u=document.getElementById('inp-usuario').value.trim();
@@ -364,6 +389,8 @@ function iniciarApp(){
   if(userInfo.rol==='admin') document.getElementById('tab-historial').style.display='';
   // Fianzas: todos los roles
   document.getElementById('tab-fianzas').style.display='';
+  // Registro de Cobros: todos los roles (incluido comercial, para registrar devoluciones)
+  document.getElementById('tab-cobros').style.display='';
   // Si es comercial, arrancar en fianzas no, arrancar en caja
   if(userInfo.rol==='comercial') showTab('caja');
   const hoy=new Date().toISOString().substring(0,10);
@@ -375,13 +402,14 @@ function iniciarApp(){
   document.getElementById('hist-hasta').value=hoy;
 }
 function showTab(t){
-  ['caja','noconf','contabilidad','historial','fianzas'].forEach(x=>{
+  ['caja','noconf','contabilidad','historial','fianzas','cobros'].forEach(x=>{
     const p=document.getElementById('panel-'+x);
     const tb=document.getElementById('tab-'+x);
     if(p)p.style.display=x===t?'':'none';
     if(tb)tb.classList.toggle('active',x===t);
   });
   if(t==='fianzas' && fianzasData.length===0) cargarFianzas(false);
+  if(t==='cobros' && cobrosData.length===0) cargarRegistroCobros();
 }
 function setHoy(){const h=new Date().toISOString().substring(0,10);document.getElementById('fecha-desde').value=h;document.getElementById('fecha-hasta').value=h;cargarCobros();}
 function setHoyNC(){const h=new Date().toISOString().substring(0,10);document.getElementById('nc-desde').value=h;document.getElementById('nc-hasta').value=h;cargarNoConf();}
@@ -1796,6 +1824,192 @@ async function cancelarSolicitudFianza(solicitudId) {
     solicitudesData = rs.ok ? (rs.data || []) : solicitudesData;
     renderFianzas();
   } catch(e) { alert('Error: ' + e.message); }
+}
+// ── REGISTRO DE COBROS ──────────────────────────────────────────
+// Vista combinada factura+fianza: resuelve el lío de "el cliente paga
+// proyecto+fianza junto" y deja localizada cada devolución de fianza en TPV.
+function claveCobro(f){ return f.numero_proyecto!=null ? String(f.numero_proyecto) : 'id-'+f.id; }
+async function cargarRegistroCobros(){
+  const btn=document.getElementById('btn-cargar-cobros');
+  if(btn){btn.disabled=true;btn.textContent='Cargando...';}
+  document.getElementById('cobros-content').innerHTML='<div class="loading"><div class="spinner"></div><p>Cargando registro de cobros...</p></div>';
+  try{
+    const r=await fetch('/api/registro-cobros').then(r=>r.json());
+    if(!r.ok) throw new Error(r.error||'Error cargando registro de cobros');
+    cobrosData=r.filas||[];
+    renderCobros();
+  }catch(e){
+    document.getElementById('cobros-content').innerHTML=`<div class="empty-state"><div class="icon">⚠️</div><p>Error: ${e.message}</p></div>`;
+  }finally{
+    if(btn){btn.disabled=false;btn.textContent='↻ Actualizar';}
+  }
+}
+function badgeEstadoFianza(e){
+  if(e==='devuelta') return '<span class="badge badge-green">Devuelta</span>';
+  if(e==='cobrada') return '<span class="badge badge-orange">Cobrada</span>';
+  if(e==='no_aplica') return '<span class="badge badge-gray">No aplica</span>';
+  return '<span class="badge badge-gray">Pendiente</span>';
+}
+function renderCobros(){
+  const filtroEstado=document.getElementById('cobros-filtro-estado')?.value||'';
+  const q=(document.getElementById('cobros-buscar')?.value||'').toLowerCase();
+  const lista=cobrosData.filter(f=>{
+    if(filtroEstado && f.estado_fianza!==filtroEstado) return false;
+    if(q){
+      const txt=`${f.numero_proyecto||''} ${f.cliente||''}`.toLowerCase();
+      if(!txt.includes(q)) return false;
+    }
+    return true;
+  });
+  const totalProyecto=cobrosData.reduce((s,f)=>s+(parseFloat(f.importe_proyecto)||0),0);
+  const totalFianza=cobrosData.reduce((s,f)=>s+(parseFloat(f.importe_fianza)||0),0);
+  const totalCobrado=cobrosData.reduce((s,f)=>s+(parseFloat(f.cobrado)||0),0);
+  const porDevolver=cobrosData.filter(f=>f.estado_fianza==='cobrada');
+  const manuales=cobrosData.filter(f=>f.es_manual);
+  document.getElementById('cobros-content').innerHTML=`
+    <div class="kpi-grid" style="margin-bottom:16px">
+      <div class="kpi-card"><div class="kpi-label">Total esperado</div><div class="kpi-value">${fmt(totalProyecto+totalFianza)}</div><div class="kpi-sub">${cobrosData.length} registros</div></div>
+      <div class="kpi-card"><div class="kpi-label">Cobrado</div><div class="kpi-value">${fmt(totalCobrado)}</div><div class="kpi-sub">Proyecto ${fmt(totalProyecto)} · Fianza ${fmt(totalFianza)}</div></div>
+      <div class="kpi-card kpi-tpv"><div class="kpi-label">Fianzas por devolver</div><div class="kpi-value">${fmt(porDevolver.reduce((s,f)=>s+(parseFloat(f.importe_fianza)||0),0))}</div><div class="kpi-sub">${porDevolver.length} proyectos</div></div>
+      <div class="kpi-card" style="border-left:4px solid #7c3aed"><div class="kpi-label">Sin identificar</div><div class="kpi-value" style="color:#7c3aed">${manuales.length}</div><div class="kpi-sub">registros manuales por casar</div></div>
+    </div>
+    <div class="tabla-section">
+      <div class="tabla-header">
+        <div class="tabla-title">🧾 Registro de Cobros <span class="badge badge-gray">${lista.length}</span></div>
+      </div>
+      ${lista.length===0?'<div class="empty-state"><div class="icon">🔍</div><p>No hay registros con los filtros seleccionados</p></div>':`
+      <div class="tabla-scroll"><table>
+        <thead><tr>
+          <th>Proyecto</th><th>Cliente</th><th>Proyecto (€)</th><th>Fianza (€)</th><th>Total</th><th>Cobrado</th><th>Pendiente</th><th>Fianza</th><th>Devolución</th><th>Notas</th><th></th>
+        </tr></thead>
+        <tbody>${lista.map(f=>{
+          const total=(parseFloat(f.importe_proyecto)||0)+(parseFloat(f.importe_fianza)||0);
+          const pend=total-(parseFloat(f.cobrado)||0);
+          return `<tr>
+            <td>${f.es_manual?'<span class="badge badge-orange">Manual</span>':`<strong>#${f.numero_proyecto}</strong>`}</td>
+            <td>${f.cliente||'—'}</td>
+            <td>${fmt(f.importe_proyecto)}</td>
+            <td>${fmt(f.importe_fianza)}</td>
+            <td><strong>${fmt(total)}</strong></td>
+            <td>${fmt(f.cobrado)}</td>
+            <td style="color:${pend>0.01?'var(--red)':'#16a34a'};font-weight:600">${fmt(pend)}</td>
+            <td>${badgeEstadoFianza(f.estado_fianza)}</td>
+            <td style="font-size:12px">${f.numero_devolucion_tpv?`${f.metodo_devolucion||''}<br><strong>Op. ${f.numero_devolucion_tpv}</strong>`:(f.metodo_devolucion||'—')}</td>
+            <td style="max-width:160px;font-size:12px;color:var(--gray)">${(f.notas||'').substring(0,60)}</td>
+            <td style="white-space:nowrap"><button data-editar-cobro="${claveCobro(f)}" style="padding:6px 10px;border:1px solid var(--gray-light);background:var(--white);border-radius:6px;font-size:12px;cursor:pointer">✏️ Editar</button></td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table></div>`}
+    </div>`;
+}
+// Delegación de eventos: evita pasar objetos completos por atributos onclick
+document.addEventListener('click', function(e){
+  const btn=e.target.closest('[data-editar-cobro]');
+  if(btn){ abrirEditarCobro(btn.dataset.editarCobro); return; }
+  const h=e.target.closest('[data-historial-cobro]');
+  if(h){ abrirHistorialCobro(h.dataset.historialCobro); return; }
+});
+function abrirEditarCobro(clave){
+  const f=cobrosData.find(x=>claveCobro(x)===clave);
+  if(!f) return;
+  document.getElementById('modal-fianza-title').textContent=f.es_manual?'✏️ Editar registro manual':`✏️ Editar #${f.numero_proyecto} · ${f.cliente||''}`;
+  document.getElementById('modal-fianza-body').innerHTML=`
+    <div class="form-group"><label>Cliente</label><input type="text" id="ec-cliente" value="${(f.cliente||'').replace(/"/g,'&quot;')}"></div>
+    <div style="display:flex;gap:12px">
+      <div class="form-group" style="flex:1"><label>Importe proyecto (€)</label><input type="number" id="ec-importe-proyecto" step="0.01" value="${f.importe_proyecto||0}"></div>
+      <div class="form-group" style="flex:1"><label>Importe fianza (€)</label><input type="number" id="ec-importe-fianza" step="0.01" value="${f.importe_fianza||0}"></div>
+    </div>
+    <div class="form-group"><label>Cobrado hasta ahora (€)</label><input type="number" id="ec-cobrado" step="0.01" value="${f.cobrado||0}"></div>
+    <div class="form-group"><label>Estado de la fianza</label>
+      <select id="ec-estado-fianza" style="width:100%;padding:11px 14px;border:1.5px solid var(--gray-light);border-radius:8px;font-size:14px;outline:none">
+        <option value="pendiente" ${f.estado_fianza==='pendiente'?'selected':''}>Pendiente</option>
+        <option value="cobrada" ${f.estado_fianza==='cobrada'?'selected':''}>Cobrada (retenida)</option>
+        <option value="devuelta" ${f.estado_fianza==='devuelta'?'selected':''}>Devuelta</option>
+        <option value="no_aplica" ${f.estado_fianza==='no_aplica'?'selected':''}>No aplica</option>
+      </select>
+    </div>
+    <div style="display:flex;gap:12px">
+      <div class="form-group" style="flex:1"><label>Método devolución</label><input type="text" id="ec-metodo-dev" placeholder="Ej: TPV Marbella" value="${(f.metodo_devolucion||'').replace(/"/g,'&quot;')}"></div>
+      <div class="form-group" style="flex:1"><label>Nº operación devolución (TPV)</label><input type="text" id="ec-numop-dev" placeholder="Ej: 123456" value="${(f.numero_devolucion_tpv||'').replace(/"/g,'&quot;')}"></div>
+    </div>
+    <div class="form-group"><label>Notas</label><textarea id="ec-notas" rows="2" style="width:100%;padding:10px;border:1.5px solid var(--gray-light);border-radius:8px;font-size:14px;outline:none;resize:vertical;font-family:inherit;box-sizing:border-box">${f.notas||''}</textarea></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px">
+      <button data-historial-cobro="${clave}" onclick="document.getElementById('modal-fianza').style.display='none'" style="padding:8px 12px;background:none;border:1px solid var(--gray-light);border-radius:8px;font-size:12px;color:var(--gray);cursor:pointer">🕓 Ver historial</button>
+      ${f.actualizado_por?`<span style="font-size:11px;color:var(--gray)">Últ. cambio: ${f.actualizado_por}${f.actualizado_en?' · '+new Date(f.actualizado_en).toLocaleString('es-ES'):''}</span>`:''}
+    </div>
+    <div style="display:flex;gap:10px;margin-top:16px">
+      <button onclick="document.getElementById('modal-fianza').style.display='none'" style="flex:1;padding:11px;border:1.5px solid var(--gray-light);background:var(--white);border-radius:8px;font-size:14px;cursor:pointer">Cancelar</button>
+      <button onclick="guardarEdicionCobro('${clave}')" style="flex:1;padding:11px;background:var(--black);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">💾 Guardar</button>
+    </div>`;
+  document.getElementById('modal-fianza').style.display='flex';
+}
+async function guardarEdicionCobro(clave){
+  try{
+    const body={
+      cliente: document.getElementById('ec-cliente').value,
+      importe_proyecto: parseFloat(document.getElementById('ec-importe-proyecto').value)||0,
+      importe_fianza: parseFloat(document.getElementById('ec-importe-fianza').value)||0,
+      cobrado: parseFloat(document.getElementById('ec-cobrado').value)||0,
+      estado_fianza: document.getElementById('ec-estado-fianza').value,
+      metodo_devolucion: document.getElementById('ec-metodo-dev').value,
+      numero_devolucion_tpv: document.getElementById('ec-numop-dev').value,
+      notas: document.getElementById('ec-notas').value
+    };
+    const r=await fetch('/api/registro-cobros/'+encodeURIComponent(clave),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const d=await r.json();
+    if(!d.ok) throw new Error(d.error||'Error al guardar');
+    document.getElementById('modal-fianza').style.display='none';
+    await cargarRegistroCobros();
+  }catch(e){ alert('Error: '+e.message); }
+}
+function abrirModalCobroManual(){
+  document.getElementById('modal-fianza-title').textContent='➕ Registro manual de cobro';
+  document.getElementById('modal-fianza-body').innerHTML=`
+    <p style="color:var(--gray);font-size:13px;margin-bottom:16px">Para un ingreso recibido que aún no sabes a qué proyecto asignar. Podrás editarlo o casarlo más adelante.</p>
+    <div class="form-group"><label>Cliente / referencia</label><input type="text" id="mc-cliente" placeholder="Ej: Transferencia sin identificar 25/08"></div>
+    <div style="display:flex;gap:12px">
+      <div class="form-group" style="flex:1"><label>Importe proyecto (€)</label><input type="number" id="mc-importe-proyecto" step="0.01" value="0"></div>
+      <div class="form-group" style="flex:1"><label>Importe fianza (€)</label><input type="number" id="mc-importe-fianza" step="0.01" value="0"></div>
+    </div>
+    <div class="form-group"><label>Notas</label><textarea id="mc-notas" rows="2" style="width:100%;padding:10px;border:1.5px solid var(--gray-light);border-radius:8px;font-size:14px;outline:none;resize:vertical;font-family:inherit;box-sizing:border-box"></textarea></div>
+    <div style="display:flex;gap:10px;margin-top:16px">
+      <button onclick="document.getElementById('modal-fianza').style.display='none'" style="flex:1;padding:11px;border:1.5px solid var(--gray-light);background:var(--white);border-radius:8px;font-size:14px;cursor:pointer">Cancelar</button>
+      <button onclick="crearCobroManual()" style="flex:1;padding:11px;background:var(--black);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">➕ Crear</button>
+    </div>`;
+  document.getElementById('modal-fianza').style.display='flex';
+}
+async function crearCobroManual(){
+  try{
+    const body={
+      cliente: document.getElementById('mc-cliente').value,
+      importe_proyecto: parseFloat(document.getElementById('mc-importe-proyecto').value)||0,
+      importe_fianza: parseFloat(document.getElementById('mc-importe-fianza').value)||0,
+      notas: document.getElementById('mc-notas').value
+    };
+    const r=await fetch('/api/registro-cobros/manual',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const d=await r.json();
+    if(!d.ok) throw new Error(d.error||'Error al crear');
+    document.getElementById('modal-fianza').style.display='none';
+    await cargarRegistroCobros();
+  }catch(e){ alert('Error: '+e.message); }
+}
+async function abrirHistorialCobro(clave){
+  document.getElementById('modal-cobro-historial-body').innerHTML='<div class="loading"><div class="spinner"></div><p>Cargando historial...</p></div>';
+  document.getElementById('modal-cobro-historial').style.display='flex';
+  try{
+    const r=await fetch('/api/registro-cobros/'+encodeURIComponent(clave)+'/historial').then(r=>r.json());
+    if(!r.ok) throw new Error(r.error||'Error');
+    const h=r.historial||[];
+    document.getElementById('modal-cobro-historial-body').innerHTML=h.length===0
+      ? '<div class="empty-state"><div class="icon">🕓</div><p>Sin cambios registrados todavía</p></div>'
+      : h.map(x=>`<div style="padding:10px 0;border-bottom:1px solid var(--gray-light);font-size:13px">
+          <div style="font-weight:600">${x.campo}</div>
+          <div style="color:var(--gray);margin:2px 0">${x.valor_anterior||'—'} → <strong style="color:var(--black)">${x.valor_nuevo||'—'}</strong></div>
+          <div style="font-size:11px;color:var(--gray)">${x.usuario||'—'} · ${new Date(x.fecha).toLocaleString('es-ES')}</div>
+        </div>`).join('');
+  }catch(e){
+    document.getElementById('modal-cobro-historial-body').innerHTML=`<div class="empty-state"><div class="icon">⚠️</div><p>Error: ${e.message}</p></div>`;
+  }
 }
 function fmt(n){return(parseFloat(n)||0).toLocaleString('es-ES',{minimumFractionDigits:2,maximumFractionDigits:2})+' €';}
 checkSession();

@@ -76,6 +76,9 @@ function auth(req,res,next) { if(!req.session.user) return res.status(401).json(
 function authAdmin(req,res,next) { if(!req.session.user) return res.status(401).json({error:'No autenticado'}); if(req.session.user.rol!=='admin') return res.status(403).json({error:'Sin permisos'}); next(); }
 function authContab(req,res,next) { if(!req.session.user) return res.status(401).json({error:'No autenticado'}); if(!['contabilidad','admin'].includes(req.session.user.rol)) return res.status(403).json({error:'Sin permisos'}); next(); }
 function authCaja(req,res,next) { if(!req.session.user) return res.status(401).json({error:'No autenticado'}); if(!['caja','admin'].includes(req.session.user.rol)) return res.status(403).json({error:'Sin permisos'}); next(); }
+// Registro de Cobros: comerciales también pueden anotar cobros/devoluciones
+// de sus propios proyectos, no solo Caja/admin/contabilidad.
+function authCobros(req,res,next) { if(!req.session.user) return res.status(401).json({error:'No autenticado'}); if(!['comercial','caja','admin','contabilidad'].includes(req.session.user.rol)) return res.status(403).json({error:'Sin permisos'}); next(); }
 // ── Helper AS GET (sigue redirects) ──────────────────────────
 async function asGet(params) {
   const qs = new URLSearchParams(params).toString();
@@ -545,6 +548,152 @@ app.post('/api/fianzas/cache/reload', auth, async (req, res) => {
     cacheFianzas.data = data;
     cacheFianzas.ts = Date.now();
     res.json({ ok: true, data, count: data.length });
+  } catch(e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+// ================================================================
+// REGISTRO DE COBROS — factura + fianza vistas juntas, cobros parciales,
+// devoluciones con nº de TPV localizable. Se pre-rellena solo cruzando
+// Fianzas (Rentman) + facturas (Supabase), y cualquier corrección manual
+// se guarda con historial de auditoría (quién/cuándo/qué cambió).
+// ================================================================
+app.get('/api/registro-cobros', authCobros, async (req, res) => {
+  try {
+    const ahora = Date.now();
+    let fianzas;
+    if (ahora - cacheFianzas.ts < FIANZAS_TTL && cacheFianzas.data.length > 0) fianzas = cacheFianzas.data;
+    else { fianzas = await fetchFianzasRentman(); cacheFianzas.data = fianzas; cacheFianzas.ts = Date.now(); }
+
+    let overrides = [];
+    if (supabase) {
+      const { data, error } = await supabase.from('caja_registro_cobros').select('*');
+      if (error) throw error;
+      overrides = data || [];
+    }
+
+    const numeros = fianzas.map(f => parseInt(f.numero)).filter(n => !isNaN(n));
+    let facturasPorNumero = {};
+    if (supabase && numeros.length > 0) {
+      const { data: facturas, error: errFact } = await supabase.from('facturas').select('numero,importe_con_iva').in('numero', numeros);
+      if (errFact) throw errFact;
+      (facturas || []).forEach(f => {
+        facturasPorNumero[f.numero] = (facturasPorNumero[f.numero] || 0) + (parseFloat(f.importe_con_iva) || 0);
+      });
+    }
+
+    const overridesPorProyecto = {};
+    overrides.forEach(o => { if (o.numero_proyecto != null) overridesPorProyecto[o.numero_proyecto] = o; });
+
+    const filas = fianzas.map(f => {
+      const numero = parseInt(f.numero);
+      const ov = overridesPorProyecto[numero];
+      return {
+        numero_proyecto: numero,
+        cliente: f.cliente,
+        comercial: f.comercial,
+        importe_proyecto: (ov && ov.importe_proyecto != null && ov.importe_proyecto !== 0) ? ov.importe_proyecto : Math.round((facturasPorNumero[numero] || 0) * 100) / 100,
+        importe_fianza: (ov && ov.importe_fianza != null && ov.importe_fianza !== 0) ? ov.importe_fianza : f.importe,
+        cobrado: ov ? (ov.cobrado || 0) : 0,
+        estado_fianza: ov && ov.estado_fianza ? ov.estado_fianza : (f.estado_id === '2' ? 'devuelta' : f.estado_id === '1' ? 'cobrada' : 'pendiente'),
+        metodo_devolucion: ov ? ov.metodo_devolucion : null,
+        numero_devolucion_tpv: ov ? ov.numero_devolucion_tpv : null,
+        notas: ov ? ov.notas : null,
+        es_manual: false,
+        actualizado_por: ov ? ov.actualizado_por : null,
+        actualizado_en: ov ? ov.actualizado_en : null
+      };
+    });
+
+    // Filas manuales sueltas (ingresos sin identificar todavía, numero_proyecto null)
+    const manuales = overrides.filter(o => o.numero_proyecto == null).map(o => ({
+      id: o.id, numero_proyecto: null, cliente: o.cliente, importe_proyecto: o.importe_proyecto || 0,
+      importe_fianza: o.importe_fianza || 0, cobrado: o.cobrado || 0, estado_fianza: o.estado_fianza,
+      metodo_devolucion: o.metodo_devolucion, numero_devolucion_tpv: o.numero_devolucion_tpv,
+      notas: o.notas, es_manual: true, actualizado_por: o.actualizado_por, actualizado_en: o.actualizado_en
+    }));
+
+    res.json({ ok: true, filas: filas.concat(manuales) });
+  } catch(e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+app.post('/api/registro-cobros/manual', authCobros, async (req, res) => {
+  try {
+    if (!supabase) return res.status(500).json({ ok: false, error: 'Supabase no configurado' });
+    const usuario = req.session.user.usuario;
+    const { cliente, importe_proyecto, importe_fianza, notas } = req.body;
+    const fila = {
+      numero_proyecto: null, cliente: cliente || '', importe_proyecto: parseFloat(importe_proyecto) || 0,
+      importe_fianza: parseFloat(importe_fianza) || 0, cobrado: 0, estado_fianza: 'pendiente',
+      notas: notas || '', es_manual: true, creado_por: usuario, actualizado_por: usuario
+    };
+    const { data, error } = await supabase.from('caja_registro_cobros').insert(fila).select().single();
+    if (error) throw error;
+    res.json({ ok: true, registro: data });
+  } catch(e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+app.post('/api/registro-cobros/:clave', authCobros, async (req, res) => {
+  try {
+    if (!supabase) return res.status(500).json({ ok: false, error: 'Supabase no configurado' });
+    const usuario = req.session.user.usuario;
+    const esManual = req.params.clave.startsWith('id-');
+    const numeroProyecto = esManual ? null : parseInt(req.params.clave);
+    const idManual = esManual ? parseInt(req.params.clave.replace('id-', '')) : null;
+
+    const camposEditables = ['cliente', 'importe_proyecto', 'importe_fianza', 'cobrado', 'estado_fianza', 'metodo_devolucion', 'numero_devolucion_tpv', 'notas'];
+    const cambios = {};
+    camposEditables.forEach(c => { if (req.body[c] !== undefined) cambios[c] = req.body[c]; });
+
+    let existente = null;
+    if (esManual) {
+      const { data } = await supabase.from('caja_registro_cobros').select('*').eq('id', idManual).maybeSingle();
+      existente = data;
+    } else {
+      const { data } = await supabase.from('caja_registro_cobros').select('*').eq('numero_proyecto', numeroProyecto).maybeSingle();
+      existente = data;
+    }
+
+    const historial = [];
+    camposEditables.forEach(c => {
+      if (cambios[c] === undefined) return;
+      const anterior = existente ? existente[c] : null;
+      if (String(anterior ?? '') !== String(cambios[c] ?? '')) {
+        historial.push({ numero_proyecto: numeroProyecto, campo: c, valor_anterior: anterior != null ? String(anterior) : null, valor_nuevo: cambios[c] != null ? String(cambios[c]) : null, usuario });
+      }
+    });
+
+    let guardado, error;
+    if (esManual) {
+      ({ data: guardado, error } = await supabase.from('caja_registro_cobros').update({ ...cambios, actualizado_por: usuario, actualizado_en: new Date().toISOString() }).eq('id', idManual).select().single());
+    } else {
+      const fila = { numero_proyecto: numeroProyecto, ...cambios, actualizado_por: usuario, actualizado_en: new Date().toISOString() };
+      ({ data: guardado, error } = await supabase.from('caja_registro_cobros').upsert(fila, { onConflict: 'numero_proyecto' }).select().single());
+    }
+    if (error) throw error;
+
+    if (historial.length > 0) {
+      const filasHist = historial.map(h => ({ ...h, registro_id: guardado.id }));
+      await supabase.from('caja_registro_cobros_historial').insert(filasHist);
+    }
+
+    res.json({ ok: true, registro: guardado, cambios: historial.length });
+  } catch(e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+app.get('/api/registro-cobros/:clave/historial', authCobros, async (req, res) => {
+  try {
+    if (!supabase) return res.json({ ok: true, historial: [] });
+    const esManual = req.params.clave.startsWith('id-');
+    let query = supabase.from('caja_registro_cobros_historial').select('*').order('fecha', { ascending: false });
+    if (esManual) {
+      const { data: reg } = await supabase.from('caja_registro_cobros').select('id').eq('id', parseInt(req.params.clave.replace('id-', ''))).maybeSingle();
+      query = query.eq('registro_id', reg ? reg.id : -1);
+    } else {
+      query = query.eq('numero_proyecto', parseInt(req.params.clave));
+    }
+    const { data, error } = await query;
+    if (error) throw error;
+    res.json({ ok: true, historial: data });
   } catch(e) { res.status(500).json({ ok: false, error: e.message }); }
 });
 // ── Helper AS Fianzas ─────────────────────────────────────────
