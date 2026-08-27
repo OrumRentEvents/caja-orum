@@ -608,7 +608,7 @@ app.get('/api/registro-cobros', authCobros, async (req, res) => {
     {
       let offset = 0;
       while (true) {
-        const { data, error } = await supabase.from('caja_registros').select('numero,metodo_pago,ubicacion,tipo,importe,fecha_pago,num_operacion,es_abrebotellas').range(offset, offset + 999);
+        const { data, error } = await supabase.from('caja_registros').select('numero,metodo_pago,ubicacion,tipo,importe,fecha_pago_raw,num_operacion,es_abrebotellas').range(offset, offset + 999);
         if (error) throw error;
         registros = registros.concat(data || []);
         if (!data || data.length < 1000) break;
@@ -636,7 +636,7 @@ app.get('/api/registro-cobros', authCobros, async (req, res) => {
       const cobradoAuto = regs.reduce((s, r) => s + (parseFloat(r.importe) || 0), 0);
       const formaPago = [...new Set(regs.map(r => `${r.metodo_pago || ''}${r.ubicacion ? ' · ' + capitalizaUbicacion(r.ubicacion) : ''}`.trim()).filter(Boolean))].join(', ');
       const numOps = [...new Set(regs.map(r => r.num_operacion).filter(Boolean))].join(', ');
-      const fechaPago = regs.map(r => r.fecha_pago).filter(Boolean).sort().pop() || null;
+      const fechaPago = regs.map(r => r.fecha_pago_raw).filter(Boolean).sort().pop() || null;
       return {
         numero_proyecto: numero,
         cliente: f.cliente,
