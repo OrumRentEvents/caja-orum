@@ -557,46 +557,100 @@ app.post('/api/fianzas/cache/reload', auth, async (req, res) => {
 // Fianzas (Rentman) + facturas (Supabase), y cualquier corrección manual
 // se guarda con historial de auditoría (quién/cuándo/qué cambió).
 // ================================================================
+const PIPELINE_COMERCIAL = ['pending', 'concept', 'inquiry']; // mismo criterio que en orum-central-panel: "todavía sin decidir"
+function capitalizaUbicacion(u) { const s = String(u || ''); return s ? s.charAt(0).toUpperCase() + s.slice(1).toLowerCase() : ''; }
 app.get('/api/registro-cobros', authCobros, async (req, res) => {
   try {
+    if (!supabase) return res.status(500).json({ ok: false, error: 'Supabase no configurado' });
     const ahora = Date.now();
     let fianzas;
     if (ahora - cacheFianzas.ts < FIANZAS_TTL && cacheFianzas.data.length > 0) fianzas = cacheFianzas.data;
     else { fianzas = await fetchFianzasRentman(); cacheFianzas.data = fianzas; cacheFianzas.ts = Date.now(); }
 
-    let overrides = [];
-    if (supabase) {
-      const { data, error } = await supabase.from('caja_registro_cobros').select('*');
-      if (error) throw error;
-      overrides = data || [];
-    }
+    const numeros = [...new Set(fianzas.map(f => parseInt(f.numero)).filter(n => !isNaN(n)))];
 
-    const numeros = fianzas.map(f => parseInt(f.numero)).filter(n => !isNaN(n));
-    let facturasPorNumero = {};
-    if (supabase && numeros.length > 0) {
-      const { data: facturas, error: errFact } = await supabase.from('facturas').select('numero,importe_con_iva').in('numero', numeros);
+    const [{ data: overrides, error: errOv }, { data: proyectosData, error: errProy }] = await Promise.all([
+      supabase.from('caja_registro_cobros').select('*'),
+      numeros.length ? supabase.from('proyectos').select('id,numero,estado,cancelado').in('numero', numeros) : Promise.resolve({ data: [] })
+    ]);
+    if (errOv) throw errOv;
+    if (errProy) throw errProy;
+
+    const proyectoPorNumero = {};
+    (proyectosData || []).forEach(p => { proyectoPorNumero[p.numero] = p; });
+
+    // Solo proyectos en etapa Confirmado en adelante (incluye fases logísticas
+    // posteriores) - nada de la etapa comercial (Pending/Concept/Inquiry) ni cancelados.
+    const numerosConfirmados = numeros.filter(n => {
+      const p = proyectoPorNumero[n];
+      if (!p) return false;
+      if (p.cancelado) return false;
+      return PIPELINE_COMERCIAL.indexOf(String(p.estado || '').toLowerCase()) === -1;
+    });
+    const proyectoIds = numerosConfirmados.map(n => proyectoPorNumero[n].id).filter(x => x != null);
+
+    // Valor real del proyecto: suma de sus facturas (con IVA - esto es control
+    // de pagos, no rentabilidad). facturas.numero es el nº de la FACTURA, no
+    // del proyecto - hay que cruzar por proyecto_id, no por numero.
+    let importeProyectoPorId = {};
+    if (proyectoIds.length) {
+      const { data: facturasData, error: errFact } = await supabase.from('facturas').select('proyecto_id,importe_con_iva').in('proyecto_id', proyectoIds);
       if (errFact) throw errFact;
-      (facturas || []).forEach(f => {
-        facturasPorNumero[f.numero] = (facturasPorNumero[f.numero] || 0) + (parseFloat(f.importe_con_iva) || 0);
+      (facturasData || []).forEach(f => {
+        importeProyectoPorId[f.proyecto_id] = (importeProyectoPorId[f.proyecto_id] || 0) + (parseFloat(f.importe_con_iva) || 0);
       });
     }
 
-    const overridesPorProyecto = {};
-    overrides.forEach(o => { if (o.numero_proyecto != null) overridesPorProyecto[o.numero_proyecto] = o; });
+    // Cobros reales por TPV/transferencia (el efectivo no cuenta aquí - se
+    // controla aparte en Caja Diaria) y forma de pago + nº de operación para
+    // poder localizar cada movimiento.
+    let registros = [];
+    {
+      let offset = 0;
+      while (true) {
+        const { data, error } = await supabase.from('caja_registros').select('numero,metodo_pago,ubicacion,tipo,importe,fecha_pago,num_operacion,es_abrebotellas').range(offset, offset + 999);
+        if (error) throw error;
+        registros = registros.concat(data || []);
+        if (!data || data.length < 1000) break;
+        offset += 1000;
+      }
+    }
+    const registrosPorNumero = {};
+    registros.forEach(r => {
+      if (r.es_abrebotellas) return;
+      if (String(r.tipo || '').toLowerCase() === 'efectivo') return;
+      const n = parseInt(r.numero);
+      if (isNaN(n)) return;
+      if (!registrosPorNumero[n]) registrosPorNumero[n] = [];
+      registrosPorNumero[n].push(r);
+    });
 
-    const filas = fianzas.map(f => {
+    const overridesPorProyecto = {};
+    (overrides || []).forEach(o => { if (o.numero_proyecto != null) overridesPorProyecto[o.numero_proyecto] = o; });
+
+    const filas = fianzas.filter(f => numerosConfirmados.indexOf(parseInt(f.numero)) !== -1).map(f => {
       const numero = parseInt(f.numero);
+      const p = proyectoPorNumero[numero];
       const ov = overridesPorProyecto[numero];
+      const regs = registrosPorNumero[numero] || [];
+      const cobradoAuto = regs.reduce((s, r) => s + (parseFloat(r.importe) || 0), 0);
+      const formaPago = [...new Set(regs.map(r => `${r.metodo_pago || ''}${r.ubicacion ? ' · ' + capitalizaUbicacion(r.ubicacion) : ''}`.trim()).filter(Boolean))].join(', ');
+      const numOps = [...new Set(regs.map(r => r.num_operacion).filter(Boolean))].join(', ');
+      const fechaPago = regs.map(r => r.fecha_pago).filter(Boolean).sort().pop() || null;
       return {
         numero_proyecto: numero,
         cliente: f.cliente,
         comercial: f.comercial,
-        importe_proyecto: (ov && ov.importe_proyecto != null && ov.importe_proyecto !== 0) ? ov.importe_proyecto : Math.round((facturasPorNumero[numero] || 0) * 100) / 100,
+        importe_proyecto: (ov && ov.importe_proyecto != null && ov.importe_proyecto !== 0) ? ov.importe_proyecto : Math.round((importeProyectoPorId[p.id] || 0) * 100) / 100,
         importe_fianza: (ov && ov.importe_fianza != null && ov.importe_fianza !== 0) ? ov.importe_fianza : f.importe,
-        cobrado: ov ? (ov.cobrado || 0) : 0,
+        cobrado: (ov && ov.cobrado != null && ov.cobrado !== 0) ? ov.cobrado : Math.round(cobradoAuto * 100) / 100,
         estado_fianza: ov && ov.estado_fianza ? ov.estado_fianza : (f.estado_id === '2' ? 'devuelta' : f.estado_id === '1' ? 'cobrada' : 'pendiente'),
         metodo_devolucion: ov ? ov.metodo_devolucion : null,
         numero_devolucion_tpv: ov ? ov.numero_devolucion_tpv : null,
+        forma_pago: formaPago || null,
+        num_operacion_pago: numOps || null,
+        fecha_pago: fechaPago,
+        fecha_evento: f.fecha_inicio || null,
         notas: ov ? ov.notas : null,
         es_manual: false,
         actualizado_por: ov ? ov.actualizado_por : null,
@@ -605,10 +659,11 @@ app.get('/api/registro-cobros', authCobros, async (req, res) => {
     });
 
     // Filas manuales sueltas (ingresos sin identificar todavía, numero_proyecto null)
-    const manuales = overrides.filter(o => o.numero_proyecto == null).map(o => ({
+    const manuales = (overrides || []).filter(o => o.numero_proyecto == null).map(o => ({
       id: o.id, numero_proyecto: null, cliente: o.cliente, importe_proyecto: o.importe_proyecto || 0,
       importe_fianza: o.importe_fianza || 0, cobrado: o.cobrado || 0, estado_fianza: o.estado_fianza,
       metodo_devolucion: o.metodo_devolucion, numero_devolucion_tpv: o.numero_devolucion_tpv,
+      forma_pago: null, num_operacion_pago: null, fecha_pago: null, fecha_evento: null,
       notas: o.notas, es_manual: true, actualizado_por: o.actualizado_por, actualizado_en: o.actualizado_en
     }));
 
