@@ -593,11 +593,22 @@ app.get('/api/registro-cobros', authCobros, async (req, res) => {
     // de pagos, no rentabilidad). facturas.numero es el nº de la FACTURA, no
     // del proyecto - hay que cruzar por proyecto_id, no por numero.
     let importeProyectoPorId = {};
+    // BUG encontrado (27 ago 2026): caja_registros.numero guarda el Nº DE
+    // FACTURA (ver POST /api/caja/registro -> numero:f.numero, y f viene de
+    // /api/caja/facturas donde numero=p.numero_factura), NO el Nº DE PROYECTO
+    // que usa Fianzas. Cruzar caja_registros.numero directo contra
+    // fianzas.numero (como se hacía antes) nunca encontraba nada -> "Cobrado"
+    // salía siempre 0€ y "Forma de pago"/"Devolución" siempre vacías. Puente:
+    // factura.numero -> factura.proyecto_id -> proyecto.numero.
+    const proyectoIdPorNumeroFactura = {};
+    const numeroProyectoPorId = {};
+    (proyectosData || []).forEach(p => { numeroProyectoPorId[p.id] = p.numero; });
     if (proyectoIds.length) {
-      const { data: facturasData, error: errFact } = await supabase.from('facturas').select('proyecto_id,importe_con_iva').in('proyecto_id', proyectoIds);
+      const { data: facturasData, error: errFact } = await supabase.from('facturas').select('proyecto_id,numero,importe_con_iva').in('proyecto_id', proyectoIds);
       if (errFact) throw errFact;
       (facturasData || []).forEach(f => {
         importeProyectoPorId[f.proyecto_id] = (importeProyectoPorId[f.proyecto_id] || 0) + (parseFloat(f.importe_con_iva) || 0);
+        if (f.numero != null) proyectoIdPorNumeroFactura[f.numero] = f.proyecto_id;
       });
     }
 
@@ -619,10 +630,16 @@ app.get('/api/registro-cobros', authCobros, async (req, res) => {
     registros.forEach(r => {
       if (r.es_abrebotellas) return;
       if (String(r.tipo || '').toLowerCase() === 'efectivo') return;
-      const n = parseInt(r.numero);
-      if (isNaN(n)) return;
-      if (!registrosPorNumero[n]) registrosPorNumero[n] = [];
-      registrosPorNumero[n].push(r);
+      const numFactura = parseInt(r.numero);
+      if (isNaN(numFactura)) return;
+      // r.numero es el Nº DE FACTURA (ver comentario más arriba) - hay que
+      // traducirlo a Nº DE PROYECTO antes de agrupar, si no nunca casa con fianzas.
+      const proyId = proyectoIdPorNumeroFactura[numFactura];
+      if (proyId == null) return;
+      const numProyecto = numeroProyectoPorId[proyId];
+      if (numProyecto == null) return;
+      if (!registrosPorNumero[numProyecto]) registrosPorNumero[numProyecto] = [];
+      registrosPorNumero[numProyecto].push(r);
     });
 
     const overridesPorProyecto = {};
@@ -637,14 +654,22 @@ app.get('/api/registro-cobros', authCobros, async (req, res) => {
       const formaPago = [...new Set(regs.map(r => `${r.metodo_pago || ''}${r.ubicacion ? ' · ' + capitalizaUbicacion(r.ubicacion) : ''}`.trim()).filter(Boolean))].join(', ');
       const numOps = [...new Set(regs.map(r => r.num_operacion).filter(Boolean))].join(', ');
       const fechaPago = regs.map(r => r.fecha_pago_raw).filter(Boolean).sort().pop() || null;
+      const importeProyecto = (ov && ov.importe_proyecto != null && ov.importe_proyecto !== 0) ? ov.importe_proyecto : Math.round((importeProyectoPorId[p.id] || 0) * 100) / 100;
+      const importeFianza = (ov && ov.importe_fianza != null && ov.importe_fianza !== 0) ? ov.importe_fianza : f.importe;
+      const cobrado = (ov && ov.cobrado != null && ov.cobrado !== 0) ? ov.cobrado : Math.round(cobradoAuto * 100) / 100;
+      const estadoFianza = ov && ov.estado_fianza ? ov.estado_fianza : (f.estado_id === '2' ? 'devuelta' : f.estado_id === '1' ? 'cobrada' : 'pendiente');
+      // "Finalizado" = ya no hace falta seguirlo: todo cobrado Y la fianza
+      // devuelta (o no aplica). Se usa para el selector Vigentes/Finalizados/Todos.
+      const pendiente = (parseFloat(importeProyecto) || 0) + (parseFloat(importeFianza) || 0) - (parseFloat(cobrado) || 0);
+      const finalizado = pendiente <= 0.01 && (estadoFianza === 'devuelta' || estadoFianza === 'no_aplica');
       return {
         numero_proyecto: numero,
         cliente: f.cliente,
         comercial: f.comercial,
-        importe_proyecto: (ov && ov.importe_proyecto != null && ov.importe_proyecto !== 0) ? ov.importe_proyecto : Math.round((importeProyectoPorId[p.id] || 0) * 100) / 100,
-        importe_fianza: (ov && ov.importe_fianza != null && ov.importe_fianza !== 0) ? ov.importe_fianza : f.importe,
-        cobrado: (ov && ov.cobrado != null && ov.cobrado !== 0) ? ov.cobrado : Math.round(cobradoAuto * 100) / 100,
-        estado_fianza: ov && ov.estado_fianza ? ov.estado_fianza : (f.estado_id === '2' ? 'devuelta' : f.estado_id === '1' ? 'cobrada' : 'pendiente'),
+        importe_proyecto: importeProyecto,
+        importe_fianza: importeFianza,
+        cobrado: cobrado,
+        estado_fianza: estadoFianza,
         metodo_devolucion: ov ? ov.metodo_devolucion : null,
         numero_devolucion_tpv: ov ? ov.numero_devolucion_tpv : null,
         forma_pago: formaPago || null,
@@ -653,18 +678,22 @@ app.get('/api/registro-cobros', authCobros, async (req, res) => {
         fecha_evento: f.fecha_inicio || null,
         notas: ov ? ov.notas : null,
         es_manual: false,
+        finalizado: finalizado,
         actualizado_por: ov ? ov.actualizado_por : null,
         actualizado_en: ov ? ov.actualizado_en : null
       };
     });
 
     // Filas manuales sueltas (ingresos sin identificar todavía, numero_proyecto null)
+    // finalizado: false siempre - por definición siguen "por casar" con un
+    // proyecto, así que deben verse tanto en Vigentes como en Todos.
     const manuales = (overrides || []).filter(o => o.numero_proyecto == null).map(o => ({
       id: o.id, numero_proyecto: null, cliente: o.cliente, importe_proyecto: o.importe_proyecto || 0,
       importe_fianza: o.importe_fianza || 0, cobrado: o.cobrado || 0, estado_fianza: o.estado_fianza,
       metodo_devolucion: o.metodo_devolucion, numero_devolucion_tpv: o.numero_devolucion_tpv,
-      forma_pago: null, num_operacion_pago: null, fecha_pago: null, fecha_evento: null,
-      notas: o.notas, es_manual: true, actualizado_por: o.actualizado_por, actualizado_en: o.actualizado_en
+      forma_pago: o.forma_pago_manual || null, num_operacion_pago: null, fecha_pago: null,
+      fecha_evento: o.fecha_cobro || null,
+      notas: o.notas, es_manual: true, finalizado: false, actualizado_por: o.actualizado_por, actualizado_en: o.actualizado_en
     }));
 
     res.json({ ok: true, filas: filas.concat(manuales) });
@@ -675,10 +704,16 @@ app.post('/api/registro-cobros/manual', authCobros, async (req, res) => {
   try {
     if (!supabase) return res.status(500).json({ ok: false, error: 'Supabase no configurado' });
     const usuario = req.session.user.usuario;
-    const { cliente, importe_proyecto, importe_fianza, notas } = req.body;
+    // Un registro manual es un ingreso YA recibido pero aún sin identificar a
+    // qué proyecto pertenece: se conoce fecha, forma de pago e importe pagado
+    // (no un desglose proyecto/fianza, que no se sabe todavía). Se guarda
+    // como "cobrado" en firme para que no aparezca como pendiente.
+    const { cliente, fecha_cobro, forma_pago_manual, importe_pagado, notas } = req.body;
+    const importe = parseFloat(importe_pagado) || 0;
     const fila = {
-      numero_proyecto: null, cliente: cliente || '', importe_proyecto: parseFloat(importe_proyecto) || 0,
-      importe_fianza: parseFloat(importe_fianza) || 0, cobrado: 0, estado_fianza: 'pendiente',
+      numero_proyecto: null, cliente: cliente || '', importe_proyecto: importe, importe_fianza: 0,
+      cobrado: importe, estado_fianza: 'no_aplica', fecha_cobro: fecha_cobro || null,
+      forma_pago_manual: forma_pago_manual || null,
       notas: notas || '', es_manual: true, creado_por: usuario, actualizado_por: usuario
     };
     const { data, error } = await supabase.from('caja_registro_cobros').insert(fila).select().single();
@@ -695,7 +730,7 @@ app.post('/api/registro-cobros/:clave', authCobros, async (req, res) => {
     const numeroProyecto = esManual ? null : parseInt(req.params.clave);
     const idManual = esManual ? parseInt(req.params.clave.replace('id-', '')) : null;
 
-    const camposEditables = ['cliente', 'importe_proyecto', 'importe_fianza', 'cobrado', 'estado_fianza', 'metodo_devolucion', 'numero_devolucion_tpv', 'notas'];
+    const camposEditables = ['cliente', 'importe_proyecto', 'importe_fianza', 'cobrado', 'estado_fianza', 'metodo_devolucion', 'numero_devolucion_tpv', 'notas', 'fecha_cobro', 'forma_pago_manual'];
     const cambios = {};
     camposEditables.forEach(c => { if (req.body[c] !== undefined) cambios[c] = req.body[c]; });
 

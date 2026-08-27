@@ -246,6 +246,12 @@ tr:hover td{background:var(--gray-bg)}
         <option value="devuelta">Devuelta</option>
         <option value="no_aplica">No aplica</option>
       </select>
+      <label>Ver</label>
+      <select id="cobros-filtro-finalizado" onchange="renderCobros()" style="padding:8px 12px;border:1.5px solid var(--gray-light);border-radius:8px;font-size:14px;outline:none">
+        <option value="vigentes">Vigentes</option>
+        <option value="finalizados">Finalizados</option>
+        <option value="todos">Todos</option>
+      </select>
       <input type="text" class="inp-buscar" id="cobros-buscar" placeholder="🔍 Cliente / proyecto / método / nº operación..." oninput="renderCobros()" style="width:250px">
       <button class="btn-cargar" onclick="cargarRegistroCobros()" id="btn-cargar-cobros">↻ Actualizar</button>
       <button onclick="abrirModalCobroManual()" style="padding:9px 16px;border:1.5px solid var(--black);background:var(--white);border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">+ Registro manual</button>
@@ -1854,10 +1860,13 @@ function badgeEstadoFianza(e){
 }
 function renderCobros(){
   const filtroEstado=document.getElementById('cobros-filtro-estado')?.value||'';
+  const filtroFinalizado=document.getElementById('cobros-filtro-finalizado')?.value||'vigentes';
   const q=(document.getElementById('cobros-buscar')?.value||'').toLowerCase();
   const fDesde=document.getElementById('cobros-fecha-desde')?.value||'';
   const fHasta=document.getElementById('cobros-fecha-hasta')?.value||'';
   const lista=cobrosData.filter(f=>{
+    if(filtroFinalizado==='vigentes' && f.finalizado) return false;
+    if(filtroFinalizado==='finalizados' && !f.finalizado) return false;
     if(filtroEstado && f.estado_fianza!==filtroEstado) return false;
     if(fDesde && (!f.fecha_evento || f.fecha_evento<fDesde)) return false;
     if(fHasta && (!f.fecha_evento || f.fecha_evento>fHasta)) return false;
@@ -1894,7 +1903,7 @@ function renderCobros(){
           return `<tr>
             <td>${f.es_manual?'<span class="badge badge-orange">Manual</span>':`<strong>#${f.numero_proyecto}</strong>`}</td>
             <td>${f.cliente||'—'}</td>
-            <td style="color:var(--gray);font-size:12px">${f.fecha_evento||'—'}</td>
+            <td style="color:var(--gray);font-size:12px;white-space:nowrap">${fechaDMY(f.fecha_evento)}</td>
             <td>${fmt(f.importe_proyecto)}</td>
             <td>${fmt(f.importe_fianza)}</td>
             <td><strong>${fmt(total)}</strong></td>
@@ -1972,13 +1981,21 @@ async function guardarEdicionCobro(clave){
 }
 function abrirModalCobroManual(){
   document.getElementById('modal-fianza-title').textContent='➕ Registro manual de cobro';
+  const hoy=new Date().toISOString().substring(0,10);
   document.getElementById('modal-fianza-body').innerHTML=`
-    <p style="color:var(--gray);font-size:13px;margin-bottom:16px">Para un ingreso recibido que aún no sabes a qué proyecto asignar. Podrás editarlo o casarlo más adelante.</p>
+    <p style="color:var(--gray);font-size:13px;margin-bottom:16px">Para un ingreso ya recibido que aún no sabes a qué proyecto asignar. Podrás editarlo o casarlo más adelante.</p>
     <div class="form-group"><label>Cliente / referencia</label><input type="text" id="mc-cliente" placeholder="Ej: Transferencia sin identificar 25/08"></div>
     <div style="display:flex;gap:12px">
-      <div class="form-group" style="flex:1"><label>Importe proyecto (€)</label><input type="number" id="mc-importe-proyecto" step="0.01" value="0"></div>
-      <div class="form-group" style="flex:1"><label>Importe fianza (€)</label><input type="number" id="mc-importe-fianza" step="0.01" value="0"></div>
+      <div class="form-group" style="flex:1"><label>Fecha</label><input type="date" id="mc-fecha" value="${hoy}"></div>
+      <div class="form-group" style="flex:1"><label>Forma de pago</label>
+        <select id="mc-forma-pago" style="width:100%;padding:11px 14px;border:1.5px solid var(--gray-light);border-radius:8px;font-size:14px;outline:none">
+          <option value="Transferencia">Transferencia</option>
+          <option value="TPV Marbella">TPV Marbella</option>
+          <option value="TPV Monda">TPV Monda</option>
+        </select>
+      </div>
     </div>
+    <div class="form-group"><label>Importe pagado (€)</label><input type="number" id="mc-importe" step="0.01" placeholder="0,00"></div>
     <div class="form-group"><label>Notas</label><textarea id="mc-notas" rows="2" style="width:100%;padding:10px;border:1.5px solid var(--gray-light);border-radius:8px;font-size:14px;outline:none;resize:vertical;font-family:inherit;box-sizing:border-box"></textarea></div>
     <div style="display:flex;gap:10px;margin-top:16px">
       <button onclick="document.getElementById('modal-fianza').style.display='none'" style="flex:1;padding:11px;border:1.5px solid var(--gray-light);background:var(--white);border-radius:8px;font-size:14px;cursor:pointer">Cancelar</button>
@@ -1990,8 +2007,9 @@ async function crearCobroManual(){
   try{
     const body={
       cliente: document.getElementById('mc-cliente').value,
-      importe_proyecto: parseFloat(document.getElementById('mc-importe-proyecto').value)||0,
-      importe_fianza: parseFloat(document.getElementById('mc-importe-fianza').value)||0,
+      fecha_cobro: document.getElementById('mc-fecha').value||null,
+      forma_pago_manual: document.getElementById('mc-forma-pago').value,
+      importe_pagado: parseFloat(document.getElementById('mc-importe').value)||0,
       notas: document.getElementById('mc-notas').value
     };
     const r=await fetch('/api/registro-cobros/manual',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
@@ -2020,6 +2038,13 @@ async function abrirHistorialCobro(clave){
   }
 }
 function fmt(n){return(parseFloat(n)||0).toLocaleString('es-ES',{minimumFractionDigits:2,maximumFractionDigits:2})+' €';}
+// Acepta "2026-06-19" (o esa fecha con hora) y la pasa a dd/mm/aaaa en una sola línea.
+function fechaDMY(v){
+  if(!v) return '—';
+  const m=String(v).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if(!m) return v;
+  return `${m[3]}/${m[2]}/${m[1]}`;
+}
 checkSession();
 </script>
 </body>
