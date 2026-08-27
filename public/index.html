@@ -1901,7 +1901,7 @@ function renderCobros(){
           const total=(parseFloat(f.importe_proyecto)||0)+(parseFloat(f.importe_fianza)||0);
           const pend=total-(parseFloat(f.cobrado)||0);
           return `<tr>
-            <td>${f.es_manual?'<span class="badge badge-orange">Manual</span>':`<strong>#${f.numero_proyecto}</strong>`}</td>
+            <td>${f.es_manual?'<span class="badge badge-orange">Manual</span>':`<strong>#${f.numero_proyecto}</strong> <button onclick="copiarNumeroProyecto(this,'${f.numero_proyecto}')" title="Copiar número" style="border:none;background:none;cursor:pointer;padding:2px;color:var(--gray);font-size:12px;vertical-align:middle">📋</button>`}</td>
             <td>${f.cliente||'—'}</td>
             <td style="color:var(--gray);font-size:12px;white-space:nowrap">${fechaDMY(f.fecha_evento)}</td>
             <td>${fmt(f.importe_proyecto)}</td>
@@ -2038,6 +2038,11 @@ async function abrirHistorialCobro(clave){
   }
 }
 function fmt(n){return(parseFloat(n)||0).toLocaleString('es-ES',{minimumFractionDigits:2,maximumFractionDigits:2})+' €';}
+function copiarNumeroProyecto(btn,numero){
+  navigator.clipboard.writeText(String(numero)).then(()=>{
+    const txt=btn.textContent;btn.textContent='✅';setTimeout(()=>{btn.textContent=txt;},1000);
+  }).catch(()=>{});
+}
 // Acepta "2026-06-19" (o esa fecha con hora) y la pasa a dd/mm/aaaa en una sola línea.
 function fechaDMY(v){
   if(!v) return '—';

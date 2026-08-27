@@ -478,6 +478,17 @@ async function fetchFianzasRentman() {
       } catch(e) { console.warn(`[Fianzas] Error contacto ${id}:`, e.message); }
     }));
   }
+  // Reintento en serie para los que fallaron en el batch paralelo (fallo
+  // puntual de red al pedir 20 a la vez) - si no, se mostraba el ID en bruto
+  // como si fuera el nombre del cliente.
+  const contactosPendientes = contactoIds.filter(id => contactoMap[id] === undefined);
+  for (const id of contactosPendientes) {
+    try {
+      const r = await fetch(`${RENTMAN_URL}/contacts/${id}`, { headers: { Authorization: `Bearer ${RENTMAN_TOKEN}` } });
+      const d = await r.json();
+      if (d.data) contactoMap[id] = d.data.displayname || [d.data.firstname, d.data.surname].filter(Boolean).join(' ') || '';
+    } catch(e) { console.warn(`[Fianzas] Reintento fallido contacto ${id}:`, e.message); }
+  }
   // Enriquecer comerciales
   const comercialIds = [...new Set(proyectos.map(p => p.account_manager).filter(Boolean).map(c => c.replace('/crew/', '')))];
   const comercialMap = {};
@@ -630,6 +641,11 @@ app.get('/api/registro-cobros', authCobros, async (req, res) => {
     registros.forEach(r => {
       if (r.es_abrebotellas) return;
       if (String(r.tipo || '').toLowerCase() === 'efectivo') return;
+      // "Factura 0€" (tipo 'otro') marca facturas anuladas/rectificadas sin
+      // cobro real (ver proyecto #133: factura original + nota de abono
+      // negativa + reemisión) - su importe registrado no es dinero cobrado
+      // de verdad, igual que el efectivo no cuenta aquí.
+      if (String(r.tipo || '').toLowerCase() === 'otro') return;
       const numFactura = parseInt(r.numero);
       if (isNaN(numFactura)) return;
       // r.numero es el Nº DE FACTURA (ver comentario más arriba) - hay que
