@@ -577,7 +577,7 @@ app.get('/api/registro-cobros', authCobros, async (req, res) => {
 
     const [{ data: overrides, error: errOv }, { data: proyectosData, error: errProy }] = await Promise.all([
       supabase.from('caja_registro_cobros').select('*'),
-      numeros.length ? supabase.from('proyectos').select('id,numero,estado,cancelado,cliente').in('numero', numeros) : Promise.resolve({ data: [] })
+      numeros.length ? supabase.from('proyectos').select('id,numero,estado,cancelado,cliente,es_abrebotellas').in('numero', numeros) : Promise.resolve({ data: [] })
     ]);
     if (errOv) throw errOv;
     if (errProy) throw errProy;
@@ -586,11 +586,14 @@ app.get('/api/registro-cobros', authCobros, async (req, res) => {
     (proyectosData || []).forEach(p => { proyectoPorNumero[p.numero] = p; });
 
     // Solo proyectos en etapa Confirmado en adelante (incluye fases logísticas
-    // posteriores) - nada de la etapa comercial (Pending/Concept/Inquiry) ni cancelados.
+    // posteriores) - nada de la etapa comercial (Pending/Concept/Inquiry), ni
+    // cancelados, ni abrebotellas (PNC no es facturación formal, no pinta
+    // nada en Registro de Cobros - ej. proyecto #1795 reportado por el usuario).
     const numerosConfirmados = numeros.filter(n => {
       const p = proyectoPorNumero[n];
       if (!p) return false;
       if (p.cancelado) return false;
+      if (p.es_abrebotellas) return false;
       return PIPELINE_COMERCIAL.indexOf(String(p.estado || '').toLowerCase()) === -1;
     });
     const proyectoIds = numerosConfirmados.map(n => proyectoPorNumero[n].id).filter(x => x != null);
