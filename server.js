@@ -611,13 +611,22 @@ app.get('/api/registro-cobros', authCobros, async (req, res) => {
     // factura.numero -> factura.proyecto_id -> proyecto.numero.
     const proyectoIdPorNumeroFactura = {};
     const numeroProyectoPorId = {};
+    // facturasPagadasPorProyecto: para el aviso "factura pagada en Rentman pero
+    // sin registrar en Caja" (mismo criterio que auditoria.facturas_sin_registro
+    // en orum-central-panel/server.js) - se necesita saber, por proyecto, si
+    // ALGUNA de sus facturas está esta_pagada=true.
+    const facturasPagadasPorProyecto = {};
     (proyectosData || []).forEach(p => { numeroProyectoPorId[p.id] = p.numero; });
     if (proyectoIds.length) {
-      const { data: facturasData, error: errFact } = await supabase.from('facturas').select('proyecto_id,numero,importe_con_iva').in('proyecto_id', proyectoIds);
+      const { data: facturasData, error: errFact } = await supabase.from('facturas').select('proyecto_id,numero,importe_con_iva,esta_pagada').in('proyecto_id', proyectoIds);
       if (errFact) throw errFact;
       (facturasData || []).forEach(f => {
         importeProyectoPorId[f.proyecto_id] = (importeProyectoPorId[f.proyecto_id] || 0) + (parseFloat(f.importe_con_iva) || 0);
         if (f.numero != null) proyectoIdPorNumeroFactura[f.numero] = f.proyecto_id;
+        if (f.esta_pagada) {
+          if (!facturasPagadasPorProyecto[f.proyecto_id]) facturasPagadasPorProyecto[f.proyecto_id] = [];
+          facturasPagadasPorProyecto[f.proyecto_id].push(f.numero);
+        }
       });
     }
 
@@ -635,6 +644,14 @@ app.get('/api/registro-cobros', authCobros, async (req, res) => {
         offset += 1000;
       }
     }
+    // Set de nº de factura con ALGÚN registro en Caja, sin las exclusiones de
+    // abrebotellas/efectivo/factura0 de abajo - para el aviso "sin registrar",
+    // basta con que exista un registro cualquiera (igual que en orum-central-panel).
+    const facturasConAlgunRegistro = new Set();
+    registros.forEach(r => {
+      const nf = parseInt(r.numero);
+      if (!isNaN(nf)) facturasConAlgunRegistro.add(nf);
+    });
     const registrosPorNumero = {};
     registros.forEach(r => {
       if (r.es_abrebotellas) return;
@@ -684,6 +701,13 @@ app.get('/api/registro-cobros', authCobros, async (req, res) => {
       const pendienteFianza = estadoFianza === 'pendiente' ? (parseFloat(importeFianza) || 0) : 0;
       const pendiente = ((parseFloat(importeProyecto) || 0) - (parseFloat(cobrado) || 0)) + pendienteFianza;
       const finalizado = pendiente <= 0.01 && (estadoFianza === 'devuelta' || estadoFianza === 'no_aplica');
+      // Aviso "sin registrar en Caja": alguna factura del proyecto está pagada
+      // en Rentman (esta_pagada=true) pero no tiene NINGÚN registro en Caja
+      // Diaria - el dinero ya entró, solo falta que alguien lo cuadre aquí.
+      // Mismo caso que dio origen a esto: proyecto #1921 (factura 261322,
+      // pagada 10/08/2026 en Rentman, nunca registrada en Caja).
+      const facturasPagadas = (p && facturasPagadasPorProyecto[p.id]) || [];
+      const sinRegistroCaja = facturasPagadas.some(numFact => !facturasConAlgunRegistro.has(numFact));
       return {
         numero_proyecto: numero,
         // Preferimos el cliente ya resuelto en Supabase (proyectos.cliente,
@@ -705,6 +729,7 @@ app.get('/api/registro-cobros', authCobros, async (req, res) => {
         notas: ov ? ov.notas : null,
         es_manual: false,
         finalizado: finalizado,
+        sin_registro_caja: sinRegistroCaja,
         actualizado_por: ov ? ov.actualizado_por : null,
         actualizado_en: ov ? ov.actualizado_en : null
       };
@@ -719,10 +744,12 @@ app.get('/api/registro-cobros', authCobros, async (req, res) => {
       metodo_devolucion: o.metodo_devolucion, numero_devolucion_tpv: o.numero_devolucion_tpv,
       forma_pago: o.forma_pago_manual || null, num_operacion_pago: null, fecha_pago: null,
       fecha_evento: o.fecha_cobro || null,
-      notas: o.notas, es_manual: true, finalizado: false, actualizado_por: o.actualizado_por, actualizado_en: o.actualizado_en
+      notas: o.notas, es_manual: true, finalizado: false, sin_registro_caja: false,
+      actualizado_por: o.actualizado_por, actualizado_en: o.actualizado_en
     }));
 
-    res.json({ ok: true, filas: filas.concat(manuales) });
+    const totalSinRegistro = filas.filter(f => f.sin_registro_caja).length;
+    res.json({ ok: true, filas: filas.concat(manuales), total_sin_registro_caja: totalSinRegistro });
   } catch(e) { res.status(500).json({ ok: false, error: e.message }); }
 });
 

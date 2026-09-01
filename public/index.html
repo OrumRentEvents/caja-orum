@@ -370,6 +370,7 @@ let sortColC='fecha_pago',sortDirC=1;
 let pendingNumOp=null;
 let facturasC=[],registrosC={},ticksC={};
 let cobrosData=[]; // Registro de Cobros: factura+fianza combinados
+let cobrosSoloSinRegistro=false; // filtro del aviso "pagada en Rentman, sin registrar en Caja"
 // ── AUTH ──────────────────────────────────────────────────────
 async function doLogin(){
   const u=document.getElementById('inp-usuario').value.trim();
@@ -1852,6 +1853,10 @@ async function cargarRegistroCobros(){
     if(btn){btn.disabled=false;btn.textContent='↻ Actualizar';}
   }
 }
+function toggleSoloSinRegistro(){
+  cobrosSoloSinRegistro=!cobrosSoloSinRegistro;
+  renderCobros();
+}
 function badgeEstadoFianza(e){
   if(e==='devuelta') return '<span class="badge badge-green">Devuelta</span>';
   if(e==='cobrada') return '<span class="badge badge-orange">Cobrada</span>';
@@ -1865,6 +1870,7 @@ function renderCobros(){
   const fDesde=document.getElementById('cobros-fecha-desde')?.value||'';
   const fHasta=document.getElementById('cobros-fecha-hasta')?.value||'';
   const lista=cobrosData.filter(f=>{
+    if(cobrosSoloSinRegistro && !f.sin_registro_caja) return false;
     if(filtroFinalizado==='vigentes' && f.finalizado) return false;
     if(filtroFinalizado==='finalizados' && !f.finalizado) return false;
     if(filtroEstado && f.estado_fianza!==filtroEstado) return false;
@@ -1881,6 +1887,7 @@ function renderCobros(){
   const totalCobrado=cobrosData.reduce((s,f)=>s+(parseFloat(f.cobrado)||0),0);
   const porDevolver=cobrosData.filter(f=>f.estado_fianza==='cobrada');
   const manuales=cobrosData.filter(f=>f.es_manual);
+  const sinRegistro=cobrosData.filter(f=>f.sin_registro_caja);
   document.getElementById('cobros-content').innerHTML=`
     <div class="kpi-grid" style="margin-bottom:16px">
       <div class="kpi-card"><div class="kpi-label">Total esperado</div><div class="kpi-value">${fmt(totalProyecto+totalFianza)}</div><div class="kpi-sub">${cobrosData.length} registros</div></div>
@@ -1888,6 +1895,15 @@ function renderCobros(){
       <div class="kpi-card kpi-tpv"><div class="kpi-label">Fianzas por devolver</div><div class="kpi-value">${fmt(porDevolver.reduce((s,f)=>s+(parseFloat(f.importe_fianza)||0),0))}</div><div class="kpi-sub">${porDevolver.length} proyectos</div></div>
       <div class="kpi-card" style="border-left:4px solid #7c3aed"><div class="kpi-label">Sin identificar</div><div class="kpi-value" style="color:#7c3aed">${manuales.length}</div><div class="kpi-sub">registros manuales por casar</div></div>
     </div>
+    ${sinRegistro.length>0?`
+    <div onclick="toggleSoloSinRegistro()" style="background:${cobrosSoloSinRegistro?'#fef2f2':'#fffbeb'};border:1.5px solid ${cobrosSoloSinRegistro?'var(--red)':'#f59e0b'};border-radius:8px;padding:10px 14px;margin-bottom:16px;cursor:pointer;display:flex;align-items:center;gap:10px">
+      <span style="font-size:18px">⚠️</span>
+      <div style="flex:1">
+        <div style="font-weight:600;color:#92400e;font-size:13px">${sinRegistro.length} proyecto${sinRegistro.length!==1?'s':''} con factura pagada en Rentman pero sin registrar en Caja</div>
+        <div style="font-size:11px;color:#b45309">El dinero ya entró (confirmado en Rentman) - falta asignarle forma de pago aquí. Haz clic para ${cobrosSoloSinRegistro?'quitar el filtro':'ver solo estos'}.</div>
+      </div>
+      ${cobrosSoloSinRegistro?'<span class="badge" style="background:var(--red);color:#fff">Filtrando</span>':''}
+    </div>`:''}
     <div class="tabla-section">
       <div class="tabla-header">
         <div class="tabla-title">🧾 Registro de Cobros <span class="badge badge-gray">${lista.length}</span></div>
@@ -1912,7 +1928,7 @@ function renderCobros(){
             <td>${fmt(f.importe_fianza)}</td>
             <td><strong>${fmt(total)}</strong></td>
             <td>${fmt(f.cobrado)}</td>
-            <td style="color:${pend>0.01?'var(--red)':'#16a34a'};font-weight:600">${fmt(pend)}</td>
+            <td style="color:${pend>0.01?'var(--red)':'#16a34a'};font-weight:600">${fmt(pend)}${f.sin_registro_caja?' <span title="Pagada en Rentman, falta registrar en Caja" style="cursor:help">⚠️</span>':''}</td>
             <td>${badgeEstadoFianza(f.estado_fianza)}</td>
             <td style="font-size:12px">${f.forma_pago?`${f.forma_pago}${f.num_operacion_pago?`<br><span style="color:var(--gray)">Op. ${f.num_operacion_pago}</span>`:''}`:'<span style="color:var(--gray)">—</span>'}</td>
             <td style="font-size:12px">${f.numero_devolucion_tpv?`${f.metodo_devolucion||''}<br><strong>Op. ${f.numero_devolucion_tpv}</strong>`:(f.metodo_devolucion||'—')}</td>
