@@ -360,6 +360,15 @@ const METODOS = [
   {id:'tpv-monda',label:'💳 TPV Monda',ubicacion:'monda',tipo:'tpv',nombre:'TPV Monda',esTpv:true},
   {id:'transferencia',label:'🏦 Transf.',ubicacion:null,tipo:'transferencia',nombre:'Transferencia Bancaria',esTpv:false},
   {id:'factura0',label:'📄 Factura 0€',ubicacion:null,tipo:'otro',nombre:'Factura 0€',esTpv:false},
+  // Fianza aplicada al pago (Rentman la marca "de FIANZA" en vez de un pago
+  // nuevo) - mismo tipo/ubicación que su equivalente normal a propósito, así
+  // calcTotales() ya la suma bien a Efectivo/TPV/Transferencia de cada caja
+  // sin tocar esa función (el dinero de verdad se queda en la caja/banco, no
+  // se le devuelve al cliente). Se distinguen solo por el id/label para que
+  // quede trazable de dónde viene.
+  {id:'fianza-efectivo-marbella',label:'🔒💵 Fianza Ef. Marbella',ubicacion:'marbella',tipo:'efectivo',nombre:'Fianza Efectivo Marbella',esTpv:false,esFianza:true},
+  {id:'fianza-efectivo-monda',label:'🔒💵 Fianza Ef. Monda',ubicacion:'monda',tipo:'efectivo',nombre:'Fianza Efectivo Monda',esTpv:false,esFianza:true},
+  {id:'fianza-transferencia',label:'🔒🏦 Fianza Banco',ubicacion:null,tipo:'transferencia',nombre:'Fianza Transferencia',esTpv:false,esFianza:true},
 ];
 const METODOS_NC = [
   {id:'efectivo-marbella',label:'💵 Efectivo Marbella',ubicacion:'marbella',tipo:'efectivo'},
