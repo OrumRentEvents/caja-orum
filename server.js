@@ -13,15 +13,29 @@ const supabase = (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_KEY)
   ? createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
   : null;
 // Migración 1 sep 2026: una factura puede tener varias filas en caja_registros
-// (una por pago individual de Rentman) - la clave de upsert/delete pasa a ser
+// (una por pago individual de Rentman) - la clave de identidad pasa a ser
 // pago_id para facturas oficiales, y sigue siendo factura_id (su UUID NC) para
 // No Confirmados, que no tiene pago_id real. Ver schema_caja_registros_pago_id.sql.
+//
+// FIX (2 sep 2026): los índices únicos que dejó esa migración son PARCIALES
+// (WHERE es_abrebotellas=true / WHERE pago_id is not null) - PostgREST no
+// puede usar un índice parcial como target de ON CONFLICT en un upsert
+// normal (necesitaría repetir ese WHERE, que supabase-js no expone), así que
+// esta función llevaba desde el 1 sep fallando en silencio (el error solo
+// se logueaba a consola, .catch(()=>{}) en la llamada - la app seguía
+// funcionando bien porque Sheets es la fuente real, pero esos registros no
+// llegaban a Supabase). Se borra la fila exacta y se reinserta en su lugar -
+// mismo patrón que ya usa guardarRegistroOficial() para los pagos partidos.
 async function supabaseCajaUpsert(row, esNC) {
   if (!supabase) return;
   try {
-    const onConflict = esNC ? 'factura_id' : 'pago_id';
-    const { error } = await supabase.from('caja_registros').upsert(row, { onConflict });
-    if (error) console.error('[Supabase caja upsert]', error.message);
+    const q = esNC
+      ? supabase.from('caja_registros').delete().eq('factura_id', row.factura_id).eq('es_abrebotellas', true)
+      : supabase.from('caja_registros').delete().eq('pago_id', row.pago_id);
+    const { error: errDel } = await q;
+    if (errDel) console.error('[Supabase caja upsert] delete:', errDel.message);
+    const { error: errIns } = await supabase.from('caja_registros').insert(row);
+    if (errIns) console.error('[Supabase caja upsert] insert:', errIns.message);
   } catch (e) {
     console.error('[Supabase caja upsert] excepción:', e.message);
   }
