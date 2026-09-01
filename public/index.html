@@ -612,7 +612,10 @@ function renderCajaCard(caja,titulo,tots,totalCobrado,saldoAnt,ret,efCaja,cierre
 // ── TABLA FACTURAS ────────────────────────────────────────────
 function getFiltered(){
   const q=(document.getElementById('buscador')?.value||'').toLowerCase();
-  let l=facturas.filter(f=>!q||(f.numero||'').includes(q)||(f.cliente||'').toLowerCase().includes(q)||(String(f.proyecto_numero)||'').includes(q));
+  // numero puede venir como number (Supabase) o string según el origen -
+  // envolver con String() antes de tratarlo como texto (mismo patrón que ya
+  // se aplicó en orum-central-panel para numeroFactura).
+  let l=facturas.filter(f=>!q||String(f.numero||'').includes(q)||(f.cliente||'').toLowerCase().includes(q)||String(f.proyecto_numero||'').includes(q));
   // Aplicar filtro de método
   if(cajaFiltroMetodo && cajaFiltroMetodo!=='todos'){
     l=l.filter(f=>{
