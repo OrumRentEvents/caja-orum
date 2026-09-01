@@ -38,6 +38,51 @@ async function supabaseCajaDelete(facturaId, esNC, pagoId) {
     console.error('[Supabase caja delete] excepción:', e.message);
   }
 }
+// ── PAGOS PARTIDOS EN 2+ FORMAS DE PAGO (1 sep 2026) ──────────────────────
+// Un único pago de Rentman (1 pago_id, 1 importe fijo) puede en la realidad
+// haberse cobrado en 2+ formas distintas a la vez (ej. mitad efectivo, mitad
+// tarjeta) - hace falta partirlo a mano. split_idx (1, 2, 3...) identifica
+// cada trozo de un mismo pago_id. Esta función escribe SIEMPRE de golpe
+// (borra todo lo que hubiera de ese pago_id y reescribe limpio) - se usa
+// tanto para el flujo normal de 1 sola forma (splits de 1 elemento) como
+// para partir en 2+, así nunca quedan filas huérfanas de una partición
+// anterior si el usuario vuelve a un único método. No se usa para No
+// Confirmados (no tiene pago_id real, sigue con supabaseCajaUpsert/Delete).
+async function guardarRegistroOficial({ pagoId, facturaId, numero, cliente, fechaPago, usuario, splits }) {
+  const pagoKey = String(pagoId);
+  // Limpia cualquier resto en cache de este pago_id (cualquier split_idx)
+  Object.keys(cache.registros).forEach(k => {
+    if (k === pagoKey || k.startsWith(pagoKey + '_')) delete cache.registros[k];
+  });
+  const nowIso = new Date().toISOString();
+  splits.forEach((sp, idx) => {
+    const key = idx === 0 ? pagoKey : `${pagoKey}_${idx + 1}`;
+    cache.registros[key] = {
+      factura_id: String(facturaId), pago_id: pagoId, split_idx: idx + 1,
+      metodo_pago: sp.metodo_pago, ubicacion: sp.ubicacion, tipo: sp.tipo,
+      importe: sp.importe, cliente, numero, fecha_pago: fechaPago,
+      es_abrebotellas: false, usuario, num_operacion: sp.num_operacion || '', updated: nowIso
+    };
+  });
+  if (supabase) {
+    try {
+      const { error: errDel } = await supabase.from('caja_registros').delete().eq('pago_id', pagoId);
+      if (errDel) console.error('[Supabase caja partido] delete:', errDel.message);
+      if (splits.length) {
+        const rows = splits.map((sp, idx) => ({
+          factura_id: String(facturaId), pago_id: pagoId, split_idx: idx + 1,
+          metodo_pago: sp.metodo_pago, ubicacion: sp.ubicacion, tipo: sp.tipo,
+          importe: sp.importe, cliente, numero, es_abrebotellas: false, usuario,
+          num_operacion: sp.num_operacion || '', fecha_pago_raw: fechaPago, updated_raw: nowIso
+        }));
+        const { error: errIns } = await supabase.from('caja_registros').insert(rows);
+        if (errIns) console.error('[Supabase caja partido] insert:', errIns.message);
+      }
+    } catch (e) { console.error('[Supabase caja partido] excepción:', e.message); }
+  }
+  asPost({ token: CAJA_TOKEN, action: 'set_registro_partido', pago_id: pagoId, factura_id: facturaId, numero, cliente, fecha_pago: fechaPago, usuario, splits })
+    .catch(e => console.error('[BG registro partido]', e.message));
+}
 const PORT = process.env.PORT || 3000;
 const USERS = {
   marina: { pass:'Orum2026#Mar', rol:'comercial',    nombre:'Marina' },
@@ -154,12 +199,19 @@ async function recargarCache() {
       asGet({ token:RUTAS_TOKEN, action:'get_retiradas'}).catch(()=>({data:{marbella:[],monda:[],marbella_nc:[],monda_nc:[]}})),
     ]);
     // Registros: convertir array a objeto keyed por pago_id (facturas
-    // oficiales) o factura_id (No Confirmados, sin pago_id real) - mismo
-    // criterio que /api/caja/registro, ver migración 1 sep 2026.
+    // oficiales, +"_N" si split_idx>1 - ver pagos partidos) o factura_id
+    // (No Confirmados, sin pago_id real) - mismo criterio que
+    // guardarRegistroOficial, ver migración 1 sep 2026.
     cache.registros = {};
     (rReg.data||[]).forEach(r => {
       const esNC = !!r.es_abrebotellas;
-      const key = esNC ? r.factura_id : (r.pago_id || r.factura_id);
+      let key;
+      if (esNC) key = r.factura_id;
+      else {
+        const pagoKey = r.pago_id || r.factura_id;
+        const splitIdx = parseInt(r.split_idx) || 1;
+        key = splitIdx > 1 ? `${pagoKey}_${splitIdx}` : pagoKey;
+      }
       if (key!==''&&key!=null) cache.registros[String(key)] = r;
     });
     // Ticks
@@ -227,15 +279,26 @@ app.post('/api/caja/registro', auth, async (req,res) => {
   const { factura_id, pago_id, metodo_pago, ubicacion, tipo, importe, cliente, numero, fecha_pago, es_abrebotellas, usuario, num_operacion } = req.body;
   if (!factura_id) return res.status(400).json({error:'factura_id requerido'});
   const esNC = !!es_abrebotellas;
-  // Clave de cache/Supabase: pago_id para facturas oficiales (permite varias
-  // filas por la misma factura, una por pago - ver migración 1 sep 2026),
-  // factura_id (su UUID de confirmación NC) para No Confirmados, como siempre.
-  const key = esNC ? String(factura_id) : String(pago_id || factura_id);
+  if (!esNC) {
+    // Facturas oficiales: delega en guardarRegistroOficial (borra cualquier
+    // resto de una partición anterior de este pago_id y reescribe limpio) -
+    // así el flujo normal de 1 sola forma y el de partir en 2+ usan siempre
+    // el mismo camino, sin dejar filas huérfanas de split_idx>1.
+    const splits = (metodo_pago===null||metodo_pago===undefined||metodo_pago==='')
+      ? []
+      : [{ importe, metodo_pago, ubicacion, tipo, num_operacion }];
+    try {
+      await guardarRegistroOficial({ pagoId: pago_id || factura_id, facturaId: factura_id, numero, cliente, fechaPago: fecha_pago, usuario, splits });
+      return res.json({ ok:true });
+    } catch(e) { return res.status(500).json({ ok:false, error: e.message }); }
+  }
+  // No Confirmados: sin cambios, sigue exactamente igual que siempre.
+  const key = String(factura_id);
   if (metodo_pago===null||metodo_pago===undefined) {
     delete cache.registros[key];
     supabaseCajaDelete(factura_id, esNC, pago_id).catch(() => {}); // fire-and-forget, no bloquea la respuesta
   } else {
-    const registro = { factura_id:String(factura_id), pago_id:pago_id||null, metodo_pago, ubicacion, tipo, importe, cliente, numero, fecha_pago, es_abrebotellas, usuario, num_operacion:num_operacion||'', updated:new Date().toISOString() };
+    const registro = { factura_id:String(factura_id), pago_id:null, metodo_pago, ubicacion, tipo, importe, cliente, numero, fecha_pago, es_abrebotellas, usuario, num_operacion:num_operacion||'', updated:new Date().toISOString() };
     cache.registros[key] = registro;
     supabaseCajaUpsert({
       factura_id: registro.factura_id, pago_id: registro.pago_id, metodo_pago: registro.metodo_pago, ubicacion: registro.ubicacion,
@@ -247,6 +310,20 @@ app.post('/api/caja/registro', auth, async (req,res) => {
   res.json({ok:true});
   asPost({ token:CAJA_TOKEN, action:'set_registro', ...req.body })
     .catch(e => console.error('[BG registro]', e.message));
+});
+// Pago partido en 2+ formas: 1 pago de Rentman (pago_id, importe fijo) pero
+// cobrado en la realidad en varias formas de pago distintas a la vez.
+// body: { factura_id, pago_id, numero, cliente, fecha_pago, usuario,
+//         splits: [{importe, metodo_pago, ubicacion, tipo, num_operacion}, ...] }
+// splits vacío = deshacer partición (igual que quitar el método).
+app.post('/api/caja/registro-partido', auth, async (req,res) => {
+  const { factura_id, pago_id, numero, cliente, fecha_pago, usuario, splits } = req.body;
+  if (!pago_id) return res.status(400).json({ ok:false, error:'pago_id requerido' });
+  if (!Array.isArray(splits)) return res.status(400).json({ ok:false, error:'splits requerido (array)' });
+  try {
+    await guardarRegistroOficial({ pagoId: pago_id, facturaId: factura_id, numero, cliente, fechaPago: fecha_pago, usuario, splits });
+    res.json({ ok:true });
+  } catch(e) { res.status(500).json({ ok:false, error: e.message }); }
 });
 // ── CIERRES ───────────────────────────────────────────────────
 app.get('/api/cierres', auth, (req,res) => res.json(cache.cierres));
