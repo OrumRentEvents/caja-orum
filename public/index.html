@@ -433,7 +433,12 @@ async function cargarCobros(){
   document.getElementById('buscador').style.display='none';
   try{
     const[rF,rR,rS,rC,rRet]=await Promise.all([
-      fetch(`${API}/caja/facturas?desde=${desde}&hasta=${hasta}`).then(r=>r.json()),
+      // Antes: ${API}/caja/facturas (Worker de Cloudflare) - agregaba TODOS
+      // los pagos de una factura en 1 sola fila con 1 solo método posible.
+      // Ahora: ruta propia, 1 fila por pago individual de Rentman - permite
+      // asignar forma de pago distinta a cada parte de una factura pagada en
+      // 2+ veces (migración 1 sep 2026).
+      fetch(`/api/caja/facturas?desde=${desde}&hasta=${hasta}`).then(r=>r.json()),
       fetch(`/api/caja/registros`).then(r=>r.json()),
       fetch('/api/saldos').then(r=>r.json()),
       fetch('/api/cierres').then(r=>r.json()),
@@ -695,8 +700,13 @@ async function asignarMetodo(fId,mId,esNC,numOp){
   if(esNC)renderNoConf();else renderCaja();
 }
 async function guardarRegistro(fId,mId,m,f,esNC,numOp){
+  // Facturas oficiales: fId es el pago_id (cada pago de Rentman es su propia
+  // fila desde el cambio de hoy) - factura_id real viene aparte en f.factura_id.
+  // No Confirmados: sigue igual que siempre, fId es el UUID de la confirmación NC.
+  const facturaId=(!esNC && f?.factura_id)?f.factura_id:fId;
+  const pagoId=esNC?null:(f?.pago_id||fId);
   await fetch('/api/caja/registro',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-    factura_id:fId,metodo_pago:mId||null,ubicacion:m?.ubicacion,tipo:m?.tipo,
+    factura_id:facturaId,pago_id:pagoId,metodo_pago:mId||null,ubicacion:m?.ubicacion,tipo:m?.tipo,
     importe:f?.total_pagado||f?.importe||0,cliente:f?.cliente||'',numero:f?.numero||'',
     fecha_pago:f?.fecha_pago||'',es_abrebotellas:esNC,usuario:userInfo?.nombre||'',num_operacion:numOp||''
   })});

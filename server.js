@@ -12,19 +12,27 @@ const app = express();
 const supabase = (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_KEY)
   ? createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
   : null;
-async function supabaseCajaUpsert(row) {
+// Migración 1 sep 2026: una factura puede tener varias filas en caja_registros
+// (una por pago individual de Rentman) - la clave de upsert/delete pasa a ser
+// pago_id para facturas oficiales, y sigue siendo factura_id (su UUID NC) para
+// No Confirmados, que no tiene pago_id real. Ver schema_caja_registros_pago_id.sql.
+async function supabaseCajaUpsert(row, esNC) {
   if (!supabase) return;
   try {
-    const { error } = await supabase.from('caja_registros').upsert(row, { onConflict: 'factura_id' });
+    const onConflict = esNC ? 'factura_id' : 'pago_id';
+    const { error } = await supabase.from('caja_registros').upsert(row, { onConflict });
     if (error) console.error('[Supabase caja upsert]', error.message);
   } catch (e) {
     console.error('[Supabase caja upsert] excepción:', e.message);
   }
 }
-async function supabaseCajaDelete(facturaId) {
+async function supabaseCajaDelete(facturaId, esNC, pagoId) {
   if (!supabase) return;
   try {
-    const { error } = await supabase.from('caja_registros').delete().eq('factura_id', String(facturaId));
+    const q = esNC
+      ? supabase.from('caja_registros').delete().eq('factura_id', String(facturaId))
+      : supabase.from('caja_registros').delete().eq('pago_id', pagoId);
+    const { error } = await q;
     if (error) console.error('[Supabase caja delete]', error.message);
   } catch (e) {
     console.error('[Supabase caja delete] excepción:', e.message);
@@ -145,9 +153,15 @@ async function recargarCache() {
       asGet({ token:RUTAS_TOKEN, action:'get_nc_confs'}),
       asGet({ token:RUTAS_TOKEN, action:'get_retiradas'}).catch(()=>({data:{marbella:[],monda:[],marbella_nc:[],monda_nc:[]}})),
     ]);
-    // Registros: convertir array a objeto keyed por factura_id
+    // Registros: convertir array a objeto keyed por pago_id (facturas
+    // oficiales) o factura_id (No Confirmados, sin pago_id real) - mismo
+    // criterio que /api/caja/registro, ver migración 1 sep 2026.
     cache.registros = {};
-    (rReg.data||[]).forEach(r => { if(r.factura_id!==''&&r.factura_id!=null) cache.registros[String(r.factura_id)] = r; });
+    (rReg.data||[]).forEach(r => {
+      const esNC = !!r.es_abrebotellas;
+      const key = esNC ? r.factura_id : (r.pago_id || r.factura_id);
+      if (key!==''&&key!=null) cache.registros[String(key)] = r;
+    });
     // Ticks
     cache.ticks = rTick.data || {};
     // Cierres
@@ -210,21 +224,25 @@ app.get('/api/caja/registros', auth, (req,res) => {
   res.json(f);
 });
 app.post('/api/caja/registro', auth, async (req,res) => {
-  const { factura_id, metodo_pago, ubicacion, tipo, importe, cliente, numero, fecha_pago, es_abrebotellas, usuario, num_operacion } = req.body;
+  const { factura_id, pago_id, metodo_pago, ubicacion, tipo, importe, cliente, numero, fecha_pago, es_abrebotellas, usuario, num_operacion } = req.body;
   if (!factura_id) return res.status(400).json({error:'factura_id requerido'});
-  const key = String(factura_id);
+  const esNC = !!es_abrebotellas;
+  // Clave de cache/Supabase: pago_id para facturas oficiales (permite varias
+  // filas por la misma factura, una por pago - ver migración 1 sep 2026),
+  // factura_id (su UUID de confirmación NC) para No Confirmados, como siempre.
+  const key = esNC ? String(factura_id) : String(pago_id || factura_id);
   if (metodo_pago===null||metodo_pago===undefined) {
     delete cache.registros[key];
-    supabaseCajaDelete(key).catch(() => {}); // fire-and-forget, no bloquea la respuesta
+    supabaseCajaDelete(factura_id, esNC, pago_id).catch(() => {}); // fire-and-forget, no bloquea la respuesta
   } else {
-    const registro = { factura_id:key, metodo_pago, ubicacion, tipo, importe, cliente, numero, fecha_pago, es_abrebotellas, usuario, num_operacion:num_operacion||'', updated:new Date().toISOString() };
+    const registro = { factura_id:String(factura_id), pago_id:pago_id||null, metodo_pago, ubicacion, tipo, importe, cliente, numero, fecha_pago, es_abrebotellas, usuario, num_operacion:num_operacion||'', updated:new Date().toISOString() };
     cache.registros[key] = registro;
     supabaseCajaUpsert({
-      factura_id: registro.factura_id, metodo_pago: registro.metodo_pago, ubicacion: registro.ubicacion,
+      factura_id: registro.factura_id, pago_id: registro.pago_id, metodo_pago: registro.metodo_pago, ubicacion: registro.ubicacion,
       tipo: registro.tipo, importe: registro.importe, cliente: registro.cliente, numero: registro.numero,
       es_abrebotellas: !!registro.es_abrebotellas, usuario: registro.usuario, num_operacion: registro.num_operacion,
       fecha_pago_raw: registro.fecha_pago, updated_raw: registro.updated
-    }).catch(() => {}); // fire-and-forget, no bloquea la respuesta
+    }, esNC).catch(() => {}); // fire-and-forget, no bloquea la respuesta
   }
   res.json({ok:true});
   asPost({ token:CAJA_TOKEN, action:'set_registro', ...req.body })
@@ -406,6 +424,12 @@ app.get('/api/caja/facturas', auth, async (req,res) => {
 
     const facturas = pagos.map(p => ({
       id: p.pago_id,
+      // pago_id explícito además de "id" (que Caja Diaria reutiliza como
+      // clave de fila) - así al guardar el registro se manda sin ambigüedad,
+      // igual que factura_id (el id de la factura en Rentman, no del pago -
+      // hace falta aparte porque una factura puede tener varios pagos/filas).
+      pago_id: p.pago_id,
+      factura_id: p.factura_id,
       numero: p.numero_factura,
       cliente: clientePorFactura[p.factura_id] || '',
       cliente_id: null, // ya viene resuelto por nombre - no hace falta /api/contacto/:id
