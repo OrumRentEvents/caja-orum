@@ -673,6 +673,27 @@ app.get('/api/registro-cobros', authCobros, async (req, res) => {
       registrosPorNumero[numProyecto].push(r);
     });
 
+    // Igual que registrosPorNumero pero SIN excluir el efectivo - solo para
+    // calcular "Pendiente": el efectivo no cuenta en la columna "Cobrado" (se
+    // audita aparte, en el cuadre diario de Caja), pero si ya está registrado
+    // en Caja Diaria como efectivo, no es dinero que falte por cobrar. Antes
+    // de este cruce, un proyecto pagado 100% en efectivo salía siempre con
+    // Pendiente en rojo aunque ya estuviera todo controlado (caso real:
+    // proyecto #1921, factura 261322 cobrada en efectivo-Monda por María).
+    const registrosConEfectivoPorNumero = {};
+    registros.forEach(r => {
+      if (r.es_abrebotellas) return;
+      if (String(r.tipo || '').toLowerCase() === 'otro') return;
+      const numFactura = parseInt(r.numero);
+      if (isNaN(numFactura)) return;
+      const proyId = proyectoIdPorNumeroFactura[numFactura];
+      if (proyId == null) return;
+      const numProyecto = numeroProyectoPorId[proyId];
+      if (numProyecto == null) return;
+      if (!registrosConEfectivoPorNumero[numProyecto]) registrosConEfectivoPorNumero[numProyecto] = [];
+      registrosConEfectivoPorNumero[numProyecto].push(r);
+    });
+
     const overridesPorProyecto = {};
     (overrides || []).forEach(o => { if (o.numero_proyecto != null) overridesPorProyecto[o.numero_proyecto] = o; });
 
@@ -699,13 +720,24 @@ app.get('/api/registro-cobros', authCobros, async (req, res) => {
       // aquí como antes hacía que ningún proyecto con fianza ya devuelta pudiera
       // marcarse Finalizado.
       const pendienteFianza = estadoFianza === 'pendiente' ? (parseFloat(importeFianza) || 0) : 0;
-      const pendiente = ((parseFloat(importeProyecto) || 0) - (parseFloat(cobrado) || 0)) + pendienteFianza;
+      // "Pendiente" del proyecto: si el override manual de "cobrado" no cubre
+      // ya el importe, comprobamos también el efectivo (registrosConEfectivoPorNumero)
+      // antes de dar por pendiente algo que en realidad ya está cobrado, solo
+      // que en efectivo (caso real: proyecto #1921, factura 261322, cobrada en
+      // efectivo-Monda por María - "Cobrado" la excluye a propósito, pero no
+      // por eso está pendiente de verdad). El propio importe registrado con
+      // override manda si es mayor (el usuario corrigió algo a mano).
+      const regsConEfectivo = registrosConEfectivoPorNumero[numero] || [];
+      const cobradoConEfectivoAuto = Math.round(regsConEfectivo.reduce((s, r) => s + (parseFloat(r.importe) || 0), 0) * 100) / 100;
+      const cobradoParaPendiente = Math.max(parseFloat(cobrado) || 0, cobradoConEfectivoAuto);
+      const pendienteCubiertoPorEfectivo = cobradoConEfectivoAuto > (parseFloat(cobrado) || 0) + 0.01;
+      const pendienteProyecto = (parseFloat(importeProyecto) || 0) - cobradoParaPendiente;
+      const pendiente = pendienteProyecto + pendienteFianza;
       const finalizado = pendiente <= 0.01 && (estadoFianza === 'devuelta' || estadoFianza === 'no_aplica');
       // Aviso "sin registrar en Caja": alguna factura del proyecto está pagada
       // en Rentman (esta_pagada=true) pero no tiene NINGÚN registro en Caja
-      // Diaria - el dinero ya entró, solo falta que alguien lo cuadre aquí.
-      // Mismo caso que dio origen a esto: proyecto #1921 (factura 261322,
-      // pagada 10/08/2026 en Rentman, nunca registrada en Caja).
+      // Diaria (de ningún tipo, ni siquiera efectivo) - el dinero ya entró,
+      // solo falta que alguien lo cuadre aquí.
       const facturasPagadas = (p && facturasPagadasPorProyecto[p.id]) || [];
       const sinRegistroCaja = facturasPagadas.some(numFact => !facturasConAlgunRegistro.has(numFact));
       return {
@@ -729,6 +761,8 @@ app.get('/api/registro-cobros', authCobros, async (req, res) => {
         notas: ov ? ov.notas : null,
         es_manual: false,
         finalizado: finalizado,
+        pendiente: Math.round(pendiente * 100) / 100,
+        pendiente_cubierto_efectivo: pendienteCubiertoPorEfectivo,
         sin_registro_caja: sinRegistroCaja,
         actualizado_por: ov ? ov.actualizado_por : null,
         actualizado_en: ov ? ov.actualizado_en : null
@@ -738,15 +772,21 @@ app.get('/api/registro-cobros', authCobros, async (req, res) => {
     // Filas manuales sueltas (ingresos sin identificar todavía, numero_proyecto null)
     // finalizado: false siempre - por definición siguen "por casar" con un
     // proyecto, así que deben verse tanto en Vigentes como en Todos.
-    const manuales = (overrides || []).filter(o => o.numero_proyecto == null).map(o => ({
-      id: o.id, numero_proyecto: null, cliente: o.cliente, importe_proyecto: o.importe_proyecto || 0,
-      importe_fianza: o.importe_fianza || 0, cobrado: o.cobrado || 0, estado_fianza: o.estado_fianza,
-      metodo_devolucion: o.metodo_devolucion, numero_devolucion_tpv: o.numero_devolucion_tpv,
-      forma_pago: o.forma_pago_manual || null, num_operacion_pago: null, fecha_pago: null,
-      fecha_evento: o.fecha_cobro || null,
-      notas: o.notas, es_manual: true, finalizado: false, sin_registro_caja: false,
-      actualizado_por: o.actualizado_por, actualizado_en: o.actualizado_en
-    }));
+    const manuales = (overrides || []).filter(o => o.numero_proyecto == null).map(o => {
+      const manualPendienteFianza = o.estado_fianza === 'pendiente' ? (parseFloat(o.importe_fianza) || 0) : 0;
+      const manualPendiente = ((parseFloat(o.importe_proyecto) || 0) - (parseFloat(o.cobrado) || 0)) + manualPendienteFianza;
+      return {
+        id: o.id, numero_proyecto: null, cliente: o.cliente, importe_proyecto: o.importe_proyecto || 0,
+        importe_fianza: o.importe_fianza || 0, cobrado: o.cobrado || 0, estado_fianza: o.estado_fianza,
+        metodo_devolucion: o.metodo_devolucion, numero_devolucion_tpv: o.numero_devolucion_tpv,
+        forma_pago: o.forma_pago_manual || null, num_operacion_pago: null, fecha_pago: null,
+        fecha_evento: o.fecha_cobro || null,
+        notas: o.notas, es_manual: true, finalizado: false,
+        pendiente: Math.round(manualPendiente * 100) / 100, pendiente_cubierto_efectivo: false,
+        sin_registro_caja: false,
+        actualizado_por: o.actualizado_por, actualizado_en: o.actualizado_en
+      };
+    });
 
     const totalSinRegistro = filas.filter(f => f.sin_registro_caja).length;
     res.json({ ok: true, filas: filas.concat(manuales), total_sin_registro_caja: totalSinRegistro });

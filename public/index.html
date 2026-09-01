@@ -1915,11 +1915,11 @@ function renderCobros(){
         </tr></thead>
         <tbody>${lista.map(f=>{
           const total=(parseFloat(f.importe_proyecto)||0)+(parseFloat(f.importe_fianza)||0);
-          // Igual que en server.js: la fianza solo cuenta como pendiente mientras
-          // su estado siga siendo 'pendiente' (cobrada/devuelta/no_aplica ya no
-          // dejan nada abierto que cobrar, aunque falte devolverla).
-          const pendienteFianza=f.estado_fianza==='pendiente'?(parseFloat(f.importe_fianza)||0):0;
-          const pend=((parseFloat(f.importe_proyecto)||0)-(parseFloat(f.cobrado)||0))+pendienteFianza;
+          // "Pendiente" ya viene calculado del servidor (cruza también el
+          // efectivo registrado en Caja Diaria, que "Cobrado" excluye a
+          // propósito - si no, un proyecto pagado en efectivo se veía
+          // siempre en rojo aunque ya estuviera todo controlado).
+          const pend=parseFloat(f.pendiente)||0;
           return `<tr>
             <td>${f.es_manual?'<span class="badge badge-orange">Manual</span>':`<strong>#${f.numero_proyecto}</strong> <button onclick="copiarNumeroProyecto(this,'${f.numero_proyecto}')" title="Copiar número" style="border:none;background:none;cursor:pointer;padding:2px;color:var(--gray);font-size:12px;vertical-align:middle">📋</button>`}</td>
             <td>${f.cliente||'—'}</td>
@@ -1928,7 +1928,7 @@ function renderCobros(){
             <td>${fmt(f.importe_fianza)}</td>
             <td><strong>${fmt(total)}</strong></td>
             <td>${fmt(f.cobrado)}</td>
-            <td style="color:${pend>0.01?'var(--red)':'#16a34a'};font-weight:600">${fmt(pend)}${f.sin_registro_caja?' <span title="Pagada en Rentman, falta registrar en Caja" style="cursor:help">⚠️</span>':''}</td>
+            <td style="color:${pend>0.01?'var(--red)':'#16a34a'};font-weight:600">${fmt(pend)}${f.sin_registro_caja?' <span title="Pagada en Rentman, falta registrar en Caja" style="cursor:help">⚠️</span>':''}${f.pendiente_cubierto_efectivo?' <span title="Ya cobrado en efectivo (no cuenta en la columna Cobrado, se audita aparte en Caja Diaria)" style="cursor:help;font-size:11px;font-weight:400;color:var(--gray)">💵</span>':''}</td>
             <td>${badgeEstadoFianza(f.estado_fianza)}</td>
             <td style="font-size:12px">${f.forma_pago?`${f.forma_pago}${f.num_operacion_pago?`<br><span style="color:var(--gray)">Op. ${f.num_operacion_pago}</span>`:''}`:'<span style="color:var(--gray)">—</span>'}</td>
             <td style="font-size:12px">${f.numero_devolucion_tpv?`${f.metodo_devolucion||''}<br><strong>Op. ${f.numero_devolucion_tpv}</strong>`:(f.metodo_devolucion||'—')}</td>
