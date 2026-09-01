@@ -1899,7 +1899,11 @@ function renderCobros(){
         </tr></thead>
         <tbody>${lista.map(f=>{
           const total=(parseFloat(f.importe_proyecto)||0)+(parseFloat(f.importe_fianza)||0);
-          const pend=total-(parseFloat(f.cobrado)||0);
+          // Igual que en server.js: la fianza solo cuenta como pendiente mientras
+          // su estado siga siendo 'pendiente' (cobrada/devuelta/no_aplica ya no
+          // dejan nada abierto que cobrar, aunque falte devolverla).
+          const pendienteFianza=f.estado_fianza==='pendiente'?(parseFloat(f.importe_fianza)||0):0;
+          const pend=((parseFloat(f.importe_proyecto)||0)-(parseFloat(f.cobrado)||0))+pendienteFianza;
           return `<tr>
             <td>${f.es_manual?'<span class="badge badge-orange">Manual</span>':`<strong>#${f.numero_proyecto}</strong> <button onclick="copiarNumeroProyecto(this,'${f.numero_proyecto}')" title="Copiar número" style="border:none;background:none;cursor:pointer;padding:2px;color:var(--gray);font-size:12px;vertical-align:middle">📋</button>`}</td>
             <td>${f.cliente||'—'}</td>

@@ -674,7 +674,15 @@ app.get('/api/registro-cobros', authCobros, async (req, res) => {
       const estadoFianza = ov && ov.estado_fianza ? ov.estado_fianza : (f.estado_id === '2' ? 'devuelta' : f.estado_id === '1' ? 'cobrada' : 'pendiente');
       // "Finalizado" = ya no hace falta seguirlo: todo cobrado Y la fianza
       // devuelta (o no aplica). Se usa para el selector Vigentes/Finalizados/Todos.
-      const pendiente = (parseFloat(importeProyecto) || 0) + (parseFloat(importeFianza) || 0) - (parseFloat(cobrado) || 0);
+      // La fianza solo cuenta como "pendiente de cobrar" mientras su estado siga
+      // siendo 'pendiente' - una vez 'cobrada' ya está en poder de ORUM (falta
+      // devolverla, no cobrarla; eso ya se refleja aparte en "Fianzas por devolver"),
+      // y 'devuelta'/'no_aplica' no dejan nada abierto. `cobrado` (de Caja Diaria)
+      // nunca incluye el importe de la fianza, así que sumar importeFianza entero
+      // aquí como antes hacía que ningún proyecto con fianza ya devuelta pudiera
+      // marcarse Finalizado.
+      const pendienteFianza = estadoFianza === 'pendiente' ? (parseFloat(importeFianza) || 0) : 0;
+      const pendiente = ((parseFloat(importeProyecto) || 0) - (parseFloat(cobrado) || 0)) + pendienteFianza;
       const finalizado = pendiente <= 0.01 && (estadoFianza === 'devuelta' || estadoFianza === 'no_aplica');
       return {
         numero_proyecto: numero,
