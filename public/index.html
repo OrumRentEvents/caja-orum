@@ -645,6 +645,34 @@ function getFiltered(){
 }
 function setSort(c){sortCol===c?sortDir*=-1:(sortCol=c,sortDir=1);renderTabla();}
 function si(c){return sortCol!==c?'↕':sortDir===1?'↑':'↓';}
+// Exporta EXACTAMENTE lo que hay en pantalla en ese momento (mismo filtro de
+// método + buscador + orden que getFiltered() usa para pintar la tabla) - no
+// un volcado aparte de "todo", así que si filtras "❓ Sin método" antes de
+// exportar, el CSV trae solo esas filas. Separador ";" y BOM UTF-8 para que
+// Excel en español lo abra bien de un doble clic (decimales con coma, tildes
+// correctas) sin tener que importar manualmente.
+function exportarFacturasCSV(){
+  const l=getFiltered();
+  if(l.length===0){alert('No hay filas que exportar con el filtro actual.');return;}
+  const cab=['Nº Factura','Cliente','Nº Proyecto','Fecha Pago','Importe (€)','Método','Nº Operación'];
+  const filas=l.map(f=>{
+    const reg=estado[String(f.id)];
+    const m=reg?(METODOS.find(x=>x.id===reg.metodo)||{}):{};
+    const importe=(f.total_pagado||f.importe||0);
+    const csvNum=(String(importe).replace('.',','));
+    const esc=v=>'"'+String(v==null?'':v).replace(/"/g,'""')+'"';
+    return [esc(f.numero),esc(f.cliente||''),esc(f.proyecto_numero||''),esc(f.fecha_pago||''),csvNum,esc(m.nombre||'Sin método'),esc(reg?.numOp||'')].join(';');
+  });
+  const csv=cab.join(';')+'\r\n'+filas.join('\r\n');
+  const blob=new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8;'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  const etiquetaFiltro=cajaFiltroMetodo&&cajaFiltroMetodo!=='todos'?'_'+cajaFiltroMetodo:'';
+  a.href=url;
+  a.download=`caja_facturas${etiquetaFiltro}_${document.getElementById('fecha-desde').value}_a_${document.getElementById('fecha-hasta').value}.csv`;
+  document.body.appendChild(a);a.click();document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
 function renderTabla(){
   const w=document.getElementById('tabla-wrapper');if(!w)return;
   const l=getFiltered();
@@ -652,6 +680,7 @@ function renderTabla(){
   w.innerHTML=`<div class="tabla-section">
     <div class="tabla-header">
       <div class="tabla-title">🧾 Facturas Oficiales <span class="badge badge-gray">${l.length}</span>${sin>0?`<span class="badge badge-red">${sin} sin asignar</span>`:''}</div>
+      <button onclick="exportarFacturasCSV()" style="padding:6px 14px;border-radius:8px;border:1.5px solid #2563eb;background:#eff6ff;color:#2563eb;font-size:12px;font-weight:600;cursor:pointer">📥 Exportar</button>
     </div>
     ${l.length===0?'<div class="empty-state"><div class="icon">📄</div><p>No hay facturas en este período</p></div>':`
     <div class="tabla-scroll"><table>
