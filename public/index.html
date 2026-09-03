@@ -104,6 +104,7 @@ tr:hover td{background:var(--gray-bg)}
 .btn-m.sel-tpv-monda{background:#eff6ff;border-color:#1d4ed8;color:#1d4ed8}
 .btn-m.sel-transferencia{background:var(--purple-bg);border-color:var(--purple);color:var(--purple)}
 .btn-m.sel-factura0{background:var(--gray-bg);border-color:var(--gray);color:var(--gray)}
+.btn-m.sel-rectificativa{background:#fff7ed;border-color:#f59e0b;color:#b45309}
 .numop{padding:4px 8px;border:1.5px solid var(--blue-brd);border-radius:6px;font-size:12px;width:120px;outline:none;background:var(--blue-bg)}
 .numop.err{border-color:var(--red);background:var(--red-bg)}
 .tick-circle{width:28px;height:28px;border-radius:50%;border:2px solid var(--gray-light);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;transition:all .2s;background:var(--white)}
@@ -360,6 +361,11 @@ const METODOS = [
   {id:'tpv-monda',label:'💳 TPV Monda',ubicacion:'monda',tipo:'tpv',nombre:'TPV Monda',esTpv:true},
   {id:'transferencia',label:'🏦 Transf.',ubicacion:null,tipo:'transferencia',nombre:'Transferencia Bancaria',esTpv:false},
   {id:'factura0',label:'📄 Factura 0€',ubicacion:null,tipo:'otro',nombre:'Factura 0€',esTpv:false},
+  // Notas de abono/rectificativas (importe negativo, factura anulada o
+  // corregida) - no es dinero cobrado de verdad, mismo tipo:'otro' que
+  // Factura 0€ para que quede excluida de Cobrado/Pendiente igual que esa,
+  // sin tener que tocar ninguna de las fórmulas que ya filtran por tipo.
+  {id:'rectificativa',label:'🔄 Rectificativa',ubicacion:null,tipo:'otro',nombre:'Factura Rectificativa',esTpv:false},
   // Fianza aplicada al pago (Rentman la marca "de FIANZA" en vez de un pago
   // nuevo) - mismo tipo/ubicación que su equivalente normal a propósito, así
   // calcTotales() ya la suma bien a Efectivo/TPV/Transferencia de cada caja
@@ -586,6 +592,7 @@ function renderFiltrosCaja(){
     ['tpv-monda','💳 TPV Monda'],
     ['transferencia','🏦 Transf.'],
     ['factura0','📄 Factura 0€'],
+    ['rectificativa','🔄 Rectificativa'],
     ['sin-metodo','❓ Sin método'],
   ];
   let html='<span style="font-size:13px;font-weight:600;color:#374151;margin-right:4px">FILTRAR:</span>';
@@ -1538,13 +1545,13 @@ function setContabSort(c){contabSortCol===c?contabSortDirC*=-1:(contabSortCol=c,
 let contabSortCol='fecha_pago',contabSortDirC=1;
 function sc(c){return contabSortCol!==c?'↕':contabSortDirC===1?'↑':'↓';}
 // Estado de filtros contabilidad (persiste entre renders)
-let contabFiltros = new Set(['efectivo-marbella','tpv-marbella','efectivo-monda','tpv-monda','transferencia','factura0','sin-metodo']);
+let contabFiltros = new Set(['efectivo-marbella','tpv-marbella','efectivo-monda','tpv-monda','transferencia','factura0','rectificativa','sin-metodo']);
 function toggleFiltroContab(id){
   if(contabFiltros.has(id)) contabFiltros.delete(id); else contabFiltros.add(id);
   renderContab();
 }
 function selTodosFiltros(sel){
-  const todos=['efectivo-marbella','tpv-marbella','efectivo-monda','tpv-monda','transferencia','factura0','sin-metodo'];
+  const todos=['efectivo-marbella','tpv-marbella','efectivo-monda','tpv-monda','transferencia','factura0','rectificativa','sin-metodo'];
   if(sel) todos.forEach(x=>contabFiltros.add(x)); else contabFiltros.clear();
   renderContab();
 }
@@ -1566,6 +1573,7 @@ function renderContab(){
     {id:'tpv-monda',         label:'💳 TPV Monda',    color:'#1d4ed8'},
     {id:'transferencia',     label:'🏦 Transferencia',color:'#7c3aed'},
     {id:'factura0',          label:'📄 Factura 0€',   color:'#94a3b8'},
+    {id:'rectificativa',     label:'🔄 Rectificativa',color:'#f59e0b'},
     {id:'sin-metodo',        label:'❓ Sin método',   color:'#cbd5e1'},
   ];
   const resumen = GRUPOS.map(g => {
@@ -1665,7 +1673,7 @@ async function cargarHistorial(){
     const METODO_NOMBRES = {
       'efectivo-marbella':'Ef. Marbella','efectivo-monda':'Ef. Monda',
       'tpv-marbella':'TPV Marbella','tpv-monda':'TPV Monda',
-      'transferencia':'Transferencia','factura0':'Factura 0€'
+      'transferencia':'Transferencia','factura0':'Factura 0€','rectificativa':'Rectificativa'
     };
     function histDetalle(v) {
       const d = typeof v.datos === 'string' ? (() => { try { return JSON.parse(v.datos); } catch(e) { return {}; } })() : (v.datos||{});
