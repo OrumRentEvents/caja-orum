@@ -2125,7 +2125,10 @@ function renderCobros(){
             <td style="font-size:12px">${f.forma_pago?`${f.forma_pago}${f.num_operacion_pago?`<br><span style="color:var(--gray)">Op. ${f.num_operacion_pago}</span>`:''}`:'<span style="color:var(--gray)">—</span>'}</td>
             <td style="font-size:12px">${f.numero_devolucion_tpv?`${f.metodo_devolucion||''}<br><strong>Op. ${f.numero_devolucion_tpv}</strong>`:(f.metodo_devolucion||'—')}</td>
             <td style="max-width:160px;font-size:12px;color:var(--gray)">${(f.notas||'').substring(0,60)}</td>
-            <td style="white-space:nowrap"><button data-editar-cobro="${claveCobro(f)}" style="padding:6px 10px;border:1px solid var(--gray-light);background:var(--white);border-radius:6px;font-size:12px;cursor:pointer">✏️ Editar</button></td>
+            <td style="white-space:nowrap">
+              <button data-editar-cobro="${claveCobro(f)}" style="padding:6px 10px;border:1px solid var(--gray-light);background:var(--white);border-radius:6px;font-size:12px;cursor:pointer">✏️ Editar</button>
+              ${f.es_manual?`<button data-buscar-cobro="${f.id}" style="padding:6px 10px;border:1px solid #7c3aed;background:#f5f3ff;color:#7c3aed;border-radius:6px;font-size:12px;cursor:pointer;margin-top:4px">🔍 Buscar</button>`:''}
+            </td>
           </tr>`;
         }).join('')}</tbody>
       </table></div>`}
@@ -2137,7 +2140,76 @@ document.addEventListener('click', function(e){
   if(btn){ abrirEditarCobro(btn.dataset.editarCobro); return; }
   const h=e.target.closest('[data-historial-cobro]');
   if(h){ abrirHistorialCobro(h.dataset.historialCobro); return; }
+  const b=e.target.closest('[data-buscar-cobro]');
+  if(b){ abrirBuscarCobro(b.dataset.buscarCobro); return; }
+  const asig=e.target.closest('[data-asignar-sugerencia]');
+  if(asig){ asignarSugerencia(asig); return; }
 });
+const ETIQUETA_TIPO_SUGERENCIA={
+  factura_exacta:'Factura cobrada por ese importe exacto',
+  factura_pendiente:'Factura impagada con ese importe pendiente',
+  combinacion_facturas:'Suma de varias facturas impagadas del mismo cliente',
+  fianza:'Fianza con ese importe'
+};
+async function abrirBuscarCobro(idManual){
+  document.getElementById('modal-fianza-title').textContent='🔍 Buscar coincidencia';
+  document.getElementById('modal-fianza-body').innerHTML='<div class="loading"><div class="spinner"></div><p>Cruzando importe contra Rentman...</p></div>';
+  document.getElementById('modal-fianza').style.display='flex';
+  try{
+    const r=await fetch('/api/registro-cobros/'+idManual+'/sugerencias').then(r=>r.json());
+    if(!r.ok){ document.getElementById('modal-fianza-body').innerHTML='<p style="color:var(--red)">Error: '+(r.error||'')+'</p>'; return; }
+    const sug=r.sugerencias||[];
+    if(sug.length===0){
+      document.getElementById('modal-fianza-body').innerHTML=`
+        <p style="color:var(--gray)">Ningún proyecto de Rentman cuadra con ${fmt(r.importe_buscado)} — ni por factura suelta, ni por combinación de impagos del mismo cliente, ni por fianza.</p>
+        <p style="color:var(--gray);font-size:12px">Puede que sea un ingreso ajeno a un proyecto de Rentman (reembolso, subvención...) o que el importe/fecha registrados no coincidan exactamente. Revísalo a mano.</p>
+        <div class="form-actions"><button onclick="document.getElementById('modal-fianza').style.display='none'" style="flex:1;padding:11px;border:1.5px solid var(--gray-light);background:var(--white);border-radius:8px;font-size:14px;cursor:pointer">Cerrar</button></div>`;
+      return;
+    }
+    const badgeConfianza={alta:'badge-green',media:'badge-orange',baja:'badge-gray'};
+    document.getElementById('modal-fianza-body').innerHTML=`
+      <p style="color:var(--gray);font-size:12px;margin-bottom:10px">Buscando ${fmt(r.importe_buscado)} · ${sug.length} coincidencia${sug.length!==1?'s':''} posible${sug.length!==1?'s':''}, de más a menos fiable.</p>
+      <div style="display:flex;flex-direction:column;gap:8px;max-height:55vh;overflow-y:auto">
+      ${sug.map((s,i)=>`
+        <div style="border:1px solid var(--gray-light);border-radius:8px;padding:10px 12px">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+            <div>
+              <span class="badge ${badgeConfianza[s.confianza]||'badge-gray'}">${s.confianza}</span>
+              <strong style="margin-left:6px">${s.numero_proyecto!=null?'Proyecto #'+s.numero_proyecto:'Varios proyectos'}</strong>
+              ${s.cliente?' · '+s.cliente:''}
+            </div>
+            <strong>${fmt(s.importe)}</strong>
+          </div>
+          <div style="font-size:12px;color:var(--gray);margin-top:4px">${ETIQUETA_TIPO_SUGERENCIA[s.tipo]||s.tipo}
+            ${s.numeros_factura?' · Facturas '+s.numeros_factura.join(', '):''}
+            ${s.numero_factura?' · Factura '+s.numero_factura:''}
+            ${s.fecha_evento?' · Evento '+fechaDMY(s.fecha_evento.split('/').reverse().join('-')):''}
+            ${s.dias_desde_evento!=null?' · '+s.dias_desde_evento+' día(s) de diferencia':''}
+          </div>
+          ${s.numero_proyecto!=null?`<button data-asignar-sugerencia data-id-manual="${idManual}" data-numero-proyecto="${s.numero_proyecto}" data-cliente="${(s.cliente||'').replace(/"/g,'&quot;')}" style="margin-top:8px;padding:6px 12px;background:#7c3aed;color:#fff;border:none;border-radius:6px;font-size:12px;cursor:pointer">✓ Asignar a este proyecto</button>`:''}
+        </div>
+      `).join('')}
+      </div>
+      <div class="form-actions"><button onclick="document.getElementById('modal-fianza').style.display='none'" style="flex:1;padding:11px;border:1.5px solid var(--gray-light);background:var(--white);border-radius:8px;font-size:14px;cursor:pointer">Cerrar</button></div>`;
+  }catch(err){
+    document.getElementById('modal-fianza-body').innerHTML='<p style="color:var(--red)">Error de conexión.</p>';
+  }
+}
+async function asignarSugerencia(btn){
+  const idManual=btn.dataset.idManual, numeroProyecto=btn.dataset.numeroProyecto, cliente=btn.dataset.cliente;
+  if(!confirm('¿Asignar este cobro al proyecto #'+numeroProyecto+(cliente?' ('+cliente+')':'')+'?')) return;
+  btn.disabled=true; btn.textContent='Asignando...';
+  try{
+    const body={numero_proyecto:numeroProyecto};
+    if(cliente) body.cliente=cliente;
+    const r=await fetch('/api/registro-cobros/id-'+idManual,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(r=>r.json());
+    if(!r.ok){ alert('Error: '+(r.error||'')); btn.disabled=false; btn.textContent='✓ Asignar a este proyecto'; return; }
+    document.getElementById('modal-fianza').style.display='none';
+    await cargarRegistroCobros();
+  }catch(err){
+    alert('Error de conexión.'); btn.disabled=false; btn.textContent='✓ Asignar a este proyecto';
+  }
+}
 function abrirEditarCobro(clave){
   const f=cobrosData.find(x=>claveCobro(x)===clave);
   if(!f) return;

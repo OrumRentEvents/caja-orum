@@ -930,6 +930,164 @@ app.post('/api/registro-cobros/manual', authCobros, async (req, res) => {
   } catch(e) { res.status(500).json({ ok: false, error: e.message }); }
 });
 
+// (9 sep 2026) "Buscar coincidencia" para un registro manual sin identificar:
+// cruza su importe (y, de forma más laxa, la fecha) contra Rentman vía
+// Supabase - misma técnica que se usó a mano para localizar 3 cobros reales
+// el 9 sep 2026 (una factura exacta, una combinación de facturas impagadas
+// del mismo cliente, y una fianza pendiente). Todo lee de Supabase (facturas/
+// proyectos), no llama a Rentman en directo - más rápido y sin límite de tasa.
+const FIANZA_METODO_POR_TEXTO = [
+  [/transfer/i, '0'], [/efectivo.*marbella/i, '3'], [/efectivo.*monda/i, '4'],
+  [/tpv.*marbella/i, '6'], [/tpv.*monda/i, '7'], [/tpv/i, '5']
+];
+function metodoFianzaProbable(formaPagoManual) {
+  const txt = String(formaPagoManual || '');
+  const hit = FIANZA_METODO_POR_TEXTO.find(([re]) => re.test(txt));
+  return hit ? hit[1] : null;
+}
+app.get('/api/registro-cobros/:idManual/sugerencias', authCobros, async (req, res) => {
+  try {
+    if (!supabase) return res.status(500).json({ ok: false, error: 'Supabase no configurado' });
+    const idManual = parseInt(req.params.idManual);
+    const { data: fila, error: errFila } = await supabase.from('caja_registro_cobros').select('*').eq('id', idManual).maybeSingle();
+    if (errFila) throw errFila;
+    if (!fila || !fila.es_manual || fila.numero_proyecto != null) {
+      return res.status(400).json({ ok: false, error: 'No es un registro manual sin asignar.' });
+    }
+    const importe = Math.round((parseFloat(fila.cobrado) || parseFloat(fila.importe_proyecto) || 0) * 100) / 100;
+    if (importe <= 0) return res.json({ ok: true, sugerencias: [] });
+    const TOL = 0.02;
+    const metodoProbable = metodoFianzaProbable(fila.forma_pago_manual);
+
+    const sugerencias = [];
+
+    // Todas las facturas (paginado - la tabla ya supera el límite por defecto
+    // de 1000 filas de una sola query). Se filtra en JS: es más simple y
+    // seguro que anidar .or()/.lte() para dos campos distintos a la vez.
+    let candidatasFactura = [];
+    {
+      let off = 0;
+      while (true) {
+        const { data, error } = await supabase.from('facturas')
+          .select('proyecto_id,numero,importe_con_iva,pendiente_cobro,esta_pagada,cliente')
+          .range(off, off + 999);
+        if (error) throw error;
+        candidatasFactura = candidatasFactura.concat(data || []);
+        if (!data || data.length < 1000) break;
+        off += 1000;
+      }
+    }
+
+    // 1) Factura exacta (importe con IVA, o pendiente de cobro si es parcial)
+    candidatasFactura.forEach(f => {
+      const porTotal = Math.abs((parseFloat(f.importe_con_iva) || 0) - importe) < TOL;
+      const porPendiente = !f.esta_pagada && Math.abs((parseFloat(f.pendiente_cobro) || 0) - importe) < TOL;
+      if (porTotal || porPendiente) {
+        sugerencias.push({
+          tipo: porTotal && f.esta_pagada ? 'factura_exacta' : 'factura_pendiente',
+          proyecto_id: f.proyecto_id, numero_factura: f.numero, cliente: f.cliente,
+          importe: porTotal ? f.importe_con_iva : f.pendiente_cobro,
+          confianza: porTotal && f.esta_pagada ? 'alta' : 'media'
+        });
+      }
+    });
+
+    // 2) Combinación de 2-4 facturas impagadas del mismo cliente que sumen el importe
+    const impagadas = candidatasFactura.filter(f => !f.esta_pagada);
+    if (impagadas.length) {
+      const porCliente = {};
+      impagadas.forEach(f => {
+        const c = f.cliente || '(?)';
+        (porCliente[c] = porCliente[c] || []).push(f);
+      });
+      Object.keys(porCliente).forEach(cliente => {
+        const facs = porCliente[cliente];
+        if (facs.length < 2 || facs.length > 10) return;
+        const n = facs.length;
+        for (let r = 2; r <= Math.min(n, 4); r++) {
+          combinaciones(n, r).forEach(combo => {
+            const suma = Math.round(combo.reduce((s, i) => s + (parseFloat(facs[i].pendiente_cobro) || 0), 0) * 100) / 100;
+            if (Math.abs(suma - importe) < TOL) {
+              sugerencias.push({
+                tipo: 'combinacion_facturas', cliente,
+                proyecto_id: facs[combo[0]].proyecto_id, // referencia, puede haber varios proyectos
+                proyectos_ids: [...new Set(combo.map(i => facs[i].proyecto_id))],
+                numeros_factura: combo.map(i => facs[i].numero),
+                importe: suma, confianza: 'media'
+              });
+            }
+          });
+        }
+      });
+    }
+
+    // 3) Fianza (importe típico, cualquier estado - Pendiente incluida)
+    const { data: fianzasCandidatas } = await supabase
+      .from('proyectos')
+      .select('id,numero,cliente,estado,importe_fianza,estado_fianza_id,forma_pago_fianza_id,entrega_fecha_raw')
+      .gte('importe_fianza', importe - TOL).lte('importe_fianza', importe + TOL);
+    (fianzasCandidatas || []).forEach(p => {
+      const coincideMetodo = metodoProbable && String(p.forma_pago_fianza_id) === metodoProbable;
+      sugerencias.push({
+        tipo: 'fianza', proyecto_id: p.id, numero_proyecto: p.numero, cliente: p.cliente,
+        estado_proyecto: p.estado, fecha_evento: p.entrega_fecha_raw,
+        estado_fianza_id: p.estado_fianza_id, importe: p.importe_fianza,
+        confianza: coincideMetodo ? 'media' : 'baja'
+      });
+    });
+
+    // Resolver proyecto_id -> numero/cliente/estado/fecha para las de factura
+    // (fianza ya trae numero_proyecto directo de "proyectos").
+    const idsProyecto = [...new Set(sugerencias.filter(s => s.proyecto_id != null && s.tipo !== 'fianza').map(s => s.proyecto_id))];
+    let proyectosPorId = {};
+    if (idsProyecto.length) {
+      const { data: proys } = await supabase.from('proyectos').select('id,numero,cliente,estado,entrega_fecha_raw').in('id', idsProyecto);
+      (proys || []).forEach(p => { proyectosPorId[p.id] = p; });
+    }
+    sugerencias.forEach(s => {
+      if (s.tipo === 'fianza') return;
+      const p = proyectosPorId[s.proyecto_id];
+      if (p) { s.numero_proyecto = p.numero; s.cliente = s.cliente || p.cliente; s.estado_proyecto = p.estado; s.fecha_evento = p.entrega_fecha_raw; }
+    });
+
+    // Fecha del cobro cerca de la fecha del evento sube la confianza de alta -> alta+ (visual),
+    // y de media -> alta cuando además el importe es exacto y único.
+    const fechaCobro = fila.fecha_cobro ? new Date(fila.fecha_cobro) : null;
+    sugerencias.forEach(s => {
+      if (!fechaCobro || !s.fecha_evento) return;
+      const [d, m, y] = String(s.fecha_evento).split('/');
+      if (!y) return;
+      const fEvento = new Date(y, m - 1, d);
+      const dias = Math.abs((fechaCobro - fEvento) / (1000 * 60 * 60 * 24));
+      s.dias_desde_evento = Math.round(dias);
+    });
+
+    // Orden: alta primero, luego media, luego baja; dentro de cada grupo, más cerca en fecha primero.
+    const pesoConfianza = { alta: 0, media: 1, baja: 2 };
+    sugerencias.sort((a, b) => {
+      const pa = pesoConfianza[a.confianza] ?? 3, pb = pesoConfianza[b.confianza] ?? 3;
+      if (pa !== pb) return pa - pb;
+      const da = a.dias_desde_evento ?? 9999, db = b.dias_desde_evento ?? 9999;
+      return da - db;
+    });
+
+    res.json({ ok: true, importe_buscado: importe, sugerencias: sugerencias.slice(0, 15) });
+  } catch (e) {
+    console.error('Error en /api/registro-cobros/:idManual/sugerencias:', e);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+function combinaciones(n, r) {
+  const resultado = [];
+  const combo = [];
+  function backtrack(inicio) {
+    if (combo.length === r) { resultado.push([...combo]); return; }
+    for (let i = inicio; i < n; i++) { combo.push(i); backtrack(i + 1); combo.pop(); }
+  }
+  backtrack(0);
+  return resultado;
+}
+
 app.post('/api/registro-cobros/:clave', authCobros, async (req, res) => {
   try {
     if (!supabase) return res.status(500).json({ ok: false, error: 'Supabase no configurado' });
@@ -938,7 +1096,12 @@ app.post('/api/registro-cobros/:clave', authCobros, async (req, res) => {
     const numeroProyecto = esManual ? null : parseInt(req.params.clave);
     const idManual = esManual ? parseInt(req.params.clave.replace('id-', '')) : null;
 
-    const camposEditables = ['cliente', 'importe_proyecto', 'importe_fianza', 'cobrado', 'estado_fianza', 'metodo_devolucion', 'numero_devolucion_tpv', 'notas', 'fecha_cobro', 'forma_pago_manual'];
+    // numero_proyecto incluido aquí (9 sep 2026) para que "Asignar a este
+    // proyecto" desde las sugerencias de búsqueda pueda reutilizar este mismo
+    // endpoint - una fila manual con numero_proyecto asignado deja de salir
+    // en "manuales" (GET de arriba) y pasa a fusionarse con la fila de ese
+    // proyecto vía overridesPorProyecto, sin tocar nada más.
+    const camposEditables = ['cliente', 'importe_proyecto', 'importe_fianza', 'cobrado', 'estado_fianza', 'metodo_devolucion', 'numero_devolucion_tpv', 'notas', 'fecha_cobro', 'forma_pago_manual', 'numero_proyecto'];
     const cambios = {};
     camposEditables.forEach(c => { if (req.body[c] !== undefined) cambios[c] = req.body[c]; });
 
