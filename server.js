@@ -711,7 +711,33 @@ app.get('/api/registro-cobros', authCobros, async (req, res) => {
       if (p.es_abrebotellas) return false;
       return PIPELINE_COMERCIAL.indexOf(String(p.estado || '').toLowerCase()) === -1;
     });
-    const proyectoIds = numerosConfirmados.map(n => proyectoPorNumero[n].id).filter(x => x != null);
+
+    // (11 sep 2026) Proyectos con un registro manual ya asignado
+    // (caja_registro_cobros.numero_proyecto) que no salen en `fianzas` -
+    // porque el proyecto no tiene fianza en Rentman, o su fianza no pasa el
+    // filtro de fetchFianzasRentman() (importe/estado). Sin esto, un registro
+    // manual asignado a uno de estos proyectos desaparecía de la pantalla por
+    // completo: dejaba de contar como "manual" (ya tiene numero_proyecto) pero
+    // tampoco salía como fila real (el proyecto no estaba en `fianzas`).
+    const numerosSoloOverride = [...new Set((overrides || []).map(o => o.numero_proyecto).filter(n => n != null))]
+      .filter(n => numerosConfirmados.indexOf(n) === -1);
+    if (numerosSoloOverride.length) {
+      const { data: proyExtra, error: errProyExtra } = await supabase.from('proyectos')
+        .select('id,numero,estado,cancelado,cliente,es_abrebotellas,entrega_fecha_raw')
+        .in('numero', numerosSoloOverride);
+      if (errProyExtra) throw errProyExtra;
+      (proyExtra || []).forEach(p => {
+        if (p.cancelado || p.es_abrebotellas) return;
+        // Aún en fase comercial (Pending/Concept/Inquiry) - no forzamos su
+        // aparición aquí, mismo criterio que numerosConfirmados arriba.
+        if (PIPELINE_COMERCIAL.indexOf(String(p.estado || '').toLowerCase()) !== -1) return;
+        proyectoPorNumero[p.numero] = p;
+      });
+    }
+
+    const proyectoIds = [...numerosConfirmados, ...numerosSoloOverride]
+      .map(n => proyectoPorNumero[n] && proyectoPorNumero[n].id)
+      .filter(x => x != null);
 
     // Valor real del proyecto: suma de sus facturas (con IVA - esto es control
     // de pagos, no rentabilidad). facturas.numero es el nº de la FACTURA, no
@@ -731,7 +757,9 @@ app.get('/api/registro-cobros', authCobros, async (req, res) => {
     // en orum-central-panel/server.js) - se necesita saber, por proyecto, si
     // ALGUNA de sus facturas está esta_pagada=true.
     const facturasPagadasPorProyecto = {};
-    (proyectosData || []).forEach(p => { numeroProyectoPorId[p.id] = p.numero; });
+    // Incluye tanto los proyectos con fianza (proyectosData) como los
+    // "solo override" añadidos arriba a proyectoPorNumero.
+    Object.values(proyectoPorNumero).forEach(p => { numeroProyectoPorId[p.id] = p.numero; });
     if (proyectoIds.length) {
       const { data: facturasData, error: errFact } = await supabase.from('facturas').select('proyecto_id,numero,importe_con_iva,esta_pagada').in('proyecto_id', proyectoIds);
       if (errFact) throw errFact;
@@ -884,6 +912,57 @@ app.get('/api/registro-cobros', authCobros, async (req, res) => {
       };
     });
 
+    // Filas de proyectos con registro manual asignado pero sin fianza real en
+    // Rentman que cuente para esta vista (ver numerosSoloOverride arriba).
+    // Mismo cálculo que las filas normales, pero partiendo del override en
+    // vez de una fianza (no hay f.importe/f.estado_id/f.comercial que usar).
+    const filasSoloOverride = numerosSoloOverride.filter(n => proyectoPorNumero[n]).map(numero => {
+      const p = proyectoPorNumero[numero];
+      const ov = overridesPorProyecto[numero];
+      const regs = registrosPorNumero[numero] || [];
+      const cobradoAuto = regs.reduce((s, r) => s + (parseFloat(r.importe) || 0), 0);
+      const formaPago = [...new Set(regs.map(r => `${r.metodo_pago || ''}${r.ubicacion ? ' · ' + capitalizaUbicacion(r.ubicacion) : ''}`.trim()).filter(Boolean))].join(', ');
+      const numOps = [...new Set(regs.map(r => r.num_operacion).filter(Boolean))].join(', ');
+      const fechaPago = regs.map(r => r.fecha_pago_raw).filter(Boolean).sort().pop() || null;
+      const importeProyecto = (ov && ov.importe_proyecto != null && ov.importe_proyecto !== 0) ? ov.importe_proyecto : Math.round((importeProyectoPorId[p.id] || 0) * 100) / 100;
+      const importeFianza = (ov && ov.importe_fianza != null) ? ov.importe_fianza : 0;
+      const cobrado = (ov && ov.cobrado != null && ov.cobrado !== 0) ? ov.cobrado : Math.round(cobradoAuto * 100) / 100;
+      const estadoFianza = ov && ov.estado_fianza ? ov.estado_fianza : 'no_aplica';
+      const pendienteFianza = estadoFianza === 'pendiente' ? (parseFloat(importeFianza) || 0) : 0;
+      const regsConEfectivo = registrosConEfectivoPorNumero[numero] || [];
+      const cobradoConEfectivoAuto = Math.round(regsConEfectivo.reduce((s, r) => s + (parseFloat(r.importe) || 0), 0) * 100) / 100;
+      const cobradoParaPendiente = Math.max(parseFloat(cobrado) || 0, cobradoConEfectivoAuto);
+      const pendienteCubiertoPorEfectivo = cobradoConEfectivoAuto > (parseFloat(cobrado) || 0) + 0.01;
+      const pendienteProyecto = (parseFloat(importeProyecto) || 0) - cobradoParaPendiente;
+      const pendiente = pendienteProyecto + pendienteFianza;
+      const finalizado = pendiente <= 0.01 && (estadoFianza === 'devuelta' || estadoFianza === 'no_aplica');
+      const facturasPagadas = facturasPagadasPorProyecto[p.id] || [];
+      const sinRegistroCaja = facturasPagadas.some(numFact => !facturasConAlgunRegistro.has(numFact));
+      return {
+        numero_proyecto: numero,
+        cliente: (p && p.cliente) ? p.cliente : (ov ? ov.cliente : ''),
+        comercial: null,
+        importe_proyecto: importeProyecto,
+        importe_fianza: importeFianza,
+        cobrado: cobrado,
+        estado_fianza: estadoFianza,
+        metodo_devolucion: ov ? ov.metodo_devolucion : null,
+        numero_devolucion_tpv: ov ? ov.numero_devolucion_tpv : null,
+        forma_pago: formaPago || null,
+        num_operacion_pago: numOps || null,
+        fecha_pago: fechaPago,
+        fecha_evento: (p && p.entrega_fecha_raw) || (ov ? ov.fecha_cobro : null),
+        notas: ov ? ov.notas : null,
+        es_manual: false,
+        finalizado: finalizado,
+        pendiente: Math.round(pendiente * 100) / 100,
+        pendiente_cubierto_efectivo: pendienteCubiertoPorEfectivo,
+        sin_registro_caja: sinRegistroCaja,
+        actualizado_por: ov ? ov.actualizado_por : null,
+        actualizado_en: ov ? ov.actualizado_en : null
+      };
+    });
+
     // Filas manuales sueltas (ingresos sin identificar todavía, numero_proyecto null)
     // finalizado: false siempre - por definición siguen "por casar" con un
     // proyecto, así que deben verse tanto en Vigentes como en Todos.
@@ -903,8 +982,9 @@ app.get('/api/registro-cobros', authCobros, async (req, res) => {
       };
     });
 
-    const totalSinRegistro = filas.filter(f => f.sin_registro_caja).length;
-    res.json({ ok: true, filas: filas.concat(manuales), total_sin_registro_caja: totalSinRegistro });
+    const todasLasFilas = filas.concat(filasSoloOverride);
+    const totalSinRegistro = todasLasFilas.filter(f => f.sin_registro_caja).length;
+    res.json({ ok: true, filas: todasLasFilas.concat(manuales), total_sin_registro_caja: totalSinRegistro });
   } catch(e) { res.status(500).json({ ok: false, error: e.message }); }
 });
 
