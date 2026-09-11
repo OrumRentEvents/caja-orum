@@ -1157,6 +1157,28 @@ app.get('/api/registro-cobros/:clave/historial', authCobros, async (req, res) =>
     res.json({ ok: true, historial: data });
   } catch(e) { res.status(500).json({ ok: false, error: e.message }); }
 });
+
+// (11 sep 2026) Borrar un registro manual sin identificar (o ya casado) que
+// ya no hace falta - p.ej. se casó a mano con varias facturas y el registro
+// manual se quedó suelto y lioso. Solo admite claves "id-N" (registros
+// manuales) a propósito: la fila real de un proyecto (numero_proyecto) no se
+// puede borrar por aquí para evitar borrar por error el histórico de cobros
+// de un proyecto real.
+app.delete('/api/registro-cobros/id-:idManual', authCobros, async (req, res) => {
+  try {
+    if (!supabase) return res.status(500).json({ ok: false, error: 'Supabase no configurado' });
+    const idManual = parseInt(req.params.idManual);
+    const { data: fila, error: errFila } = await supabase.from('caja_registro_cobros').select('id').eq('id', idManual).maybeSingle();
+    if (errFila) throw errFila;
+    if (!fila) return res.status(404).json({ ok: false, error: 'Registro no encontrado.' });
+
+    await supabase.from('caja_registro_cobros_historial').delete().eq('registro_id', idManual);
+    const { error } = await supabase.from('caja_registro_cobros').delete().eq('id', idManual);
+    if (error) throw error;
+
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ ok: false, error: e.message }); }
+});
 // ── Helper AS Fianzas ─────────────────────────────────────────
 async function asFianzasGet(params) {
   const qs = new URLSearchParams(params).toString();

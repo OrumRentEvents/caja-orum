@@ -2239,10 +2239,21 @@ function abrirEditarCobro(clave){
       ${f.actualizado_por?`<span style="font-size:11px;color:var(--gray)">Últ. cambio: ${f.actualizado_por}${f.actualizado_en?' · '+new Date(f.actualizado_en).toLocaleString('es-ES'):''}</span>`:''}
     </div>
     <div style="display:flex;gap:10px;margin-top:16px">
+      ${f.es_manual?`<button onclick="eliminarRegistroCobroManual('${clave}')" style="padding:11px 14px;border:1.5px solid #dc2626;background:#fef2f2;color:#dc2626;border-radius:8px;font-size:14px;cursor:pointer" title="Eliminar este registro manual">🗑️</button>`:''}
       <button onclick="document.getElementById('modal-fianza').style.display='none'" style="flex:1;padding:11px;border:1.5px solid var(--gray-light);background:var(--white);border-radius:8px;font-size:14px;cursor:pointer">Cancelar</button>
       <button onclick="guardarEdicionCobro('${clave}')" style="flex:1;padding:11px;background:var(--black);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">💾 Guardar</button>
     </div>`;
   document.getElementById('modal-fianza').style.display='flex';
+}
+async function eliminarRegistroCobroManual(clave){
+  if(!confirm('¿Eliminar este registro manual? Si ya lo casaste a mano con las facturas correctas, esto NO afecta a esas facturas ni a sus pagos - solo borra esta fila suelta. No se puede deshacer.')) return;
+  try{
+    const r=await fetch('/api/registro-cobros/'+encodeURIComponent(clave),{method:'DELETE'});
+    const d=await r.json();
+    if(!d.ok) throw new Error(d.error||'Error al eliminar');
+    document.getElementById('modal-fianza').style.display='none';
+    await cargarRegistroCobros();
+  }catch(e){ alert('Error: '+e.message); }
 }
 async function guardarEdicionCobro(clave){
   try{
