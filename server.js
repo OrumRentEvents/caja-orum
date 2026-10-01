@@ -99,7 +99,8 @@ async function guardarRegistroOficial({ pagoId, facturaId, numero, cliente, fech
 }
 const PORT = process.env.PORT || 3000;
 const USERS = {
-  marina: { pass:'Orum2026#Mar', rol:'comercial',    nombre:'Marina' },
+  // marina: excedencia desde 1 oct 2026 - descomentar para devolverle el acceso
+  // marina: { pass:'Orum2026#Mar', rol:'comercial',    nombre:'Marina' },
   danilo: { pass:'Orum2026#Dan', rol:'comercial',    nombre:'Danilo' },
   maria:  { pass:'Orum2026#Mia', rol:'caja',         nombre:'María' },
   lucas:  { pass:'Orum2026#Luc', rol:'caja',         nombre:'Lucas' },
