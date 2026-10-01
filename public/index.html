@@ -600,6 +600,7 @@ function renderFiltrosCaja(){
     ['transferencia','🏦 Transf.'],
     ['factura0','📄 Factura 0€'],
     ['rectificativa','🔄 Rectificativa'],
+    ['fianza','💰 Fianzas'],
     ['sin-metodo','❓ Sin método'],
   ];
   let html='<span style="font-size:13px;font-weight:600;color:#374151;margin-right:4px">FILTRAR:</span>';
@@ -651,6 +652,7 @@ function getFiltered(){
     l=l.filter(f=>{
       const mid=estado[String(f.id)]?.metodo||'';
       if(cajaFiltroMetodo==='sin-metodo') return !mid;
+      if(cajaFiltroMetodo==='fianza') return mid.startsWith('fianza-');
       return metodoBase(mid)===cajaFiltroMetodo;
     });
   }
