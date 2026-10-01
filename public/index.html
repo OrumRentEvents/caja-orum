@@ -105,6 +105,9 @@ tr:hover td{background:var(--gray-bg)}
 .btn-m.sel-transferencia{background:var(--purple-bg);border-color:var(--purple);color:var(--purple)}
 .btn-m.sel-factura0{background:var(--gray-bg);border-color:var(--gray);color:var(--gray)}
 .btn-m.sel-rectificativa{background:#fff7ed;border-color:#f59e0b;color:#b45309}
+.btn-m.sel-fianza-efectivo-marbella{background:var(--green-bg);border-color:var(--green);color:var(--green)}
+.btn-m.sel-fianza-efectivo-monda{background:#f0fdf4;border-color:#15803d;color:#15803d}
+.btn-m.sel-fianza-transferencia{background:var(--purple-bg);border-color:var(--purple);color:var(--purple)}
 .numop{padding:4px 8px;border:1.5px solid var(--blue-brd);border-radius:6px;font-size:12px;width:120px;outline:none;background:var(--blue-bg)}
 .numop.err{border-color:var(--red);background:var(--red-bg)}
 .tick-circle{width:28px;height:28px;border-radius:50%;border:2px solid var(--gray-light);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;transition:all .2s;background:var(--white)}
@@ -372,10 +375,14 @@ const METODOS = [
   // sin tocar esa función (el dinero de verdad se queda en la caja/banco, no
   // se le devuelve al cliente). Se distinguen solo por el id/label para que
   // quede trazable de dónde viene.
-  {id:'fianza-efectivo-marbella',label:'🔒💵 Fianza Ef. Marbella',ubicacion:'marbella',tipo:'efectivo',nombre:'Fianza Efectivo Marbella',esTpv:false,esFianza:true},
-  {id:'fianza-efectivo-monda',label:'🔒💵 Fianza Ef. Monda',ubicacion:'monda',tipo:'efectivo',nombre:'Fianza Efectivo Monda',esTpv:false,esFianza:true},
-  {id:'fianza-transferencia',label:'🔒🏦 Fianza Banco',ubicacion:null,tipo:'transferencia',nombre:'Fianza Transferencia',esTpv:false,esFianza:true},
+  {id:'fianza-efectivo-marbella',label:'💵 Fianza Ef. Marbella',ubicacion:'marbella',tipo:'efectivo',nombre:'Fianza Efectivo Marbella',esTpv:false,esFianza:true},
+  {id:'fianza-efectivo-monda',label:'💵 Fianza Ef. Monda',ubicacion:'monda',tipo:'efectivo',nombre:'Fianza Efectivo Monda',esTpv:false,esFianza:true},
+  {id:'fianza-transferencia',label:'🏦 Fianza Banco',ubicacion:null,tipo:'transferencia',nombre:'Fianza Transferencia',esTpv:false,esFianza:true},
 ];
+// Para filtros/agrupaciones: una fianza aplicada cuenta como su método
+// normal (fianza-efectivo-marbella → efectivo-marbella, fianza-transferencia
+// → transferencia), igual que ya hace calcTotales() por tipo/ubicación.
+function metodoBase(mid){return (mid||'').replace(/^fianza-/,'');}
 const METODOS_NC = [
   {id:'efectivo-marbella',label:'💵 Efectivo Marbella',ubicacion:'marbella',tipo:'efectivo'},
   {id:'efectivo-monda',label:'💵 Efectivo Monda',ubicacion:'monda',tipo:'efectivo'},
@@ -644,7 +651,7 @@ function getFiltered(){
     l=l.filter(f=>{
       const mid=estado[String(f.id)]?.metodo||'';
       if(cajaFiltroMetodo==='sin-metodo') return !mid;
-      return mid===cajaFiltroMetodo;
+      return metodoBase(mid)===cajaFiltroMetodo;
     });
   }
   l.sort((a,b)=>{let va=a[sortCol]||0,vb=b[sortCol]||0;return typeof va==='string'?va.localeCompare(vb)*sortDir:(va-vb)*sortDir;});
@@ -1561,7 +1568,7 @@ function renderContab(){
   function getMetodoId(f){
     const reg=registrosC[String(f.id)];
     if(!reg||!reg.metodo_pago) return 'sin-metodo';
-    return reg.metodo_pago;
+    return metodoBase(reg.metodo_pago);
   }
   // Filtrar por búsqueda
   let lBase=facturasC.filter(f=>!q||(f.numero||'').includes(q)||(f.cliente||'').toLowerCase().includes(q));
@@ -1673,7 +1680,8 @@ async function cargarHistorial(){
     const METODO_NOMBRES = {
       'efectivo-marbella':'Ef. Marbella','efectivo-monda':'Ef. Monda',
       'tpv-marbella':'TPV Marbella','tpv-monda':'TPV Monda',
-      'transferencia':'Transferencia','factura0':'Factura 0€','rectificativa':'Rectificativa'
+      'transferencia':'Transferencia','factura0':'Factura 0€','rectificativa':'Rectificativa',
+      'fianza-efectivo-marbella':'Fianza Ef. Marbella','fianza-efectivo-monda':'Fianza Ef. Monda','fianza-transferencia':'Fianza Banco'
     };
     function histDetalle(v) {
       const d = typeof v.datos === 'string' ? (() => { try { return JSON.parse(v.datos); } catch(e) { return {}; } })() : (v.datos||{});
