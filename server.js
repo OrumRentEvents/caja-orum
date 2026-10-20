@@ -108,18 +108,6 @@ const USERS = {
   ana:    { pass:'Orum2026#Ana', rol:'contabilidad', nombre:'Ana' },
   sergio: { pass:'Orum2026#Ser', rol:'admin',        nombre:'Sergio' }
 };
-// Mapeo custom_4 → método de pago fianzas
-const FIANZA_METODOS = {
-  '0': 'Transferencia Bancaria',
-  '3': 'Efectivo Marbella',
-  '4': 'Efectivo Monda',
-  '5': 'TPV',
-  '6': 'TPV Marbella',
-  '7': 'TPV Monda'
-};
-// Caché de fianzas en memoria
-const cacheFianzas = { data: [], ts: 0 };
-const FIANZAS_TTL = 5 * 60 * 1000; // 5 minutos
 const AS_RUTAS_URL   = 'https://script.google.com/macros/s/AKfycbxaSfXi-D3Sx8Lpek6pHPaA-2_NgrXW6CTM0d37LlCX-x0hqRLM6BwyH-BIinyiJlAi/exec';
 const AS_NC_URL      = 'https://script.google.com/macros/s/AKfycbx1ayolXUAmk95s8M2bUS_46O7HQrM4gmQgh1mQF9zOCuOvEQfp59K94TnDYpopE73QmA/exec';
 const AS_FIANZAS_URL = process.env.AS_FIANZAS_URL || 'PON_AQUI_URL_FIANZAS_SCRIPT';
@@ -554,124 +542,7 @@ app.post('/api/cache/reload', authAdmin, async (req,res) => {
   res.json({ok:true, mensaje:'Recargando...'});
   recargarCache();
 });
-// ── FIANZAS ────────────────────────────────────────────────────
-async function fetchFianzasRentman() {
-  let all = [];
-  let offset = 0;
-  const limit = 300;
-  while (true) {
-    const r = await fetch(`${RENTMAN_URL}/projects?limit=${limit}&offset=${offset}`, {
-      headers: { Authorization: `Bearer ${RENTMAN_TOKEN}` }
-    });
-    const data = await r.json();
-    const items = data.data || [];
-    all = all.concat(items);
-    if (items.length < limit) break;
-    offset += limit;
-  }
-  // Los campos custom vienen dentro de p.custom.custom_3 etc.
-  const proyectos = all.filter(p => {
-    const c = p.custom || {};
-    const c3 = parseFloat(c.custom_3) || 0;
-    const c5 = String(c.custom_5 != null ? c.custom_5 : '0');
-    return c3 > 0 && (c5 === '1' || c5 === '2');
-  });
-  const estadoMap = { '0': 'Pendiente', '1': 'Pagada', '2': 'Devuelta' };
-  // Enriquecer clientes en batch de 20
-  const contactoIds = [...new Set(proyectos.map(p => p.customer).filter(Boolean).map(c => c.replace('/contacts/', '')))];
-  const contactoMap = {};
-  for (let i = 0; i < contactoIds.length; i += 20) {
-    const batch = contactoIds.slice(i, i + 20);
-    await Promise.all(batch.map(async id => {
-      try {
-        const r = await fetch(`${RENTMAN_URL}/contacts/${id}`, { headers: { Authorization: `Bearer ${RENTMAN_TOKEN}` } });
-        const d = await r.json();
-        if (d.data) {
-          contactoMap[id] = d.data.displayname || [d.data.firstname, d.data.surname].filter(Boolean).join(' ') || '';
-        } else {
-          console.warn(`[Fianzas] Contacto ${id} sin data:`, JSON.stringify(d).substring(0,200));
-        }
-      } catch(e) { console.warn(`[Fianzas] Error contacto ${id}:`, e.message); }
-    }));
-  }
-  // NOTA (28 ago 2026): se quitó el reintento en serie que había aquí - con
-  // muchos contactos fallando de golpe alargaba muchísimo la carga (a veces
-  // se quedaba colgada). Ya no hace falta: /api/registro-cobros usa
-  // proyectos.cliente de Supabase como fuente principal (más fiable, sin
-  // depender de resolver en vivo contra Rentman), este resultado solo se
-  // usa de respaldo si el proyecto aún no está en Supabase.
-  // Enriquecer comerciales
-  const comercialIds = [...new Set(proyectos.map(p => p.account_manager).filter(Boolean).map(c => c.replace('/crew/', '')))];
-  const comercialMap = {};
-  for (let i = 0; i < comercialIds.length; i += 20) {
-    const batch = comercialIds.slice(i, i + 20);
-    await Promise.all(batch.map(async id => {
-      try {
-        const r = await fetch(`${RENTMAN_URL}/crew/${id}`, { headers: { Authorization: `Bearer ${RENTMAN_TOKEN}` } });
-        const d = await r.json();
-        if (d.data) comercialMap[id] = d.data.displayname || '';
-      } catch(e) {}
-    }));
-  }
-  return proyectos.map(p => {
-    const c = p.custom || {};
-    const cId = (p.customer || '').replace('/contacts/', '');
-    const amId = (p.account_manager || '').replace('/crew/', '');
-    const c5 = String(c.custom_5 != null ? c.custom_5 : '0');
-    const metodoCod = String(c.custom_4 != null ? c.custom_4 : '0');
-    return {
-      id: p.id,
-      numero: String(p.number || ''),
-      nombre: p.name || '',
-      cliente: contactoMap[cId] || cId,
-      comercial: comercialMap[amId] || '',
-      fecha_inicio: (p.planperiod_start || '').substring(0, 10),
-      fecha_fin: (p.planperiod_end || '').substring(0, 10),
-      importe: parseFloat(c.custom_3) || 0,
-      metodo: FIANZA_METODOS[metodoCod] || 'Transferencia Bancaria',
-      metodo_id: metodoCod,
-      estado: estadoMap[c5] || 'Pendiente',
-      estado_id: c5
-    };
-  });
-}
-app.get('/api/fianzas', auth, async (req, res) => {
-  try {
-    const ahora = Date.now();
-    if (ahora - cacheFianzas.ts < FIANZAS_TTL && cacheFianzas.data.length > 0) {
-      return res.json({ ok: true, data: cacheFianzas.data, cached: true });
-    }
-    const data = await fetchFianzasRentman();
-    cacheFianzas.data = data;
-    cacheFianzas.ts = Date.now();
-    res.json({ ok: true, data, cached: false });
-  } catch(e) { res.status(500).json({ ok: false, error: e.message }); }
-});
-app.post('/api/fianzas/:id/estado', auth, async (req, res) => {
-  try {
-    const { estado } = req.body; // '0'=Pendiente, '1'=Pagada, '2'=Devuelta
-    if (!['0','1','2'].includes(String(estado))) return res.status(400).json({ ok:false, error:'Estado inválido' });
-    const r = await fetch(`${RENTMAN_URL}/projects/${req.params.id}`, {
-      method: 'PATCH',
-      headers: { Authorization: `Bearer ${RENTMAN_TOKEN}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ custom: { custom_5: String(estado) } })
-    });
-    if (!r.ok) {
-      const err = await r.text();
-      return res.status(r.status).json({ ok: false, error: err });
-    }
-    cacheFianzas.ts = 0;
-    res.json({ ok: true });
-  } catch(e) { res.status(500).json({ ok: false, error: e.message }); }
-});
-app.post('/api/fianzas/cache/reload', auth, async (req, res) => {
-  try {
-    const data = await fetchFianzasRentman();
-    cacheFianzas.data = data;
-    cacheFianzas.ts = Date.now();
-    res.json({ ok: true, data, count: data.length });
-  } catch(e) { res.status(500).json({ ok: false, error: e.message }); }
-});
+// Fianzas: rutas y carga en lib/fianzas.js (registradas más abajo, junto al helper del Apps Script).
 
 // ================================================================
 // REGISTRO DE COBROS — factura + fianza vistas juntas, cobros parciales,
@@ -684,10 +555,7 @@ function capitalizaUbicacion(u) { const s = String(u || ''); return s ? s.charAt
 app.get('/api/registro-cobros', authCobros, async (req, res) => {
   try {
     if (!supabase) return res.status(500).json({ ok: false, error: 'Supabase no configurado' });
-    const ahora = Date.now();
-    let fianzas;
-    if (ahora - cacheFianzas.ts < FIANZAS_TTL && cacheFianzas.data.length > 0) fianzas = cacheFianzas.data;
-    else { fianzas = await fetchFianzasRentman(); cacheFianzas.data = fianzas; cacheFianzas.ts = Date.now(); }
+    const fianzas = await fianzasModulo.fianzas(false);
 
     const numeros = [...new Set(fianzas.map(f => parseInt(f.numero)).filter(n => !isNaN(n)))];
 
@@ -716,7 +584,7 @@ app.get('/api/registro-cobros', authCobros, async (req, res) => {
     // (11 sep 2026) Proyectos con un registro manual ya asignado
     // (caja_registro_cobros.numero_proyecto) que no salen en `fianzas` -
     // porque el proyecto no tiene fianza en Rentman, o su fianza no pasa el
-    // filtro de fetchFianzasRentman() (importe/estado). Sin esto, un registro
+    // filtro de lib/fianzas.js (importe/estado). Sin esto, un registro
     // manual asignado a uno de estos proyectos desaparecía de la pantalla por
     // completo: dejaba de contar como "manual" (ya tiene numero_proyecto) pero
     // tampoco salía como fila real (el proyecto no estaba en `fianzas`).
@@ -1274,72 +1142,23 @@ async function asFianzasGet(params) {
   try { return JSON.parse(text); }
   catch(e) { throw new Error('AS Fianzas no JSON: ' + text.substring(0, 300)); }
 }
-// Alias: todos los POST ahora son GET con params
-async function asFianzasPost(params) {
-  return asFianzasGet(params);
-}
-// ── SOLICITUDES FIANZAS ───────────────────────────────────────
-// Caché de solicitudes en memoria
-const cacheSolicitudes = { data: [], ts: 0 };
-const SOLICITUDES_TTL = 2 * 60 * 1000; // 2 minutos
-app.get('/api/fianzas/solicitudes', auth, async (req, res) => {
-  try {
-    const ahora = Date.now();
-    if (ahora - cacheSolicitudes.ts < SOLICITUDES_TTL && cacheSolicitudes.data.length > 0) {
-      return res.json({ ok: true, data: cacheSolicitudes.data, cached: true });
-    }
+// ── FIANZAS: todo en Supabase, ver lib/fianzas.js ─────────────
+// leerHoja solo se usa para la importación única desde la hoja SOLICITUDES.
+const fianzasModulo = require('./lib/fianzas').registrar(app, {
+  supabase, auth, authCaja, authContab, authAdmin,
+  leerHoja: async () => {
     const d = await asFianzasGet({ token: FIANZAS_TOKEN, action: 'get_solicitudes' });
-    if (!d.ok) return res.status(500).json(d);
-    cacheSolicitudes.data = d.data || [];
-    cacheSolicitudes.ts = Date.now();
-    res.json({ ok: true, data: cacheSolicitudes.data });
-  } catch(e) { res.status(500).json({ ok: false, error: e.message }); }
-});
-app.post('/api/fianzas/solicitar', auth, async (req, res) => {
-  try {
-    const d = await asFianzasGet({ token: FIANZAS_TOKEN, action: 'crear_solicitud', ...req.body });
-    cacheSolicitudes.ts = 0; // invalidar caché
-    cacheFianzas.ts = 0;
-    res.json(d);
-  } catch(e) { res.status(500).json({ ok: false, error: e.message }); }
-});
-app.post('/api/fianzas/rentman-devuelta', auth, async (req, res) => {
-  try {
-    const { proyecto_id } = req.body;
-    const r = await fetch(`${RENTMAN_URL}/projects/${proyecto_id}`, {
+    if (!d.ok) throw new Error('Hoja de fianzas: ' + (d.error || 'sin respuesta'));
+    return d.data || [];
+  },
+  patchRentmanEstado: async (proyectoId, estadoId) => {
+    const r = await fetch(RENTMAN_URL + '/projects/' + proyectoId, {
       method: 'PATCH',
-      headers: { Authorization: `Bearer ${RENTMAN_TOKEN}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ custom: { custom_5: '2' } })
+      headers: { Authorization: 'Bearer ' + RENTMAN_TOKEN, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ custom: { custom_5: String(estadoId) } })
     });
-    if (!r.ok) { const err = await r.text(); return res.status(r.status).json({ ok: false, error: err }); }
-    cacheFianzas.ts = 0;
-    res.json({ ok: true });
-  } catch(e) { res.status(500).json({ ok: false, error: e.message }); }
-});
-app.post('/api/fianzas/devolver', auth, async (req, res) => {
-  try {
-    const { solicitud_id, proyecto_id, notas } = req.body;
-    // Marcar devuelta en Sheet — Rentman lo actualiza María manualmente al generar el documento
-    const d = await asFianzasGet({ token: FIANZAS_TOKEN, action: 'marcar_devuelta', id: solicitud_id, notas: notas || '' });
-    if (!d.ok) return res.status(500).json(d);
-    cacheSolicitudes.ts = 0;
-    res.json({ ok: true });
-  } catch(e) { res.status(500).json({ ok: false, error: e.message }); }
-});
-app.post('/api/fianzas/notificar', auth, async (req, res) => {
-  try {
-    const { solicitud_id, notificado } = req.body;
-    const d = await asFianzasGet({ token: FIANZAS_TOKEN, action: 'marcar_notificado', id: solicitud_id, notificado: String(notificado !== false) });
-    cacheSolicitudes.ts = 0;
-    res.json(d);
-  } catch(e) { res.status(500).json({ ok: false, error: e.message }); }
-});
-app.post('/api/fianzas/cancelar-solicitud', auth, async (req, res) => {
-  try {
-    const d = await asFianzasGet({ token: FIANZAS_TOKEN, action: 'cancelar_solicitud', id: req.body.solicitud_id });
-    cacheSolicitudes.ts = 0;
-    res.json(d);
-  } catch(e) { res.status(500).json({ ok: false, error: e.message }); }
+    if (!r.ok) throw Object.assign(new Error('Rentman ' + r.status + ': ' + (await r.text()).slice(0, 200)), { status: 502 });
+  }
 });
 // ── TEST PAYMENTS RENTMAN (solo lectura, para verificar estructura) ──
 app.get('/api/test/payments', authAdmin, async (req, res) => {

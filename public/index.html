@@ -1724,24 +1724,36 @@ async function cargarHistorial(){
   }catch(e){document.getElementById('historial-content').innerHTML=`<div class="empty-state"><p>Error: ${e.message}</p></div>`;}
 }
 // ── FIANZAS ───────────────────────────────────────────────────
+// Desde el 20 oct 2026 todo sale de Supabase (servidor: lib/fianzas.js):
+// fianzas = tabla proyectos, solicitudes de devolución = fianza_solicitudes.
 let fianzasData = [];
 let solicitudesData = [];
 let fianzasSortCol = 'fecha_inicio', fianzasSortDir = 1;
+function escF(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function fechaHoraES(iso){if(!iso)return '';const d=new Date(iso);return isNaN(d)?'':d.toLocaleString('es-ES',{timeZone:'Europe/Madrid',day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'}).replace(',','');}
+function fechaES(ymd){const m=String(ymd||'').match(/^(\d{4})-(\d{2})-(\d{2})/);return m?`${m[3]}/${m[2]}/${m[1]}`:'';}
+async function recargarSolicitudes(){
+  const rs = await fetch('/api/fianzas/solicitudes').then(r=>r.json());
+  if (!rs.ok) throw new Error(rs.error || 'Error cargando solicitudes');
+  solicitudesData = rs.data || [];
+}
 async function cargarFianzas(forzar=false) {
   const btn = document.getElementById('btn-cargar-fianzas');
   btn.disabled = true; btn.textContent = 'Cargando...';
-  document.getElementById('fianzas-content').innerHTML = '<div class="loading"><div class="spinner"></div><p>Cargando fianzas desde Rentman...</p></div>';
+  document.getElementById('fianzas-content').innerHTML = '<div class="loading"><div class="spinner"></div><p>Cargando fianzas...</p></div>';
   try {
     const [rF, rS] = await Promise.all([
       fetch(forzar ? '/api/fianzas/cache/reload' : '/api/fianzas', { method: forzar ? 'POST' : 'GET' }).then(r=>r.json()),
       fetch('/api/fianzas/solicitudes').then(r=>r.json())
     ]);
     if (!rF.ok) throw new Error(rF.error || 'Error cargando fianzas');
+    // Antes un fallo al leer las solicitudes dejaba la lista vacía sin avisar
+    if (!rS.ok) throw new Error(rS.error || 'Error cargando solicitudes');
     fianzasData = rF.data || [];
-    solicitudesData = rS.ok ? (rS.data || []) : [];
+    solicitudesData = rS.data || [];
     renderFianzas();
   } catch(e) {
-    document.getElementById('fianzas-content').innerHTML = `<div class="empty-state"><div class="icon">⚠️</div><p>Error: ${e.message}</p></div>`;
+    document.getElementById('fianzas-content').innerHTML = `<div class="empty-state"><div class="icon">⚠️</div><p>Error: ${escF(e.message)}</p></div>`;
   }
   btn.disabled = false; btn.textContent = '↻ Actualizar';
 }
@@ -1753,17 +1765,32 @@ function sf(c) { return fianzasSortCol !== c ? '↕' : fianzasSortDir === 1 ? '�
 function getSolicitudPendiente(proyectoId) {
   return solicitudesData.find(s => String(s.proyecto_id) === String(proyectoId) && s.estado === 'PENDIENTE') || null;
 }
+// La devuelta más reciente (un proyecto puede tener varias, p. ej. devolución en dos veces)
 function getSolicitudDevuelta(proyectoId) {
-  return solicitudesData.find(s => String(s.proyecto_id) === String(proyectoId) && s.estado === 'DEVUELTA') || null;
+  const l = solicitudesData.filter(s => String(s.proyecto_id) === String(proyectoId) && s.estado === 'DEVUELTA');
+  return l.length ? l.reduce((a, b) => String(a.fecha_devolucion||'') >= String(b.fecha_devolucion||'') ? a : b) : null;
 }
-// Estado real: combina Rentman + Sheet
+function getFianza(proyectoId) { return fianzasData.find(f => String(f.id) === String(proyectoId)) || null; }
+function getSolicitud(id) { return solicitudesData.find(s => String(s.id) === String(id)) || null; }
+// Estado real: combina Rentman (estado de la fianza) + solicitudes.
+// Una solicitud pendiente manda siempre: aunque Rentman ya diga "Devuelta",
+// Ana tiene que poder cerrarla (antes salía en verde y sin botón).
 function getEstadoReal(f) {
-  if (f.estado === 'Devuelta') return 'Devuelta'; // Rentman ya dice devuelta
-  const solDev = getSolicitudDevuelta(f.id);
-  if (solDev) return 'DevueltaSheet'; // Sheet dice devuelta, Rentman aún no
-  const solPend = getSolicitudPendiente(f.id);
-  if (solPend) return 'SolicitudEnviada';
+  if (getSolicitudPendiente(f.id)) return 'SolicitudEnviada';
+  if (f.estado === 'Devuelta') return 'Devuelta';
+  if (getSolicitudDevuelta(f.id)) return 'DevueltaSolicitud'; // Ana la ha devuelto, Rentman aún no
   return f.estado; // Pagada
+}
+// Avisos de una solicitud pendiente, para que no pasen desapercibidos
+function avisosSolicitud(s) {
+  const f = getFianza(s.proyecto_id);
+  const av = [];
+  if (!f) av.push('En Rentman ya no figura como fianza cobrada');
+  else {
+    if (f.estado === 'Devuelta') av.push('Rentman ya la marca devuelta');
+    if (s.importe > f.importe + 0.005) av.push(`Devuelve más que la fianza (${fmt(f.importe)})`);
+  }
+  return av;
 }
 function renderFianzas() {
   const rol = userInfo?.rol || '';
@@ -1776,16 +1803,16 @@ function renderFianzas() {
       if (!getSolicitudPendiente(f.id)) return false;
     } else if (filtroEstado === 'PendienteNotificar') {
       const solDev = getSolicitudDevuelta(f.id);
-      if (!solDev || solDev.notificado === 'SI') return false;
+      if (!solDev || solDev.notificado) return false;
     } else if (filtroEstado === 'Devuelta') {
-      if (getEstadoReal(f) !== 'Devuelta' && getEstadoReal(f) !== 'DevueltaSheet') return false;
-    } else if (filtroEstado && f.estado !== filtroEstado) return false;
+      const e = getEstadoReal(f);
+      if (e !== 'Devuelta' && e !== 'DevueltaSolicitud') return false;
+    } else if (filtroEstado && getEstadoReal(f) !== filtroEstado) return false;
     if (filtroMetodo && f.metodo !== filtroMetodo) return false;
     if (q && !f.cliente.toLowerCase().includes(q) && !f.nombre.toLowerCase().includes(q) && !f.numero.includes(q)) return false;
     if (filtroNotificado) {
-      const sol = solicitudesData.find(s => String(s.proyecto_id) === String(f.id) && s.estado === 'DEVUELTA');
-      const notif = sol ? sol.notificado : 'NO';
-      if (notif !== filtroNotificado) return false;
+      const sol = getSolicitudDevuelta(f.id);
+      if ((sol && sol.notificado ? 'SI' : 'NO') !== filtroNotificado) return false;
     }
     return true;
   });
@@ -1795,33 +1822,35 @@ function renderFianzas() {
   });
   // KPIs
   const total = fianzasData.reduce((s, f) => s + f.importe, 0);
-  const pendientes = fianzasData.filter(f => f.estado === 'Pendiente');
   const pagadas = fianzasData.filter(f => f.estado === 'Pagada');
   const devueltas = fianzasData.filter(f => f.estado === 'Devuelta');
-  const solPendientes = solicitudesData.filter(s => s.estado === 'PENDIENTE');
+  const solPendientes = solicitudesData.filter(s => s.estado === 'PENDIENTE')
+    .sort((a, b) => String(a.fecha_solicitud||'').localeCompare(String(b.fecha_solicitud||'')));
   const totalSolPendiente = solPendientes.reduce((s, x) => s + x.importe, 0);
   const esCaja      = ['caja', 'admin'].includes(rol);       // María: solicitar devolución
   const esContab    = ['contabilidad', 'admin'].includes(rol); // Ana: confirmar devuelta
   const soloLectura = rol === 'comercial';
-  const btnRecarga = rol === 'admin'
-    ? `<button onclick="cargarFianzas(true)" style="padding:8px 16px;background:var(--black);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;margin-left:auto">🔄 Forzar recarga</button>`
+  const btnAdmin = rol === 'admin'
+    ? `<div style="display:flex;gap:8px;margin-left:auto">
+        <button onclick="importarSolicitudesHoja()" title="Copia la hoja SOLICITUDES del Apps Script a Supabase (no duplica)" style="padding:8px 16px;background:var(--white);color:var(--black);border:1.5px solid var(--gray-light);border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">⇩ Importar desde la hoja</button>
+        <button onclick="cargarFianzas(true)" style="padding:8px 16px;background:var(--black);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">🔄 Forzar recarga</button>
+      </div>`
     : '';
   const estadoBadge = (f) => {
     const estado = getEstadoReal(f);
     const solPend = getSolicitudPendiente(f.id);
-    const solDev = getSolicitudDevuelta(f.id);
-    if (estado === 'Devuelta' || estado === 'DevueltaSheet') {
+    if (estado === 'SolicitudEnviada') return `<div style="display:flex;flex-direction:column;gap:2px"><span style="background:#f3e8ff;color:#7c3aed;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600">📋 Solicitud enviada</span><span style="font-size:11px;color:#7c3aed;padding-left:4px">${solPend.importe > 0 ? 'A devolver: ' + fmt(solPend.importe) : 'Se retiene toda la fianza'}</span>${f.estado==='Devuelta'?'<span style="font-size:11px;color:#b45309;padding-left:4px">⚠ Rentman ya la marca devuelta</span>':''}</div>`;
+    if (estado === 'Devuelta' || estado === 'DevueltaSolicitud') {
       const solD = getSolicitudDevuelta(f.id);
-      const sub = estado === 'DevueltaSheet' && solD
-        ? `<span style="font-size:11px;color:#166534;padding-left:2px">⏳ Pendiente notificar · <strong>Devolver: ${fmt(solD.importe)}</strong></span>`
+      const sub = estado === 'DevueltaSolicitud' && solD
+        ? `<span style="font-size:11px;color:#166534;padding-left:2px">Pendiente en Rentman · <strong>${solD.importe > 0 ? 'Devuelto: ' + fmt(solD.importe) : 'Retenida entera'}</strong></span>`
         : '';
       return `<div style="display:flex;flex-direction:column;gap:3px"><span style="background:#f0fdf4;color:#166534;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600">✅ Devuelta</span>${sub}</div>`;
     }
-    if (estado === 'SolicitudEnviada') return `<div style="display:flex;flex-direction:column;gap:2px"><span style="background:#f3e8ff;color:#7c3aed;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600">📋 Solicitud enviada</span><span style="font-size:11px;color:#7c3aed;padding-left:4px">A devolver: ${fmt(solPend.importe)}</span></div>`;
     if (f.estado === 'Pagada') return `<span style="background:#eff6ff;color:#1e40af;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600">💰 Pagada</span>`;
     return `<span style="background:#fef9c3;color:#854d0e;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600">⏳ Pendiente cobro</span>`;
   };
-  const metodoBadge = (f) => {
+  const metodoBadge = (metodo) => {
     const colores = {
       'Transferencia Bancaria': { bg: '#f5f3ff', color: '#6d28d9' },
       'Efectivo Marbella':      { bg: '#f0fdf4', color: '#166534' },
@@ -1830,48 +1859,64 @@ function renderFianzas() {
       'TPV Monda':              { bg: '#eff6ff', color: '#1e40af' },
       'TPV':                    { bg: '#eff6ff', color: '#1e40af' },
     };
-    const c = colores[f.metodo] || { bg: '#f1f5f9', color: '#64748b' };
-    return `<span style="background:${c.bg};color:${c.color};padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600">${f.metodo}</span>`;
+    const c = colores[metodo] || { bg: '#f1f5f9', color: '#64748b' };
+    return `<span style="background:${c.bg};color:${c.color};padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;white-space:nowrap">${escF(metodo || '—')}</span>`;
+  };
+  const botonesSolicitud = (s) => {
+    const btnDevuelta = esContab ? `<button onclick="confirmarDevueltaFianza('${escF(s.id)}')" style="padding:5px 12px;background:#16a34a;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">${s.importe > 0 ? '✅ Marcar devuelta' : '✅ Confirmar retención'}</button>` : '';
+    const btnDeshacer = esCaja ? `<button data-cancelar="${escF(s.id)}" style="padding:5px 12px;background:#fff1f2;color:#be123c;border:1px solid #fecdd3;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">↩ Deshacer</button>` : '';
+    return `<div style="display:flex;gap:6px;flex-wrap:wrap">${btnDevuelta}${btnDeshacer}</div>`;
   };
   const accionBtn = (f) => {
     if (soloLectura) return '';
     const estado = getEstadoReal(f);
-    const solPend = getSolicitudPendiente(f.id);
-    const solDev = getSolicitudDevuelta(f.id);
-    // Completamente devuelta — sin acción
-    if (estado === 'Devuelta') return `<span style="color:var(--gray);font-size:12px">—</span>`;
-    // Ana: solicitud pendiente → puede marcar devuelta. María/Sergio pueden deshacer
-    if (estado === 'SolicitudEnviada') {
-      const btnDevuelta = esContab ? `<button onclick="confirmarDevueltaFianza('${solPend.id}',${f.id},'${(f.cliente||'').replace(/'/g,"\'")}',${solPend.importe})" style="padding:5px 12px;background:#16a34a;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">✅ Marcar devuelta</button>` : '';
-      const btnDeshacer = (esCaja || userInfo?.rol === 'admin') ? `<button data-cancelar="${solPend.id}" style="padding:5px 12px;background:#fff1f2;color:#be123c;border:1px solid #fecdd3;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">↩ Deshacer</button>` : '';
-      return `<div style="display:flex;gap:6px;flex-wrap:wrap">${btnDevuelta}${btnDeshacer}</div>`;
-    }
+    if (estado === 'SolicitudEnviada') return botonesSolicitud(getSolicitudPendiente(f.id));
     // Pagada sin solicitud — María o admin pueden solicitar
     if (estado === 'Pagada' && esCaja) {
-      return `<button onclick="solicitarDevolucionFianza(${f.id},'${f.numero}','${(f.cliente||'').replace(/'/g,"\'")}',${f.importe},'${f.metodo}','${f.fecha_inicio}')" style="padding:5px 12px;background:#7c3aed;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">📋 Solicitar devolución</button>`;
+      return `<button onclick="solicitarDevolucionFianza(${Number(f.id)})" style="padding:5px 12px;background:#7c3aed;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">📋 Solicitar devolución</button>`;
     }
-    return '';
+    return `<span style="color:var(--gray);font-size:12px">—</span>`;
   };
-  const alertaSolicitudes = solPendientes.length > 0 && esContab ? `
-    <div style="background:#fef3c7;border:1px solid #fcd34d;border-radius:10px;padding:14px 18px;margin-bottom:16px;display:flex;align-items:center;gap:12px">
-      <span style="font-size:20px">📋</span>
-      <div>
-        <div style="font-weight:700;color:#92400e">${solPendientes.length} solicitud${solPendientes.length!==1?'es':''} de devolución pendiente${solPendientes.length!==1?'s':''}</div>
-        <div style="font-size:13px;color:#b45309">Total: ${fmt(totalSolPendiente)} — Ana recibe email de resumen cada viernes a las 8:00</div>
+  // Solicitudes pendientes: lista propia, sacada de las solicitudes y no de
+  // las fianzas, para que no se pierda ninguna aunque Rentman ya no la
+  // muestre como fianza cobrada.
+  const seccionPendientes = soloLectura ? '' : `
+    <div class="tabla-section" style="margin-bottom:20px;border:1.5px solid var(--purple-brd)">
+      <div class="tabla-header" style="background:var(--purple-bg)">
+        <div class="tabla-title">📋 Solicitudes de devolución pendientes <span class="badge badge-gray">${solPendientes.length}</span></div>
+        <div style="margin-left:auto;font-weight:700;color:var(--purple)">${fmt(totalSolPendiente)}</div>
       </div>
-    </div>` : '';
+      ${solPendientes.length === 0 ? '<div class="empty-state" style="padding:24px"><p>No hay solicitudes pendientes 🎉</p></div>' : `
+      <div class="tabla-scroll"><table>
+        <thead><tr><th>Proyecto</th><th>Cliente</th><th>A devolver</th><th>Fianza</th><th>Método</th><th>Pedida</th><th>Notas para Ana</th>${soloLectura?'':'<th>Acción</th>'}</tr></thead>
+        <tbody>${solPendientes.map(s => {
+          const f = getFianza(s.proyecto_id);
+          const av = avisosSolicitud(s);
+          return `<tr${av.length?' style="background:#fffbeb"':''}>
+            <td><strong>#${escF(s.numero_proyecto || (f && f.numero) || '')}</strong>${(s.nombre_proyecto || (f && f.nombre)) ? `<br><span style="font-size:11px;color:var(--gray)">${escF(s.nombre_proyecto || f.nombre)}</span>` : ''}</td>
+            <td>${escF(s.cliente || (f && f.cliente) || '—')}</td>
+            <td>${s.importe > 0 ? `<strong style="font-size:17px;color:#16a34a;white-space:nowrap">${fmt(s.importe)}</strong>` : '<strong style="font-size:13px;color:#b45309">0,00 € · Se retiene toda la fianza</strong>'}${av.map(a=>`<div style="font-size:11px;color:#b45309;font-weight:600;margin-top:2px">⚠ ${escF(a)}</div>`).join('')}</td>
+            <td style="white-space:nowrap">${f ? fmt(f.importe) : '—'}</td>
+            <td>${metodoBadge(s.metodo || (f && f.metodo))}</td>
+            <td style="font-size:12px;color:var(--gray);white-space:nowrap">${escF(s.solicitado_por || '—')}<br>${escF(fechaHoraES(s.fecha_solicitud))}</td>
+            <td style="font-size:12px;max-width:260px;white-space:pre-wrap">${s.notas ? escF(s.notas) : '<span style="color:var(--gray)">—</span>'}</td>
+            <td>${botonesSolicitud(s)}</td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table></div>`}
+    </div>`;
   document.getElementById('fianzas-content').innerHTML = `
-    ${alertaSolicitudes}
     <div class="kpi-grid" style="margin-bottom:16px">
       <div class="kpi-card"><div class="kpi-label">Total Fianzas</div><div class="kpi-value">${fmt(total)}</div><div class="kpi-sub">${fianzasData.length} proyectos</div></div>
       <div class="kpi-card" style="border-left:4px solid #7c3aed"><div class="kpi-label">Solicitado por devolver</div><div class="kpi-value" style="color:#7c3aed">${fmt(totalSolPendiente)}</div><div class="kpi-sub">${solPendientes.length} solicitud${solPendientes.length!==1?'es':''} pendiente${solPendientes.length!==1?'s':''} de Ana</div></div>
-      <div class="kpi-card kpi-tpv"><div class="kpi-label">Cobradas / Retenidas</div><div class="kpi-value">${fmt(pagadas.reduce((s,f)=>s+f.importe,0))}</div><div class="kpi-sub">${pagadas.length} fianzas · ${solPendientes.length} con solicitud</div></div>
+      <div class="kpi-card kpi-tpv"><div class="kpi-label">Cobradas / Retenidas</div><div class="kpi-value">${fmt(pagadas.reduce((s,f)=>s+f.importe,0))}</div><div class="kpi-sub">${pagadas.length} fianzas</div></div>
       <div class="kpi-card kpi-efectivo"><div class="kpi-label">Devueltas</div><div class="kpi-value">${fmt(devueltas.reduce((s,f)=>s+f.importe,0))}</div><div class="kpi-sub">${devueltas.length} fianzas</div></div>
     </div>
+    ${seccionPendientes}
     <div class="tabla-section">
       <div class="tabla-header">
-        <div class="tabla-title">💰 Fianzas <span class="badge badge-gray">${lista.length}</span>${filtroEstado||filtroMetodo||q?`<span class="badge badge-orange">Filtrado</span>`:''}</div>
-        ${btnRecarga}
+        <div class="tabla-title">💰 Fianzas <span class="badge badge-gray">${lista.length}</span>${filtroEstado||filtroMetodo||q||filtroNotificado?`<span class="badge badge-orange">Filtrado</span>`:''}</div>
+        ${btnAdmin}
       </div>
       ${lista.length === 0 ? '<div class="empty-state"><div class="icon">🔍</div><p>No hay fianzas con los filtros seleccionados</p></div>' : `
       <div class="tabla-scroll"><table>
@@ -1886,11 +1931,11 @@ function renderFianzas() {
           ${!soloLectura ? '<th>Acción</th>' : ''}
         </tr></thead>
         <tbody>${lista.map(f => `<tr style="${getSolicitudPendiente(f.id)?'background:#fffbeb':''}">
-          <td><strong>#${f.numero}</strong><br><span style="font-size:11px;color:var(--gray)">${f.nombre}</span></td>
-          <td>${f.cliente || '—'}</td>
-          <td style="color:var(--gray);font-size:12px">${f.fecha_inicio || '—'}</td>
+          <td><strong>#${escF(f.numero)}</strong><br><span style="font-size:11px;color:var(--gray)">${escF(f.nombre)}</span></td>
+          <td>${escF(f.cliente || '—')}</td>
+          <td style="color:var(--gray);font-size:12px">${escF(fechaES(f.fecha_inicio) || '—')}</td>
           <td><strong class="imp pos">${fmt(f.importe)}</strong></td>
-          <td>${metodoBadge(f)}</td>
+          <td>${metodoBadge(f.metodo)}</td>
           <td>${estadoBadge(f)}</td>
           <td>${notificadoCell(f)}</td>
           ${!soloLectura ? `<td>${accionBtn(f)}</td>` : ''}
@@ -1906,107 +1951,121 @@ document.addEventListener('click', function(e) {
 // ── ACCIONES FIANZAS ──────────────────────────────────────────
 function notificadoCell(f) {
   const sol = getSolicitudDevuelta(f.id);
-  const esDevuelta = f.estado === 'Devuelta' || sol;
-  if (!esDevuelta) return '<span style="color:var(--gray);font-size:12px">—</span>';
-  if (!sol) return '<span style="color:var(--gray);font-size:12px">—</span>';
-  const notif = sol.notificado === 'SI';
+  if (!sol || getSolicitudPendiente(f.id)) return '<span style="color:var(--gray);font-size:12px">—</span>';
   const puedeMarcar = ['caja','admin'].includes(userInfo?.rol || '');
-  if (notif) {
+  if (sol.notificado) {
     const cell = `<span style="color:#16a34a;font-weight:600;font-size:13px">✅ Notificado</span>`;
-    if (puedeMarcar) return `<div style="display:flex;align-items:center;gap:8px">${cell}<button onclick="toggleNotificado('${sol.id}',false)" style="padding:2px 8px;background:none;border:1px solid var(--gray-light);border-radius:6px;font-size:11px;color:var(--gray);cursor:pointer">Deshacer</button></div>`;
+    if (puedeMarcar) return `<div style="display:flex;align-items:center;gap:8px">${cell}<button onclick="toggleNotificado('${escF(sol.id)}',false)" style="padding:2px 8px;background:none;border:1px solid var(--gray-light);border-radius:6px;font-size:11px;color:var(--gray);cursor:pointer">Deshacer</button></div>`;
     return cell;
   } else {
     const cell = `<span style="color:#d97706;font-weight:600;font-size:13px">⏳ Pendiente</span>`;
-    if (puedeMarcar) return `<div style="display:flex;align-items:center;gap:8px">${cell}<button onclick="toggleNotificado('${sol.id}',true)" style="padding:4px 10px;background:#16a34a;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">✓ Marcar</button></div>`;
+    if (puedeMarcar) return `<div style="display:flex;align-items:center;gap:8px">${cell}<button onclick="toggleNotificado('${escF(sol.id)}',true)" style="padding:4px 10px;background:#16a34a;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">✓ Marcar</button></div>`;
     return cell;
   }
 }
+async function postFianzas(url, body) {
+  const r = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body || {}) });
+  let d; try { d = await r.json(); } catch(e) { throw new Error('El servidor respondió ' + r.status); }
+  if (!d.ok) throw new Error(d.error || 'Error');
+  return d;
+}
 async function toggleNotificado(solicitudId, notificado) {
   try {
-    const r = await fetch('/api/fianzas/notificar', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ solicitud_id: solicitudId, notificado }) });
-    const d = await r.json();
-    if (!d.ok) throw new Error(d.error);
-    const rs = await fetch('/api/fianzas/solicitudes').then(r=>r.json());
-    solicitudesData = rs.ok ? (rs.data || []) : solicitudesData;
+    await postFianzas('/api/fianzas/notificar', { solicitud_id: solicitudId, notificado });
+    await recargarSolicitudes();
     renderFianzas();
   } catch(e) { alert('Error: ' + e.message); }
 }
-function solicitarDevolucionFianza(proyectoId, numero, cliente, importe, metodo, fechaEvento) {
+function solicitarDevolucionFianza(proyectoId) {
+  const f = getFianza(proyectoId);
+  if (!f) return;
   document.getElementById('modal-fianza-title').textContent = '📋 Solicitar Devolución de Fianza';
   document.getElementById('modal-fianza-body').innerHTML = `
     <div style="background:var(--gray-bg);border-radius:10px;padding:16px;margin-bottom:20px">
-      <div style="font-size:13px;color:var(--gray);margin-bottom:4px">#${numero} · ${cliente}</div>
-      <div style="font-size:13px;color:var(--gray);margin-bottom:12px">${metodo}${fechaEvento ? ' · Evento: ' + fechaEvento : ''}</div>
+      <div style="font-size:13px;color:var(--gray);margin-bottom:4px">#${escF(f.numero)} · ${escF(f.cliente)}</div>
+      <div style="font-size:13px;color:var(--gray);margin-bottom:12px">${escF(f.metodo)}${f.fecha_inicio ? ' · Evento: ' + escF(fechaES(f.fecha_inicio)) : ''} · Fianza: <strong>${fmt(f.importe)}</strong></div>
       <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--gray);margin-bottom:8px">Importe a devolver</div>
       <div style="display:flex;align-items:center;gap:8px">
-        <input type="number" id="fianza-importe" value="${importe}" step="0.01" min="0" style="font-size:28px;font-weight:800;color:#16a34a;border:2px solid #16a34a;border-radius:8px;padding:6px 12px;width:160px;outline:none;text-align:right">
+        <input type="number" id="fianza-importe" value="${f.importe}" step="0.01" min="0" oninput="avisoImporteFianza(${f.importe})" style="font-size:28px;font-weight:800;color:#16a34a;border:2px solid #16a34a;border-radius:8px;padding:6px 12px;width:160px;outline:none;text-align:right">
         <span style="font-size:24px;font-weight:800;color:#16a34a">€</span>
       </div>
+      <div id="fianza-importe-aviso" style="display:none;margin-top:8px;font-size:12px;font-weight:600;color:#b45309">⚠ Es más que la fianza cobrada (${fmt(f.importe)}). Revisa el importe.</div>
+      <div style="margin-top:8px;font-size:12px;color:var(--gray)">Pon <strong>0</strong> si nos quedamos toda la fianza (indica el motivo en las notas).</div>
     </div>
     <div style="margin-bottom:16px">
       <label style="font-size:12px;font-weight:600;color:var(--gray);display:block;margin-bottom:8px">Notas para Ana</label>
       <textarea id="fianza-notas" placeholder="Ej: Transferencia a cuenta habitual, IBAN del cliente..." style="width:100%;padding:10px;border:1.5px solid var(--gray-light);border-radius:8px;font-size:14px;outline:none;resize:vertical;min-height:80px;font-family:inherit;box-sizing:border-box"></textarea>
     </div>
     <p style="color:var(--gray);font-size:12px;margin-bottom:16px">
-      📅 Ana recibirá el resumen el próximo <strong>viernes a las 8:00</strong>.
+      Ana la verá al momento en "Solicitudes pendientes" y en el resumen del <strong>viernes a las 8:00</strong>.
     </p>
     <div style="display:flex;gap:10px">
       <button onclick="document.getElementById('modal-fianza').style.display='none'" style="flex:1;padding:11px;border:1.5px solid var(--gray-light);background:var(--white);border-radius:8px;font-size:14px;cursor:pointer">Cancelar</button>
-      <button onclick="ejecutarSolicitud(${proyectoId},'${numero}','${cliente.replace(/'/g, "\'")}',${importe},'${metodo}','${fechaEvento}')" style="flex:1;padding:11px;background:#7c3aed;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">📋 Enviar solicitud</button>
+      <button id="btn-enviar-solicitud" onclick="ejecutarSolicitud(${Number(f.id)})" style="flex:1;padding:11px;background:#7c3aed;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">📋 Enviar solicitud</button>
     </div>`;
   document.getElementById('modal-fianza').style.display = 'flex';
 }
-async function ejecutarSolicitud(proyectoId, numero, cliente, importe, metodo, fechaEvento) {
+function avisoImporteFianza(fianza) {
+  const v = parseFloat(document.getElementById('fianza-importe')?.value) || 0;
+  document.getElementById('fianza-importe-aviso').style.display = v > fianza + 0.005 ? 'block' : 'none';
+}
+async function ejecutarSolicitud(proyectoId) {
+  const f = getFianza(proyectoId);
+  if (!f) return;
+  const importe = parseFloat(document.getElementById('fianza-importe')?.value);
+  if (!(importe >= 0)) { alert('El importe a devolver no puede estar vacío ni ser negativo'); return; }
+  if (importe > f.importe + 0.005 && !confirm(`Vas a pedir devolver ${fmt(importe)} y la fianza cobrada es ${fmt(f.importe)}. ¿Seguro?`)) return;
+  const notas = document.getElementById('fianza-notas')?.value || '';
+  if (importe === 0) {
+    if (!notas.trim()) { alert('Si no se devuelve nada, indica el motivo en las notas (ej: saldo pendiente, desperfectos...)'); return; }
+    if (!confirm('No se devuelve nada: nos quedamos toda la fianza (' + fmt(f.importe) + '). ¿Seguro?')) return;
+  }
   document.getElementById('modal-fianza').style.display = 'none';
   try {
-    const notas = document.getElementById('fianza-notas')?.value || '';
-    const importeReal = parseFloat(document.getElementById('fianza-importe')?.value) || importe;
-    const r = await fetch('/api/fianzas/solicitar', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ proyecto_id: proyectoId, numero_proyecto: numero, cliente, importe: importeReal, metodo, fecha_evento: fechaEvento, solicitado_por: userInfo?.nombre || '', notas }) });
-    const d = await r.json();
-    if (!d.ok) throw new Error(d.error || 'Error al crear solicitud');
-    // Refrescar solicitudes
-    const rs = await fetch('/api/fianzas/solicitudes').then(r=>r.json());
-    solicitudesData = rs.ok ? (rs.data || []) : solicitudesData;
+    await postFianzas('/api/fianzas/solicitar', { proyecto_id: f.id, numero_proyecto: f.numero, cliente: f.cliente, importe, metodo: f.metodo, fecha_evento: f.fecha_inicio, notas });
+    await recargarSolicitudes();
     renderFianzas();
   } catch(e) { alert('Error: ' + e.message); }
 }
-function confirmarDevueltaFianza(solicitudId, proyectoId, cliente, importe) {
+function confirmarDevueltaFianza(solicitudId) {
+  const s = getSolicitud(solicitudId);
+  if (!s) return;
+  const f = getFianza(s.proyecto_id);
+  const av = avisosSolicitud(s);
   document.getElementById('modal-fianza-title').textContent = '✅ Confirmar Devolución Ejecutada';
   document.getElementById('modal-fianza-body').innerHTML = `
-    <div style="background:var(--gray-bg);border-radius:10px;padding:16px;margin-bottom:20px">
-      <div style="font-size:13px;color:var(--gray);margin-bottom:12px">Cliente: <strong>${cliente}</strong></div>
+    <div style="background:var(--gray-bg);border-radius:10px;padding:16px;margin-bottom:16px">
+      <div style="font-size:13px;color:var(--gray);margin-bottom:12px">#${escF(s.numero_proyecto || '')} · <strong>${escF(s.cliente || (f && f.cliente) || '')}</strong> · ${escF(s.metodo || '')}</div>
       <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--gray);margin-bottom:4px">Importe a devolver</div>
-      <div style="font-size:36px;font-weight:800;color:#16a34a;letter-spacing:-1px">${fmt(importe)}</div>
+      <div style="font-size:${s.importe > 0 ? 36 : 22}px;font-weight:800;color:${s.importe > 0 ? '#16a34a' : '#b45309'};letter-spacing:-1px">${s.importe > 0 ? fmt(s.importe) : '0,00 € · Se retiene toda la fianza'}</div>
+      ${f ? `<div style="font-size:12px;color:var(--gray)">Fianza cobrada: ${fmt(f.importe)}</div>` : ''}
+      ${av.map(a=>`<div style="font-size:12px;color:#b45309;font-weight:600;margin-top:4px">⚠ ${escF(a)}</div>`).join('')}
     </div>
+    ${s.notas ? `<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:12px 14px;margin-bottom:16px">
+      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:#92400e;margin-bottom:4px">Notas de ${escF(s.solicitado_por || 'caja')}</div>
+      <div style="font-size:14px;white-space:pre-wrap">${escF(s.notas)}</div>
+    </div>` : ''}
     <p style="color:var(--gray);font-size:13px;margin-bottom:16px">
-      Confirma que la transferencia ha sido ejecutada.<br>
-      María recibirá el aviso para generar el documento en Rentman y notificar al cliente.
+      ${s.importe > 0 ? 'Confirma que la transferencia ha sido ejecutada.' : 'No hay transferencia: confirma que nos quedamos toda la fianza.'}<br>
+      María la verá como devuelta para generar el documento en Rentman y avisar al cliente.
     </p>
     <div style="margin-bottom:16px">
       <label style="font-size:12px;font-weight:600;color:var(--gray);display:block;margin-bottom:8px">Notas (opcional)</label>
-      <textarea id="fianza-notas-dev" placeholder="Ej: Transferencia ejecutada el día X" style="width:100%;padding:10px;border:1.5px solid var(--gray-light);border-radius:8px;font-size:14px;outline:none;resize:vertical;min-height:60px;font-family:inherit;box-sizing:border-box"></textarea>
+      <textarea id="fianza-notas-dev" placeholder="Ej: BBVA 20/10 100€" style="width:100%;padding:10px;border:1.5px solid var(--gray-light);border-radius:8px;font-size:14px;outline:none;resize:vertical;min-height:60px;font-family:inherit;box-sizing:border-box"></textarea>
     </div>
     <div style="display:flex;gap:10px">
       <button onclick="document.getElementById('modal-fianza').style.display='none'" style="flex:1;padding:11px;border:1.5px solid var(--gray-light);background:var(--white);border-radius:8px;font-size:14px;cursor:pointer">Cancelar</button>
-      <button onclick="ejecutarDevuelta('${solicitudId}',${proyectoId})" style="flex:1;padding:11px;background:#16a34a;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">✅ Confirmar</button>
+      <button onclick="ejecutarDevuelta('${escF(s.id)}')" style="flex:1;padding:11px;background:#16a34a;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">✅ Confirmar</button>
     </div>`;
   document.getElementById('modal-fianza').style.display = 'flex';
 }
-async function ejecutarDevuelta(solicitudId, proyectoId) {
+async function ejecutarDevuelta(solicitudId) {
+  const notas = document.getElementById('fianza-notas-dev')?.value || '';
   document.getElementById('modal-fianza').style.display = 'none';
   try {
-    const notas = document.getElementById('fianza-notas-dev')?.value || '';
-    // 1. Marcar devuelta en Sheet directamente desde browser
-    const r = await fetch('/api/fianzas/devolver', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ solicitud_id: solicitudId, proyecto_id: proyectoId, notas }) });
-    const d = await r.json();
-    if (!d.ok) throw new Error(d.error || 'Error al marcar devuelta');
-    // 3. Refrescar
-    const [rF, rS] = await Promise.all([
-      fetch('/api/fianzas/cache/reload', { method: 'POST' }).then(r=>r.json()),
-      fetch('/api/fianzas/solicitudes').then(r=>r.json())
-    ]);
-    fianzasData = rF.ok ? (rF.data || []) : fianzasData;
-    solicitudesData = rS.ok ? (rS.data || []) : solicitudesData;
+    await postFianzas('/api/fianzas/devolver', { solicitud_id: solicitudId, notas });
+    // Solo cambian las solicitudes: las fianzas (Rentman) no se tocan aquí
+    await recargarSolicitudes();
     renderFianzas();
   } catch(e) { alert('Error: ' + e.message); }
 }
@@ -2026,15 +2085,22 @@ function modalCancelarSolicitud(solicitudId) {
   document.getElementById('btn-cancelar-si').onclick = () => cancelarSolicitudFianza(solicitudId);
 }
 async function cancelarSolicitudFianza(solicitudId) {
-  if (!confirm('¿Cancelar esta solicitud de devolución?')) return;
+  document.getElementById('modal-fianza').style.display = 'none';
   try {
-    const r = await fetch('/api/fianzas/cancelar-solicitud', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ solicitud_id: solicitudId }) });
-    const d = await r.json();
-    if (!d.ok) throw new Error(d.error);
-    const rs = await fetch('/api/fianzas/solicitudes').then(r=>r.json());
-    solicitudesData = rs.ok ? (rs.data || []) : solicitudesData;
+    await postFianzas('/api/fianzas/cancelar-solicitud', { solicitud_id: solicitudId });
+    await recargarSolicitudes();
     renderFianzas();
   } catch(e) { alert('Error: ' + e.message); }
+}
+async function importarSolicitudesHoja() {
+  if (!confirm('¿Copiar las solicitudes de la hoja de Google a Supabase?\n\nSe puede repetir sin duplicar. No toca las solicitudes creadas ya desde aquí.')) return;
+  try {
+    const d = await postFianzas('/api/fianzas/importar-desde-hoja');
+    const e = d.por_estado || {};
+    alert(`Importación hecha: ${d.importadas} solicitudes (${e.PENDIENTE||0} pendientes, ${e.DEVUELTA||0} devueltas, ${e.CANCELADA||0} canceladas).` + (d.omitidas_ya_en_supabase ? `\n${d.omitidas_ya_en_supabase} no se tocaron porque ya se gestionan desde Supabase.` : ''));
+    await recargarSolicitudes();
+    renderFianzas();
+  } catch(e) { alert('Error al importar: ' + e.message); }
 }
 // ── REGISTRO DE COBROS ──────────────────────────────────────────
 // Vista combinada factura+fianza: resuelve el lío de "el cliente paga
