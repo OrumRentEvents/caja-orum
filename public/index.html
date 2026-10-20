@@ -90,6 +90,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 table{width:100%;border-collapse:collapse;min-width:700px}
 th{padding:9px 14px;text-align:left;font-size:11px;font-weight:600;text-transform:uppercase;color:var(--gray);background:var(--gray-bg);border-bottom:1px solid var(--gray-light);white-space:nowrap;cursor:pointer;user-select:none}
 th.sorted{color:var(--black)}
+/* Fianzas: la tabla tiene su propio scroll y la fila de títulos queda fija; el buscador se queda arriba */
+.tabla-fija{max-height:calc(100vh - 170px);overflow:auto}
+.tabla-fija thead th{position:sticky;top:0;z-index:2;box-shadow:0 1px 0 var(--gray-light)}
+#panel-fianzas .filtros-bar{position:sticky;top:0;z-index:60;box-shadow:0 2px 10px rgba(0,0,0,.08)}
 td{padding:10px 14px;font-size:13px;border-bottom:1px solid var(--gray-light);vertical-align:middle}
 tr:last-child td{border-bottom:none}
 tr:hover td{background:var(--gray-bg)}
@@ -233,7 +237,7 @@ tr:hover td{background:var(--gray-bg)}
         <option value="TPV Monda">TPV Monda</option>
         <option value="TPV">TPV</option>
       </select>
-      <input type="text" class="inp-buscar" id="fianzas-buscar" placeholder="🔍 Buscar cliente / proyecto..." oninput="renderFianzas()" style="width:220px">
+      <input type="text" class="inp-buscar" id="fianzas-buscar" placeholder="🔍 Buscar cliente, nº proyecto, nº operación o nota..." oninput="renderFianzas()" style="width:320px">
       <button class="btn-cargar" onclick="cargarFianzas(false)" id="btn-cargar-fianzas">↻ Actualizar</button>
     </div>
     <div id="fianzas-content"><div class="empty-state"><div class="icon">💰</div><p>Cargando fianzas...</p></div></div>
@@ -1770,6 +1774,23 @@ function getSolicitudDevuelta(proyectoId) {
   const l = solicitudesData.filter(s => String(s.proyecto_id) === String(proyectoId) && s.estado === 'DEVUELTA');
   return l.length ? l.reduce((a, b) => String(a.fecha_devolucion||'') >= String(b.fecha_devolucion||'') ? a : b) : null;
 }
+// Buscador de Fianzas: cliente, nº y nombre de proyecto, nº de operación TPV
+// y notas de las solicitudes (sin distinguir mayúsculas ni acentos)
+function normF(t){return String(t==null?'':t).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');}
+function coincideSolicitud(s, q) {
+  const f = getFianza(s.proyecto_id);
+  return normF([s.numero_proyecto, s.cliente, s.nombre_proyecto, s.notas, s.notas_devolucion, s.solicitado_por, f && f.cliente, f && f.op_cobro, f && f.op_devolucion].join(' ')).includes(normF(q));
+}
+function coincideFianza(f, q) {
+  if (normF([f.numero, f.cliente, f.nombre, f.op_cobro, f.op_devolucion].join(' ')).includes(normF(q))) return true;
+  return solicitudesData.some(s => String(s.proyecto_id) === String(f.id) && coincideSolicitud(s, q));
+}
+// Nº de operación TPV: solo tiene sentido si la fianza se cobró por TPV
+function celdaOp(f, campo) {
+  const v = f && f[campo];
+  if (v) return `<span style="font-family:monospace;font-size:12px">${escF(v)}</span>`;
+  return (f && /TPV/.test(f.metodo || '')) ? '<span style="color:#d97706;font-size:11px">Sin nº</span>' : '<span style="color:var(--gray-light)">—</span>';
+}
 function getFianza(proyectoId) { return fianzasData.find(f => String(f.id) === String(proyectoId)) || null; }
 function getSolicitud(id) { return solicitudesData.find(s => String(s.id) === String(id)) || null; }
 // Estado real: combina Rentman (estado de la fianza) + solicitudes.
@@ -1809,7 +1830,7 @@ function renderFianzas() {
       if (e !== 'Devuelta' && e !== 'DevueltaSolicitud') return false;
     } else if (filtroEstado && getEstadoReal(f) !== filtroEstado) return false;
     if (filtroMetodo && f.metodo !== filtroMetodo) return false;
-    if (q && !f.cliente.toLowerCase().includes(q) && !f.nombre.toLowerCase().includes(q) && !f.numero.includes(q)) return false;
+    if (q && !coincideFianza(f, q)) return false;
     if (filtroNotificado) {
       const sol = getSolicitudDevuelta(f.id);
       if ((sol && sol.notificado ? 'SI' : 'NO') !== filtroNotificado) return false;
@@ -1827,6 +1848,8 @@ function renderFianzas() {
   const solPendientes = solicitudesData.filter(s => s.estado === 'PENDIENTE')
     .sort((a, b) => String(a.fecha_solicitud||'').localeCompare(String(b.fecha_solicitud||'')));
   const totalSolPendiente = solPendientes.reduce((s, x) => s + x.importe, 0);
+  // El buscador filtra también esta lista (los KPIs siguen mostrando el total)
+  const pendientesVista = q ? solPendientes.filter(s => coincideSolicitud(s, q)) : solPendientes;
   const esCaja      = ['caja', 'admin'].includes(rol);       // María: solicitar devolución
   const esContab    = ['contabilidad', 'admin'].includes(rol); // Ana: confirmar devuelta
   const soloLectura = rol === 'comercial';
@@ -1883,12 +1906,12 @@ function renderFianzas() {
   const seccionPendientes = soloLectura ? '' : `
     <div class="tabla-section" style="margin-bottom:20px;border:1.5px solid var(--purple-brd)">
       <div class="tabla-header" style="background:var(--purple-bg)">
-        <div class="tabla-title">📋 Solicitudes de devolución pendientes <span class="badge badge-gray">${solPendientes.length}</span></div>
+        <div class="tabla-title">📋 Solicitudes de devolución pendientes <span class="badge badge-gray">${q ? pendientesVista.length + ' de ' + solPendientes.length : solPendientes.length}</span>${q ? '<span class="badge badge-orange">Filtrado</span>' : ''}</div>
         <div style="margin-left:auto;font-weight:700;color:var(--purple)">${fmt(totalSolPendiente)}</div>
       </div>
-      ${solPendientes.length === 0 ? '<div class="empty-state" style="padding:24px"><p>No hay solicitudes pendientes 🎉</p></div>' : `
-      <div class="tabla-scroll"><table>
-        <thead><tr><th>Proyecto</th><th>Cliente</th><th>A devolver</th><th>Fianza</th><th>Método</th><th>Pedida</th><th>Notas para Ana</th>${soloLectura?'':'<th>Acción</th>'}</tr></thead>
+      ${pendientesVista.length === 0 ? `<div class="empty-state" style="padding:24px"><p>${q ? 'Ninguna solicitud pendiente coincide con la búsqueda' : 'No hay solicitudes pendientes 🎉'}</p></div>` : `
+      <div class="tabla-scroll tabla-fija"><table>
+        <thead><tr><th>Proyecto</th><th>Cliente</th><th>A devolver</th><th>Fianza</th><th>Método</th><th>Nº op. cobro</th><th>Nº op. devolución</th><th>Pedida</th><th>Notas para Ana</th>${soloLectura?'':'<th>Acción</th>'}</tr></thead>
         <tbody>${solPendientes.map(s => {
           const f = getFianza(s.proyecto_id);
           const av = avisosSolicitud(s);
@@ -1898,6 +1921,8 @@ function renderFianzas() {
             <td>${s.importe > 0 ? `<strong style="font-size:17px;color:#16a34a;white-space:nowrap">${fmt(s.importe)}</strong>` : '<strong style="font-size:13px;color:#b45309">0,00 € · Se retiene toda la fianza</strong>'}${av.map(a=>`<div style="font-size:11px;color:#b45309;font-weight:600;margin-top:2px">⚠ ${escF(a)}</div>`).join('')}</td>
             <td style="white-space:nowrap">${f ? fmt(f.importe) : '—'}</td>
             <td>${metodoBadge(s.metodo || (f && f.metodo))}</td>
+            <td>${celdaOp(f, 'op_cobro')}</td>
+            <td>${celdaOp(f, 'op_devolucion')}</td>
             <td style="font-size:12px;color:var(--gray);white-space:nowrap">${escF(s.solicitado_por || '—')}<br>${escF(fechaHoraES(s.fecha_solicitud))}</td>
             <td style="font-size:12px;max-width:260px;white-space:pre-wrap">${s.notas ? escF(s.notas) : '<span style="color:var(--gray)">—</span>'}</td>
             <td>${botonesSolicitud(s)}</td>
@@ -1919,13 +1944,15 @@ function renderFianzas() {
         ${btnAdmin}
       </div>
       ${lista.length === 0 ? '<div class="empty-state"><div class="icon">🔍</div><p>No hay fianzas con los filtros seleccionados</p></div>' : `
-      <div class="tabla-scroll"><table>
+      <div class="tabla-scroll tabla-fija"><table>
         <thead><tr>
           <th onclick="setFianzaSort('numero')" class="${'numero'===fianzasSortCol?'sorted':''}">Proyecto ${sf('numero')}</th>
           <th onclick="setFianzaSort('cliente')" class="${'cliente'===fianzasSortCol?'sorted':''}">Cliente ${sf('cliente')}</th>
           <th onclick="setFianzaSort('fecha_inicio')" class="${'fecha_inicio'===fianzasSortCol?'sorted':''}">Evento ${sf('fecha_inicio')}</th>
           <th onclick="setFianzaSort('importe')" class="${'importe'===fianzasSortCol?'sorted':''}">Importe ${sf('importe')}</th>
           <th>Método</th>
+          <th onclick="setFianzaSort('op_cobro')" class="${'op_cobro'===fianzasSortCol?'sorted':''}">Nº op. cobro ${sf('op_cobro')}</th>
+          <th onclick="setFianzaSort('op_devolucion')" class="${'op_devolucion'===fianzasSortCol?'sorted':''}">Nº op. devolución ${sf('op_devolucion')}</th>
           <th onclick="setFianzaSort('estado')" class="${'estado'===fianzasSortCol?'sorted':''}">Estado ${sf('estado')}</th>
           <th>Notificado</th>
           ${!soloLectura ? '<th>Acción</th>' : ''}
@@ -1936,6 +1963,8 @@ function renderFianzas() {
           <td style="color:var(--gray);font-size:12px">${escF(fechaES(f.fecha_inicio) || '—')}</td>
           <td><strong class="imp pos">${fmt(f.importe)}</strong></td>
           <td>${metodoBadge(f.metodo)}</td>
+          <td>${celdaOp(f, 'op_cobro')}</td>
+          <td>${celdaOp(f, 'op_devolucion')}</td>
           <td>${estadoBadge(f)}</td>
           <td>${notificadoCell(f)}</td>
           ${!soloLectura ? `<td>${accionBtn(f)}</td>` : ''}
