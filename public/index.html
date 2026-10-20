@@ -1912,7 +1912,7 @@ function renderFianzas() {
       ${pendientesVista.length === 0 ? `<div class="empty-state" style="padding:24px"><p>${q ? 'Ninguna solicitud pendiente coincide con la búsqueda' : 'No hay solicitudes pendientes 🎉'}</p></div>` : `
       <div class="tabla-scroll tabla-fija"><table>
         <thead><tr><th>Proyecto</th><th>Cliente</th><th>A devolver</th><th>Fianza</th><th>Método</th><th>Nº op. cobro</th><th>Nº op. devolución</th><th>Pedida</th><th>Notas para Ana</th>${soloLectura?'':'<th>Acción</th>'}</tr></thead>
-        <tbody>${solPendientes.map(s => {
+        <tbody>${pendientesVista.map(s => {
           const f = getFianza(s.proyecto_id);
           const av = avisosSolicitud(s);
           return `<tr${av.length?' style="background:#fffbeb"':''}>
