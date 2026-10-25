@@ -545,13 +545,13 @@ async function cargarEfectivoRecibido(){
 const _cacheContactos={}, _cacheProyectos={};
 async function fetchContacto(id){
   if(_cacheContactos[id]!==undefined)return _cacheContactos[id];
-  try{const r=await fetch(`${API}/contacto/${id}`).then(r=>r.json());const n=(r.ok&&r.data)?(r.data.displayname||''):'';_cacheContactos[id]=n;return n;}
+  try{const r=await fetch(`/api/contacto/${id}`).then(r=>r.json());const n=(r.ok&&r.data)?(r.data.displayname||''):'';_cacheContactos[id]=n;return n;}
   catch(e){_cacheContactos[id]='';return '';}
 }
 async function fetchProyecto(id){
   if(!id)return null;
   if(_cacheProyectos[id]!==undefined)return _cacheProyectos[id];
-  try{const r=await fetch(`${API}/proyecto/${id}`).then(r=>r.json());const d=(r.ok&&r.data)?r.data:null;_cacheProyectos[id]=d;return d;}
+  try{const r=await fetch(`/api/proyecto/${id}`).then(r=>r.json());const d=(r.ok&&r.data)?r.data:null;_cacheProyectos[id]=d;return d;}
   catch(e){_cacheProyectos[id]=null;return null;}
 }
 async function enriquecerLista(lista, renderFn){
@@ -1742,12 +1742,17 @@ async function cargarContabilidad(){
   if(!desde||!hasta)return;
   document.getElementById('contab-content').innerHTML='<div class="loading"><div class="spinner"></div><p>Cargando...</p></div>';
   try{
+    // Antes: ${API}/caja/facturas (worker de Cloudflare, 1 fila por factura)
+    // - dejó de responder (~sep 2026). Ahora la misma ruta que Caja Diaria:
+    // 1 fila por pago de Rentman, desde Supabase.
     const[rF,rR,rT]=await Promise.all([
-      fetch(`${API}/caja/facturas?desde=${desde}&hasta=${hasta}`).then(r=>r.json()),
-      fetch(`/api/caja/registros?desde=${desde}&hasta=${hasta}`).then(r=>r.json()),
+      fetch(`/api/caja/facturas?desde=${desde}&hasta=${hasta}`).then(r=>r.json()),
+      fetch(`/api/caja/registros`).then(r=>r.json()),
       fetch(`/api/ticks?desde=${desde}&hasta=${hasta}`).then(r=>r.json())
     ]);
-    facturasC=[...(rF.facturas||[]),...(rF.no_confirmados||[])];
+    if(rF.error) throw new Error(rF.error);
+    // fecha_pago viene "dd/mm/yyyy hh:mm": fecha_iso para ordenar y para la clave del tick
+    facturasC=(rF.facturas||[]).map(f=>{const m=String(f.fecha_pago||'').match(/^(\d{2})\/(\d{2})\/(\d{4})/);return {...f,fecha_iso:m?`${m[3]}-${m[2]}-${m[1]}`:''};});
     registrosC=rR||{};ticksC=rT||{};
     // Enriquecer cliente desde registrosC primero (instantáneo)
     facturasC.forEach(f=>{
@@ -1758,6 +1763,14 @@ async function cargarContabilidad(){
     // Enriquecer clientes y proyectos desde Rentman
     enriquecerLista(facturasC, renderContab);
   }catch(e){document.getElementById('contab-content').innerHTML=`<div class="empty-state"><p>Error: ${e.message}</p></div>`;}
+}
+// Clave del tick de una fila (un pago). Los ticks hasta sep 2026 se
+// guardaron por factura ('<día>_<factura_id>', cuando cada fila era una
+// factura): si existe uno así para ese día, sigue contando y es el que se
+// quita al desmarcar. Los nuevos van por pago: '<día>_P<pago_id>'.
+function claveTick(f){
+  const vieja=`${f.fecha_iso}_${f.factura_id}`;
+  return ticksC[vieja]?vieja:`${f.fecha_iso}_P${f.id}`;
 }
 function setContabSort(c){contabSortCol===c?contabSortDirC*=-1:(contabSortCol=c,contabSortDirC=1);renderContab();}
 let contabSortCol='fecha_pago',contabSortDirC=1;
@@ -1782,7 +1795,7 @@ function renderContab(){
     return metodoBase(reg.metodo_pago);
   }
   // Filtrar por búsqueda
-  let lBase=facturasC.filter(f=>!q||(f.numero||'').includes(q)||(f.cliente||'').toLowerCase().includes(q));
+  let lBase=facturasC.filter(f=>!q||String(f.numero||'').includes(q)||(f.cliente||'').toLowerCase().includes(q));
   // Resumen por método (sobre lBase sin filtro de método)
   const GRUPOS = [
     {id:'efectivo-marbella', label:'💵 Ef. Marbella', color:'#16a34a'},
@@ -1797,13 +1810,13 @@ function renderContab(){
   const resumen = GRUPOS.map(g => {
     const items = lBase.filter(f=>getMetodoId(f)===g.id);
     const total = items.reduce((s,f)=>s+(f.total_pagado||f.importe||0),0);
-    const verif = items.reduce((s,f)=>s+(ticksC[`${f.fecha_pago}_${f.id}`]?f.total_pagado||f.importe||0:0),0);
+    const verif = items.reduce((s,f)=>s+(ticksC[claveTick(f)]?f.total_pagado||f.importe||0:0),0);
     return {...g, count:items.length, total, verif};
   }).filter(g=>g.count>0);
   // Aplicar filtro de método
   let l=lBase.filter(f=>contabFiltros.has(getMetodoId(f)));
-  l.sort((a,b)=>{let va=a[contabSortCol]||0,vb=b[contabSortCol]||0;return typeof va==='string'?va.localeCompare(vb)*contabSortDirC:(va-vb)*contabSortDirC;});
-  const totalV=l.reduce((s,f)=>s+(ticksC[`${f.fecha_pago}_${f.id}`]?f.total_pagado||f.importe||0:0),0);
+  l.sort((a,b)=>{const col=contabSortCol==='fecha_pago'?'fecha_iso':contabSortCol;let va=a[col]||0,vb=b[col]||0;return typeof va==='string'?va.localeCompare(vb)*contabSortDirC:(va-vb)*contabSortDirC;});
+  const totalV=l.reduce((s,f)=>s+(ticksC[claveTick(f)]?f.total_pagado||f.importe||0:0),0);
   const todosActivos=GRUPOS.every(g=>contabFiltros.has(g.id));
   document.getElementById('contab-content').innerHTML=`
     <div class="kpi-grid" style="margin-bottom:16px">
@@ -1849,7 +1862,7 @@ function renderContab(){
         </tr></thead>
         <tbody>${l.map(f=>{
           const reg=registrosC[String(f.id)];
-          const tick=ticksC[`${f.fecha_pago}_${f.id}`];
+          const tick=ticksC[claveTick(f)];
           const m=reg?METODOS.find(x=>x.id===reg.metodo_pago):null;
           const imp=f.total_pagado||f.importe||0;
           return`<tr>
@@ -1859,7 +1872,7 @@ function renderContab(){
             <td><strong class="imp ${imp>=0?'pos':'neg'}">${fmt(imp)}</strong></td>
             <td style="font-size:12px;color:var(--gray)">${m?.nombre||'—'}</td>
             <td style="font-size:12px;color:var(--blue);font-weight:600">${reg?.num_operacion||''}</td>
-            <td style="text-align:center"><div class="tick-circle ${tick?'checked':''}" onclick="toggleTick('${f.fecha_pago}_${f.id}',this)">${tick?'✓':''}</div></td>
+            <td style="text-align:center"><div class="tick-circle ${tick?'checked':''}" onclick="toggleTick('${claveTick(f)}',this)">${tick?'✓':''}</div></td>
           </tr>`;
         }).join('')}</tbody>
       </table></div>`}
