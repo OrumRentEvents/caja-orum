@@ -653,6 +653,11 @@ function renderCajaCard(caja,titulo,tots,totalCobrado,saldoAnt,ret,efCaja,cierre
   const color=caja==='marbella'?'var(--purple)':'var(--green)';
   const retLista=(retiradaActual[caja]||[]).map(r=>`<div class="retirada-item"><span>${r.desc}</span><span style="color:var(--red)">-${fmt(r.importe)}</span></div>`).join('');
   const cierreInfo=cierre?`<div class="cierre-badge cerrado">✓ Cerrada · ${new Date(cierre.ts).toLocaleString('es-ES')} · ${cierre.usuario}</div>`:`<div class="cierre-badge abierto">⏳ Pendiente de cierre</div>`;
+  // Último cierre hecho en esta caja (sea del periodo que sea): hasta qué día
+  // cubre y cuándo/quién lo cerró - saldos[caja] es el del último cierre.
+  const ult=saldos[caja];
+  const fDia=f=>{const p=String(f||'').slice(0,10).split('-');return p.length===3?`${p[2]}/${p[1]}/${p[0]}`:'—';};
+  const ultimoCierre=ult?.updated?`<div style="font-size:12px;color:var(--gray);margin-top:8px">🔒 Último cierre: <strong style="color:#374151">hasta el ${fDia(ult.fecha)}</strong> · hecho el ${new Date(ult.updated).toLocaleString('es-ES',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})} por ${ult.usuario||'—'}</div>`:`<div style="font-size:12px;color:var(--gray);margin-top:8px">🔒 Sin cierres todavía</div>`;
   return`<div class="caja-card">
     <div class="caja-header"><div class="caja-title">${titulo}</div><div class="caja-total" style="color:${color}">${fmt(totalCobrado)}</div></div>
     <div class="caja-desglose">
@@ -671,6 +676,7 @@ function renderCajaCard(caja,titulo,tots,totalCobrado,saldoAnt,ret,efCaja,cierre
       ${!cierre?`<button class="btn-retirada" onclick="registrarRetirada('${caja}')">− Registrar retirada</button>`:''}
     </div>
     ${cierreInfo}
+    ${ultimoCierre}
   </div>`;
 }
 // ── TABLA FACTURAS ────────────────────────────────────────────
@@ -1236,7 +1242,7 @@ function renderNoConf(){
             ?`<button onclick="toggleNcConf('${k}',false,'${mid}',${imp},'${(f.cliente||'').replace(/'/g,"\'")}','${f.numero||''}')" style="background:#fee2e2;color:#991b1b;border:none;border-radius:8px;padding:6px 12px;cursor:pointer;font-size:13px;font-weight:600">↩ Quitar</button>`
             :`<button onclick="toggleNcConf('${k}',true,'${mid}',${imp},'${(f.cliente||'').replace(/'/g,"\'")}','${f.numero||''}')" style="background:#22c55e;color:#fff;border:none;border-radius:8px;padding:6px 14px;cursor:pointer;font-size:14px;font-weight:700">✅ Recibido</button>`
             :'';
-          const anularBtn=puedeVerCajasNC&&!conf?.confirmado?`<button onclick="anularNC('${k}')" title="Anular este cobro (mal registrado)" style="margin-left:6px;border:none;background:none;color:var(--red);cursor:pointer;font-size:14px">✕</button>`:'';
+          const anularBtn=esAdmin&&!conf?.confirmado?`<button onclick="anularNC('${k}')" title="Anular este cobro (mal registrado)" style="margin-left:6px;border:none;background:none;color:var(--red);cursor:pointer;font-size:14px">✕</button>`:'';
           const porQuien=f.registrado_por?`<div style="font-size:10px;color:var(--gray)">${f.registrado_por}</div>`:'';
           return`<tr style="${conf?.confirmado?'background:#f0fdf4':''}"><td><strong>${f.numero||f.id}</strong></td><td>${f.cliente||'—'}${porQuien}</td><td style="color:var(--gray)">${f.fecha_pago||'—'}</td><td><span class="imp ${imp>=0?'pos':'neg'}">${fmt(imp)}</span></td><td><div class="noconf-btns">${bots}</div></td><td>${estadoBadge}${anularBtn}</td>${esContab?`<td>${checkBtn}</td>`:''}</tr>`;
         }).join('')}</tbody>
