@@ -1754,6 +1754,7 @@ async function cargarContabilidad(){
     // fecha_pago viene "dd/mm/yyyy hh:mm": fecha_iso para ordenar y para la clave del tick
     facturasC=(rF.facturas||[]).map(f=>{const m=String(f.fecha_pago||'').match(/^(\d{2})\/(\d{2})\/(\d{4})/);return {...f,fecha_iso:m?`${m[3]}-${m[2]}-${m[1]}`:''};});
     registrosC=rR||{};ticksC=rT||{};
+    await cargarEfectivoRecibido();
     // Enriquecer cliente desde registrosC primero (instantáneo)
     facturasC.forEach(f=>{
       const reg=registrosC[String(f.id)];
@@ -1768,6 +1769,8 @@ async function cargarContabilidad(){
 // guardaron por factura ('<día>_<factura_id>', cuando cada fila era una
 // factura): si existe uno así para ese día, sigue contando y es el que se
 // quita al desmarcar. Los nuevos van por pago: '<día>_P<pago_id>'.
+// Verificado = ✓ marcado, o efectivo que Contabilidad ya marcó recibido
+function verificado(f){return !!(ticksC[claveTick(f)]||efectivoRecibidos[String(f.id)]);}
 function claveTick(f){
   const vieja=`${f.fecha_iso}_${f.factura_id}`;
   return ticksC[vieja]?vieja:`${f.fecha_iso}_P${f.id}`;
@@ -1810,13 +1813,13 @@ function renderContab(){
   const resumen = GRUPOS.map(g => {
     const items = lBase.filter(f=>getMetodoId(f)===g.id);
     const total = items.reduce((s,f)=>s+(f.total_pagado||f.importe||0),0);
-    const verif = items.reduce((s,f)=>s+(ticksC[claveTick(f)]?f.total_pagado||f.importe||0:0),0);
+    const verif = items.reduce((s,f)=>s+(verificado(f)?f.total_pagado||f.importe||0:0),0);
     return {...g, count:items.length, total, verif};
   }).filter(g=>g.count>0);
   // Aplicar filtro de método
   let l=lBase.filter(f=>contabFiltros.has(getMetodoId(f)));
   l.sort((a,b)=>{const col=contabSortCol==='fecha_pago'?'fecha_iso':contabSortCol;let va=a[col]||0,vb=b[col]||0;return typeof va==='string'?va.localeCompare(vb)*contabSortDirC:(va-vb)*contabSortDirC;});
-  const totalV=l.reduce((s,f)=>s+(ticksC[claveTick(f)]?f.total_pagado||f.importe||0:0),0);
+  const totalV=l.reduce((s,f)=>s+(verificado(f)?f.total_pagado||f.importe||0:0),0);
   const todosActivos=GRUPOS.every(g=>contabFiltros.has(g.id));
   document.getElementById('contab-content').innerHTML=`
     <div class="kpi-grid" style="margin-bottom:16px">
@@ -1862,7 +1865,7 @@ function renderContab(){
         </tr></thead>
         <tbody>${l.map(f=>{
           const reg=registrosC[String(f.id)];
-          const tick=ticksC[claveTick(f)];
+          const tick=verificado(f); const recEf=efectivoRecibidos[String(f.id)];
           const m=reg?METODOS.find(x=>x.id===reg.metodo_pago):null;
           const imp=f.total_pagado||f.importe||0;
           return`<tr>
@@ -1872,7 +1875,7 @@ function renderContab(){
             <td><strong class="imp ${imp>=0?'pos':'neg'}">${fmt(imp)}</strong></td>
             <td style="font-size:12px;color:var(--gray)">${m?.nombre||'—'}</td>
             <td style="font-size:12px;color:var(--blue);font-weight:600">${reg?.num_operacion||''}</td>
-            <td style="text-align:center"><div class="tick-circle ${tick?'checked':''}" onclick="toggleTick('${claveTick(f)}',this)">${tick?'✓':''}</div></td>
+            <td style="text-align:center">${recEf?`<div class="tick-circle checked" style="cursor:default;margin:0 auto" title="Efectivo recibido por ${recEf.por||'Contabilidad'}">✓</div>`:`<div class="tick-circle ${tick?'checked':''}" onclick="toggleTick('${claveTick(f)}',this)">${tick?'✓':''}</div>`}</td>
           </tr>`;
         }).join('')}</tbody>
       </table></div>`}
