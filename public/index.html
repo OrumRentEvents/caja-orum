@@ -190,6 +190,7 @@ tr:hover td{background:var(--gray-bg)}
         <option value="efectivo-marbella">💵 Efectivo Marbella</option>
         <option value="efectivo-monda">💵 Efectivo Monda</option>
       </select>
+      <button id="btn-nc-entregados" onclick="verEntregadosNC()" style="display:none;padding:9px 16px;border:1.5px solid var(--gray-light);background:var(--white);border-radius:8px;font-size:14px;cursor:pointer">📦 Entregados</button>
       <button id="btn-nc-registrar" onclick="abrirModalNC()" style="display:none;padding:9px 16px;border:none;background:var(--black);color:#fff;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">+ Registrar</button>
     </div>
     <div id="noconf-content"><div class="empty-state"><div class="icon">🍾</div><p>Carga los cobros no confirmados</p></div></div>
@@ -454,6 +455,7 @@ function iniciarApp(){
   document.getElementById('tab-noconf').style.display='';
   // Registrar cobro No Confirmado: comerciales y caja (antes, formulario de Google)
   if(['comercial','caja','admin'].includes(userInfo.rol)) document.getElementById('btn-nc-registrar').style.display='';
+  if(['caja','contabilidad','admin'].includes(userInfo.rol)) document.getElementById('btn-nc-entregados').style.display='';
   // Contabilidad: caja, contabilidad, admin
   if(['caja','contabilidad','admin'].includes(userInfo.rol)) document.getElementById('tab-contabilidad').style.display='';
   // Historial: solo admin
@@ -1200,7 +1202,7 @@ function renderNoConf(){
           <button onclick="vaciarRetiradasNC('marbella')" style="margin-top:4px;padding:5px 10px;border:1.5px solid #6b7280;background:#f9fafb;color:#374151;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;width:100%">🗑️ Vaciar retiradas</button>
           <button onclick="imprimirNC('marbella',false)" style="margin-top:6px;padding:5px 10px;border:1.5px solid #2563eb;background:#eff6ff;color:#2563eb;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;width:100%">🖨️ Imprimir Marbella NC (todo)</button>
           <button onclick="imprimirNC('marbella',true)" style="margin-top:4px;padding:5px 10px;border:1.5px solid #f59e0b;background:#fffbeb;color:#b45309;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;width:100%">🖨️ Solo pendientes Marbella</button>
-          <button onclick="eliminarRegistroNC('marbella')" style="margin-top:4px;padding:5px 10px;border:1.5px solid #dc2626;background:#fef2f2;color:#dc2626;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;width:100%">🗑️ Eliminar confirmados Marbella</button>
+          ${esAdmin?`<button onclick="eliminarRegistroNC('marbella')" style="margin-top:4px;padding:5px 10px;border:1.5px solid #dc2626;background:#fef2f2;color:#dc2626;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;width:100%">🗑️ Eliminar confirmados Marbella</button>`:''}
         </div>
       </div>
       <!-- Caja Monda NC -->
@@ -1216,7 +1218,7 @@ function renderNoConf(){
           <button onclick="vaciarRetiradasNC('monda')" style="margin-top:4px;padding:5px 10px;border:1.5px solid #6b7280;background:#f9fafb;color:#374151;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;width:100%">🗑️ Vaciar retiradas</button>
           <button onclick="imprimirNC('monda',false)" style="margin-top:6px;padding:5px 10px;border:1.5px solid #2563eb;background:#eff6ff;color:#2563eb;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;width:100%">🖨️ Imprimir Monda NC (todo)</button>
           <button onclick="imprimirNC('monda',true)" style="margin-top:4px;padding:5px 10px;border:1.5px solid #f59e0b;background:#fffbeb;color:#b45309;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;width:100%">🖨️ Solo pendientes Monda</button>
-          <button onclick="eliminarRegistroNC('monda')" style="margin-top:4px;padding:5px 10px;border:1.5px solid #dc2626;background:#fef2f2;color:#dc2626;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;width:100%">🗑️ Eliminar confirmados Monda</button>
+          ${esAdmin?`<button onclick="eliminarRegistroNC('monda')" style="margin-top:4px;padding:5px 10px;border:1.5px solid #dc2626;background:#fef2f2;color:#dc2626;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;width:100%">🗑️ Eliminar confirmados Monda</button>`:''}
         </div>
       </div>
     </div>`:''}
@@ -1300,6 +1302,30 @@ async function guardarCobroNC(){
     cargarNoConf();
   }catch(e){err.textContent='Error: '+e.message;err.style.display='block';btn.disabled=false;}
 }
+// Entregados: lo que salió de la caja NC con "Eliminar confirmados", por entrega.
+async function verEntregadosNC(){
+  document.getElementById('modal-title').textContent='📦 No Confirmados entregados';
+  const body=document.getElementById('modal-body');
+  body.innerHTML='<div class="loading"><div class="spinner"></div><p>Cargando...</p></div>';
+  document.getElementById('modal-cierre').style.display='flex';
+  try{
+    const r=await fetch('/api/nc/entregados').then(r=>r.json());
+    if(!r.ok){body.innerHTML=`<p>Error: ${r.error||'desconocido'}</p>`;return;}
+    if(!r.entregas.length){body.innerHTML='<div class="empty-state"><p>Todavía no se ha entregado nada.</p></div>';return;}
+    const fDia=f=>{const p=String(f||'').split('-');return p.length===3?`${p[2]}/${p[1]}/${p[0]}`:'—';};
+    body.innerHTML=r.entregas.map((e,i)=>`
+      <details style="border:1px solid var(--gray-light);border-radius:8px;margin-bottom:8px;padding:10px 12px">
+        <summary style="cursor:pointer;display:flex;justify-content:space-between;gap:10px;font-size:14px">
+          <span><strong>${fDia(e.dia)}</strong> · ${e.metodo||'—'} · ${e.por||'—'} · ${e.cobros.length} cobros</span>
+          <strong style="color:var(--green)">${fmt(e.total)}</strong>
+        </summary>
+        <div style="overflow-x:auto;margin-top:8px"><table style="width:100%;min-width:0;border-collapse:collapse;font-size:12px">
+          <thead><tr style="background:var(--gray-bg)"><th style="padding:5px 8px;text-align:left">Nº</th><th style="padding:5px 8px;text-align:left">Cliente</th><th style="padding:5px 8px;text-align:left">Fecha</th><th style="padding:5px 8px;text-align:right">Importe</th></tr></thead>
+          <tbody>${e.cobros.map(c=>`<tr style="border-bottom:1px solid var(--gray-light)"><td style="padding:5px 8px">${c.numero_proyecto||'—'}</td><td style="padding:5px 8px">${c.cliente||'—'}</td><td style="padding:5px 8px;color:var(--gray)">${fDia(c.fecha)}</td><td style="padding:5px 8px;text-align:right" class="imp ${c.importe>=0?'pos':'neg'}">${fmt(c.importe)}</td></tr>`).join('')}</tbody>
+        </table></div>
+      </details>`).join('');
+  }catch(e){body.innerHTML=`<p>Error: ${e.message}</p>`;}
+}
 async function anularNC(ncId){
   const f=noConfs.find(x=>String(x.id)===String(ncId));
   if(!confirm(`¿Anular el cobro de ${f?.cliente||''} (${fmt(f?.total_pagado||0)})?\n\nÚsalo solo si se registró por error. Sale de la lista y no cuenta en la caja.`))return;
@@ -1320,12 +1346,12 @@ async function vaciarRetiradasNC(caja){
 }
 async function eliminarRegistroNC(caja){
   const nombreSede = caja==='marbella'?'Marbella':'Monda';
-  if(!confirm(`¿Ya imprimiste y firmaste el listado en papel de ${nombreSede} NC y entregaste el dinero?\n\nEsta acción borrará PERMANENTEMENTE de la hoja de origen todos los registros de ${nombreSede} ya marcados como "✅ Recibido" por Ana, junto con sus retiradas. No se puede deshacer.`)) return;
+  if(!confirm(`¿Ya imprimiste y firmaste el listado en papel de ${nombreSede} NC y entregaste el dinero?\n\nTodos los cobros de ${nombreSede} ya marcados "✅ Recibido" por Ana pasan a la lista "📦 Entregados" y salen de esta caja, junto con sus retiradas NC. Los pendientes se quedan.`)) return;
   try{
     const r = await fetch('/api/nc/eliminar', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({caja, usuario:userInfo?.nombre||''})}).then(r=>r.json());
     if(!r.ok){ alert('Error: '+(r.error||'desconocido')); return; }
     if(r.eliminados===0){ alert(`No hay registros confirmados por Ana en ${nombreSede} para eliminar.`); return; }
-    alert(`✅ ${r.eliminados} registro(s) eliminado(s) de ${nombreSede} NC.`);
+    alert(`✅ ${r.eliminados} cobro(s) de ${nombreSede} NC pasados a "📦 Entregados".`);
     cargarNoConf();
   }catch(e){ alert('Error: '+e.message); }
 }
