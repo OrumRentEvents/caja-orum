@@ -415,6 +415,14 @@ const METODOS = [
 // normal (fianza-efectivo-marbella → efectivo-marbella, fianza-transferencia
 // → transferencia), igual que ya hace calcTotales() por tipo/ubicación.
 function metodoBase(mid){return (mid||'').replace(/^fianza-/,'');}
+// Permisos por rol (el servidor los vuelve a comprobar): comercial solo
+// efectivo/TPV; contabilidad solo mira Caja Diaria y marca recibido.
+const METODOS_EF_TPV=['efectivo-marbella','efectivo-monda','tpv-marbella','tpv-monda','fianza-efectivo-marbella','fianza-efectivo-monda'];
+const rolActual=()=>userInfo?.rol||'';
+const puedeGestionarCaja=()=>['caja','admin'].includes(rolActual());
+const puedeAsignarMetodo=mid=>rolActual()==='admin'||rolActual()==='caja'||(rolActual()==='comercial'&&METODOS_EF_TPV.includes(mid));
+const puedeMarcarRecibido=()=>['contabilidad','admin'].includes(rolActual());
+let efectivoRecibidos={}, efectivoPendiente={marbella:[],monda:[]};
 const METODOS_NC = [
   {id:'efectivo-marbella',label:'💵 Efectivo Marbella',ubicacion:'marbella',tipo:'efectivo'},
   {id:'efectivo-monda',label:'💵 Efectivo Monda',ubicacion:'monda',tipo:'efectivo'},
@@ -508,6 +516,7 @@ async function cargarCobros(){
       fetch('/api/cierres').then(r=>r.json()),
       fetch('/api/retiradas').then(r=>r.json()),
     ]);
+    await cargarEfectivoRecibido();
     facturas=rF.facturas||[];
     noConfs=rF.no_confirmados||[];
     saldos=rS||saldos;
@@ -523,6 +532,14 @@ async function cargarCobros(){
     enriquecerClientes([...facturas,...noConfs]);
   }catch(e){document.getElementById('caja-content').innerHTML=`<div class="empty-state"><div class="icon">⚠️</div><p>Error: ${e.message}</p></div>`;}
   btn.disabled=false;btn.innerHTML='↻ Cargar cobros';
+}
+async function cargarEfectivoRecibido(){
+  const [rRec,rPend]=await Promise.all([
+    fetch('/api/caja/efectivo-recibidos').then(r=>r.json()).catch(()=>({})),
+    fetch('/api/caja/efectivo-pendiente').then(r=>r.json()).catch(()=>({marbella:[],monda:[]}))
+  ]);
+  efectivoRecibidos=rRec||{};
+  efectivoPendiente=rPend||{marbella:[],monda:[]};
 }
 // Cache compartida de contactos y proyectos
 const _cacheContactos={}, _cacheProyectos={};
@@ -613,8 +630,8 @@ function renderCaja(){
       ${renderCajaCard('monda','🏡 Caja Monda',t.monda,totalMo,saldoAntMo,retMo,efCajaMo,cMo)}
     </div>
     <div class="cierres-row">
-      <button class="btn-cierre btn-cierre-marbella" onclick="intentarCierre('marbella')" ${cM?'disabled':''}>🟣 ${cM?'✓ Cerrada':'Cierre Marbella'}</button>
-      <button class="btn-cierre btn-cierre-monda" onclick="intentarCierre('monda')" ${cMo?'disabled':''}>🟢 ${cMo?'✓ Cerrada':'Cierre Monda'}</button>
+      ${puedeGestionarCaja()?`<button class="btn-cierre btn-cierre-marbella" onclick="intentarCierre('marbella')" ${cM?'disabled':''}>🟣 ${cM?'✓ Cerrada':'Cierre Marbella'}</button>
+      <button class="btn-cierre btn-cierre-monda" onclick="intentarCierre('monda')" ${cMo?'disabled':''}>🟢 ${cMo?'✓ Cerrada':'Cierre Monda'}</button>`:''}
       <button class="btn-cierre btn-cierre-global" onclick="generarResumen()">📋 Resumen Global</button>
       <button class="btn-cierre" style="background:#eff6ff;border-color:#2563eb;color:#2563eb" onclick="imprimirCaja('marbella')">🖨️ Imprimir Marbella</button>
       <button class="btn-cierre" style="background:#eff6ff;border-color:#2563eb;color:#2563eb" onclick="imprimirCaja('monda')">🖨️ Imprimir Monda</button>
@@ -675,10 +692,15 @@ function renderCajaCard(caja,titulo,tots,totalCobrado,saldoAnt,ret,efCaja,cierre
         <strong style="color:var(--red)">-${fmt(ret)}</strong>
       </div>
       <div class="saldo-fila total"><label>EFECTIVO EN CAJA</label><strong style="color:${color}">${fmt(efCaja)}</strong></div>
-      ${!cierre?`<button class="btn-retirada" onclick="registrarRetirada('${caja}')">− Registrar retirada</button>`:''}
+      ${!cierre&&puedeGestionarCaja()?`<button class="btn-retirada" onclick="registrarRetirada('${caja}')">− Registrar retirada</button>`:''}
     </div>
     ${cierreInfo}
     ${ultimoCierre}
+    ${rolActual()!=='comercial'?(()=>{const pend=efectivoPendiente[caja]||[];const tot=pend.reduce((s,x)=>s+x.importe,0);
+      return `<div style="margin-top:8px;padding:8px 10px;border-radius:8px;background:${pend.length?'#fffbeb':'#f0fdf4'};font-size:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <span>💶 Efectivo pendiente de entregar a Contabilidad: <strong>${fmt(tot)}</strong> (${pend.length} cobro${pend.length!==1?'s':''})</span>
+        <button onclick="verEfectivoPendiente('${caja}')" style="margin-left:auto;padding:3px 10px;border:1px solid var(--gray-light);background:var(--white);border-radius:6px;font-size:11px;cursor:pointer">Ver${puedeMarcarRecibido()?' / marcar recibido':''}</button>
+      </div>`;})():''}
   </div>`;
 }
 // ── TABLA FACTURAS ────────────────────────────────────────────
@@ -777,19 +799,29 @@ function renderFila(f){
   // resto sin cobrar de momento - ver pregunta del usuario sobre 100€ de
   // 130,43€ solo por transferencia).
   const esParcial=lineas.length>1||(lineas.length===1&&Math.abs(resto)>0.01);
+  // Efectivo ya recibido por Contabilidad: bloqueado salvo para Sergio
+  const claves=[String(f.id),...lineas.slice(1).map(l=>`${f.id}_${l.split_idx}`)];
+  const rec=claves.map(k=>efectivoRecibidos[k]).find(Boolean);
+  const recHtml=rec?`<div style="font-size:11px;color:#166534;margin-top:3px">✅ Recibido por ${rec.por||'Contabilidad'} · ${new Date(rec.en).toLocaleDateString('es-ES')}</div>`:'';
+  // Solo lectura: contabilidad, efectivo ya recibido (salvo admin), o un
+  // comercial ante un método que no es efectivo/TPV.
+  const soloLecturaFila=rolActual()==='contabilidad'||(rec&&rolActual()!=='admin')||(rolActual()==='comercial'&&lineas.some(l=>!METODOS_EF_TPV.includes(l.metodo)));
   let metodoHtml;
-  if(esParcial){
+  if(soloLecturaFila){
+    metodoHtml=`<div style="font-size:12px">${lineas.length?lineas.map(l=>{const m=METODOS.find(x=>x.id===l.metodo);return `<div><strong>${fmt(l.importe??imp)}</strong> ${m?.label||l.metodo}${l.numOp?' · Op.'+l.numOp:''}</div>`;}).join(''):'<span style="color:var(--gray)">Sin método</span>'}${recHtml}</div>`;
+  } else if(esParcial){
     metodoHtml=`<div class="metodo-sel" style="flex-direction:column;align-items:flex-start;gap:3px">
       ${lineas.map(l=>{const m=METODOS.find(x=>x.id===l.metodo);return `<div style="font-size:12px"><strong>${fmt(l.importe)}</strong> ${m?.label||l.metodo}${l.numOp?' · Op.'+l.numOp:''}</div>`;}).join('')}
       ${resto>0.01?`<div style="font-size:12px;color:var(--red)">⏳ Pendiente: <strong>${fmt(resto)}</strong></div>`:''}
       <button onclick="abrirPartir(${f.id})" style="margin-top:2px;padding:3px 8px;border:1px solid var(--gray-light);background:var(--white);border-radius:6px;font-size:11px;cursor:pointer">✏️ Editar</button>
+      ${recHtml}
     </div>`;
   } else {
     const st=lineas[0],mid=st?.metodo||'',numOp=st?.numOp||'';
     const m=METODOS.find(x=>x.id===mid);
-    const bots=METODOS.map(met=>`<button class="btn-m ${mid===met.id?'sel-'+met.id:''}" onclick="clickMetodo(${f.id},'${met.id}',false)">${met.label}</button>`).join('');
+    const bots=METODOS.filter(met=>puedeAsignarMetodo(met.id)).map(met=>`<button class="btn-m ${mid===met.id?'sel-'+met.id:''}" onclick="clickMetodo(${f.id},'${met.id}',false)">${met.label}</button>`).join('');
     const numOpHtml=(m?.esTpv&&mid)?`<input class="numop ${!numOp?'err':''}" placeholder="Nº Op.*" value="${numOp}" onchange="guardarNumOp(${f.id},this.value)" title="Nº operación obligatorio">`:''
-    metodoHtml=`<div class="metodo-sel">${bots}${numOpHtml}<button onclick="abrirPartir(${f.id})" title="Partir en varias formas de pago" style="padding:3px 6px;border:1px solid var(--gray-light);background:var(--white);border-radius:6px;font-size:11px;cursor:pointer">✂️</button></div>`;
+    metodoHtml=`<div class="metodo-sel">${bots}${numOpHtml}<button onclick="abrirPartir(${f.id})" title="Partir en varias formas de pago" style="padding:3px 6px;border:1px solid var(--gray-light);background:var(--white);border-radius:6px;font-size:11px;cursor:pointer">✂️</button></div>${recHtml}`;
   }
   return`<tr id="fila-${f.id}">
     <td><strong>${f.numero||f.id}</strong></td>
@@ -838,7 +870,7 @@ function renderPartir(f){
         <input type="number" step="0.01" value="${l.importe}" onchange="cambiarLineaPartir(${i},'importe',this.value)" style="width:90px;padding:8px;border:1.5px solid var(--gray-light);border-radius:6px;font-size:13px">
         <select onchange="cambiarLineaPartir(${i},'metodo',this.value)" style="flex:1;padding:8px;border:1.5px solid var(--gray-light);border-radius:6px;font-size:13px">
           <option value="">— Forma de pago —</option>
-          ${METODOS.map(m=>`<option value="${m.id}" ${l.metodo===m.id?'selected':''}>${m.label}</option>`).join('')}
+          ${METODOS.filter(m=>puedeAsignarMetodo(m.id)).map(m=>`<option value="${m.id}" ${l.metodo===m.id?'selected':''}>${m.label}</option>`).join('')}
         </select>
         ${partirLineas.length>1?`<button onclick="quitarLineaPartir(${i})" style="border:none;background:none;cursor:pointer;color:var(--red);font-size:16px;padding:2px 6px">✕</button>`:'<span style="width:24px"></span>'}
       </div>`).join('')}
@@ -1234,7 +1266,10 @@ function renderNoConf(){
           const k=String(f.id),st=estado[k],mid=st?.metodo||'';
           const conf=ncConfs[k];
           const imp=f.total_pagado||f.importe||0;
-          const bots=METODOS_NC.map(m=>`<button class="btn-nc ${mid===m.id?'sel-'+m.id:''}" onclick="clickMetodo('${f.id}','${m.id}',true)">${m.label}</button>`).join('');
+          // Contabilidad solo mira el método (lo eligen comercial/María/Sergio)
+          const bots=rolActual()==='contabilidad'
+            ?`<span style="font-size:12px">${(METODOS_NC.find(m=>m.id===mid)||{}).label||'<span style="color:var(--gray)">Sin método</span>'}</span>`
+            :METODOS_NC.map(m=>`<button class="btn-nc ${mid===m.id?'sel-'+m.id:''}" onclick="clickMetodo('${f.id}','${m.id}',true)">${m.label}</button>`).join('');
           const estadoBadge=conf?.confirmado
             ?`<span style="background:#dcfce7;color:#166534;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600">✅ Recibido<br><span style="font-weight:400;font-size:10px">${conf.usuario} · ${new Date(conf.ts).toLocaleString('es-ES',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</span></span>`
             :mid?'<span style="background:#fef9c3;color:#854d0e;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600">⏳ Pendiente</span>'
@@ -1302,14 +1337,54 @@ async function guardarCobroNC(){
     cargarNoConf();
   }catch(e){err.textContent='Error: '+e.message;err.style.display='block';btn.disabled=false;}
 }
+// ── EFECTIVO OFICIAL: pendiente de entregar / recibido por Contabilidad ──
+let _efCaja=null;
+async function verEfectivoPendiente(caja){
+  _efCaja=caja;
+  const nombre=caja==='marbella'?'Marbella':'Monda';
+  document.getElementById('modal-title').textContent=`💶 Efectivo ${nombre} pendiente de entregar a Contabilidad`;
+  const body=document.getElementById('modal-body');
+  const pend=efectivoPendiente[caja]||[];
+  const tot=pend.reduce((s,x)=>s+x.importe,0);
+  const marcar=puedeMarcarRecibido();
+  body.innerHTML=`
+    <p style="font-size:13px;color:var(--gray);margin-bottom:12px">Cobros en efectivo de facturas oficiales desde el ${(efectivoPendiente.desde||'').split('-').reverse().join('/')} que ${marcar?'aún no has marcado':'Contabilidad aún no ha marcado'} como recibidos.</p>
+    <div class="cierre-linea total"><span>TOTAL PENDIENTE</span><strong>${fmt(tot)}</strong></div>
+    ${pend.length?`<div style="overflow-x:auto;margin-top:12px"><table style="width:100%;min-width:0;border-collapse:collapse;font-size:12px">
+      <thead><tr style="background:var(--gray-bg)"><th style="padding:6px 8px;text-align:left">Factura</th><th style="padding:6px 8px;text-align:left">Cliente</th><th style="padding:6px 8px;text-align:left">Fecha</th><th style="padding:6px 8px;text-align:right">Importe</th>${marcar?'<th></th>':''}</tr></thead>
+      <tbody>${pend.map(p=>`<tr style="border-bottom:1px solid var(--gray-light)"><td style="padding:6px 8px">${p.numero||'—'}</td><td style="padding:6px 8px">${p.cliente||'—'}</td><td style="padding:6px 8px;color:var(--gray)">${String(p.fecha_pago||'').slice(0,10)}</td><td style="padding:6px 8px;text-align:right;font-weight:600">${fmt(p.importe)}</td>${marcar?`<td style="padding:6px 8px;text-align:right"><button onclick="marcarEfectivoRecibido('${p.clave}',true)" style="background:#22c55e;color:#fff;border:none;border-radius:8px;padding:5px 12px;cursor:pointer;font-size:12px;font-weight:700">✅ Recibido</button></td>`:''}</tr>`).join('')}</tbody>
+    </table></div>`:'<div class="empty-state" style="padding:20px"><p>No hay efectivo pendiente de entregar ✅</p></div>'}
+    <div style="display:flex;gap:10px;margin-top:16px;flex-wrap:wrap">
+      ${pend.length?`<button onclick="imprimirCierre('Efectivo ${nombre} pendiente de entregar a Contabilidad')" style="flex:1;padding:11px;border:1.5px solid var(--gray-light);background:var(--white);border-radius:8px;font-size:14px;cursor:pointer">🖨️ Imprimir para firmar</button>`:''}
+      <button onclick="verEfectivoEntregado()" style="flex:1;padding:11px;border:1.5px solid var(--gray-light);background:var(--white);border-radius:8px;font-size:14px;cursor:pointer">📦 Ya entregado</button>
+    </div>`;
+  document.getElementById('modal-cierre').style.display='flex';
+}
+async function marcarEfectivoRecibido(clave,recibido){
+  const r=await fetch('/api/caja/efectivo-recibido',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({clave,recibido})}).then(r=>r.json()).catch(e=>({ok:false,error:e.message}));
+  if(!r.ok){alert('Error: '+(r.error||'desconocido'));return;}
+  await cargarEfectivoRecibido();
+  if(_efCaja)verEfectivoPendiente(_efCaja);
+  if(document.getElementById('tabla-wrapper'))renderCaja();
+}
+async function deshacerEfectivoRecibido(clave){
+  if(!confirm('¿Deshacer el "Recibido" de este cobro? Vuelve a pendiente de entregar.'))return;
+  const r=await fetch('/api/caja/efectivo-recibido',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({clave,recibido:false})}).then(r=>r.json()).catch(e=>({ok:false,error:e.message}));
+  if(!r.ok){alert('Error: '+(r.error||'desconocido'));return;}
+  await cargarEfectivoRecibido();
+  if(document.getElementById('tabla-wrapper'))renderCaja();
+  verEfectivoEntregado();
+}
+async function verEfectivoEntregado(){ await verEntregados('/api/caja/efectivo-entregados','📦 Efectivo entregado a Contabilidad','Factura'); }
 // Entregados: lo que salió de la caja NC con "Eliminar confirmados", por entrega.
-async function verEntregadosNC(){
-  document.getElementById('modal-title').textContent='📦 No Confirmados entregados';
+async function verEntregadosNC(){ await verEntregados('/api/nc/entregados','📦 No Confirmados entregados','Nº'); }
+async function verEntregados(url,titulo,colNumero){
+  document.getElementById('modal-title').textContent=titulo;
   const body=document.getElementById('modal-body');
   body.innerHTML='<div class="loading"><div class="spinner"></div><p>Cargando...</p></div>';
   document.getElementById('modal-cierre').style.display='flex';
   try{
-    const r=await fetch('/api/nc/entregados').then(r=>r.json());
+    const r=await fetch(url).then(r=>r.json());
     if(!r.ok){body.innerHTML=`<p>Error: ${r.error||'desconocido'}</p>`;return;}
     if(!r.entregas.length){body.innerHTML='<div class="empty-state"><p>Todavía no se ha entregado nada.</p></div>';return;}
     const fDia=f=>{const p=String(f||'').split('-');return p.length===3?`${p[2]}/${p[1]}/${p[0]}`:'—';};
@@ -1320,8 +1395,8 @@ async function verEntregadosNC(){
           <strong style="color:var(--green)">${fmt(e.total)}</strong>
         </summary>
         <div style="overflow-x:auto;margin-top:8px"><table style="width:100%;min-width:0;border-collapse:collapse;font-size:12px">
-          <thead><tr style="background:var(--gray-bg)"><th style="padding:5px 8px;text-align:left">Nº</th><th style="padding:5px 8px;text-align:left">Cliente</th><th style="padding:5px 8px;text-align:left">Fecha</th><th style="padding:5px 8px;text-align:right">Importe</th></tr></thead>
-          <tbody>${e.cobros.map(c=>`<tr style="border-bottom:1px solid var(--gray-light)"><td style="padding:5px 8px">${c.numero_proyecto||'—'}</td><td style="padding:5px 8px">${c.cliente||'—'}</td><td style="padding:5px 8px;color:var(--gray)">${fDia(c.fecha)}</td><td style="padding:5px 8px;text-align:right" class="imp ${c.importe>=0?'pos':'neg'}">${fmt(c.importe)}</td></tr>`).join('')}</tbody>
+          <thead><tr style="background:var(--gray-bg)"><th style="padding:5px 8px;text-align:left">${colNumero}</th><th style="padding:5px 8px;text-align:left">Cliente</th><th style="padding:5px 8px;text-align:left">Fecha</th><th style="padding:5px 8px;text-align:right">Importe</th></tr></thead>
+          <tbody>${e.cobros.map(c=>`<tr style="border-bottom:1px solid var(--gray-light)"><td style="padding:5px 8px">${c.numero_proyecto||c.numero||'—'}</td><td style="padding:5px 8px">${c.cliente||'—'}</td><td style="padding:5px 8px;color:var(--gray)">${c.fecha?fDia(c.fecha):String(c.fecha_pago||'—').slice(0,10)}</td><td style="padding:5px 8px;text-align:right" class="imp ${c.importe>=0?'pos':'neg'}">${fmt(c.importe)}</td>${c.clave&&puedeMarcarRecibido()?`<td style="padding:5px 8px;text-align:right"><button onclick="deshacerEfectivoRecibido('${c.clave}')" title="Deshacer: vuelve a pendiente de entregar" style="border:1px solid var(--gray-light);background:var(--white);border-radius:6px;padding:2px 8px;font-size:11px;cursor:pointer">↩</button></td>`:''}</tr>`).join('')}</tbody>
         </table></div>
       </details>`).join('');
   }catch(e){body.innerHTML=`<p>Error: ${e.message}</p>`;}
@@ -2006,9 +2081,13 @@ function renderFianzas() {
   const totalSolPendiente = solPendientes.reduce((s, x) => s + x.importe, 0);
   // El buscador filtra también esta lista (los KPIs siguen mostrando el total)
   const pendientesVista = q ? solPendientes.filter(s => coincideSolicitud(s, q)) : solPendientes;
-  const esCaja      = ['caja', 'admin'].includes(rol);       // María: solicitar devolución
-  const esContab    = ['contabilidad', 'admin'].includes(rol); // Ana: confirmar devuelta
-  const soloLectura = rol === 'comercial';
+  // Devoluciones (25 oct 2026): piden comerciales/María/Sergio, autorizan
+  // María o Sergio, y la marca hecha quien la ejecuta: transferencia → Ana o
+  // Isabel; efectivo o TPV → María o el comercial que la devuelve.
+  const esCaja       = ['caja', 'admin'].includes(rol);                   // autorizar, deshacer
+  const puedeSolicitar = ['caja', 'admin', 'comercial'].includes(rol);
+  const puedeMarcarDevuelta = s => rol === 'admin' || (/transferencia/i.test(s.metodo_devolucion || '') ? rol === 'contabilidad' : ['caja', 'comercial'].includes(rol));
+  const soloLectura = false;
   const btnAdmin = rol === 'admin'
     ? `<div style="display:flex;gap:8px;margin-left:auto">
         <button onclick="importarSolicitudesHoja()" title="Copia la hoja SOLICITUDES del Apps Script a Supabase (no duplica)" style="padding:8px 16px;background:var(--white);color:var(--black);border:1.5px solid var(--gray-light);border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">⇩ Importar desde la hoja</button>
@@ -2042,16 +2121,20 @@ function renderFianzas() {
     return `<span style="background:${c.bg};color:${c.color};padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;white-space:nowrap">${escF(metodo || '—')}</span>`;
   };
   const botonesSolicitud = (s) => {
-    const btnDevuelta = esContab ? `<button onclick="confirmarDevueltaFianza('${escF(s.id)}')" style="padding:5px 12px;background:#16a34a;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">${s.importe > 0 ? '✅ Marcar devuelta' : '✅ Confirmar retención'}</button>` : '';
-    const btnDeshacer = esCaja ? `<button data-cancelar="${escF(s.id)}" style="padding:5px 12px;background:#fff1f2;color:#be123c;border:1px solid #fecdd3;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">↩ Deshacer</button>` : '';
-    return `<div style="display:flex;gap:6px;flex-wrap:wrap">${btnDevuelta}${btnDeshacer}</div>`;
+    const propia = rol === 'comercial' && s.solicitado_por === (userInfo?.nombre || '');
+    const btnAutorizar = !s.autorizada && esCaja ? `<button onclick="autorizarSolicitudFianza('${escF(s.id)}')" style="padding:5px 12px;background:#7c3aed;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">🔓 Autorizar</button>` : '';
+    const btnDevuelta = s.autorizada && puedeMarcarDevuelta(s) ? `<button onclick="confirmarDevueltaFianza('${escF(s.id)}')" style="padding:5px 12px;background:#16a34a;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">${s.importe > 0 ? '✅ Marcar devuelta' : '✅ Confirmar retención'}</button>` : '';
+    const btnDeshacer = esCaja || (propia && !s.autorizada) ? `<button data-cancelar="${escF(s.id)}" style="padding:5px 12px;background:#fff1f2;color:#be123c;border:1px solid #fecdd3;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">↩ Deshacer</button>` : '';
+    const estadoAut = s.autorizada
+      ? (s.autorizada_por ? `<div style="font-size:11px;color:#166534;width:100%">🔓 Autorizada por ${escF(s.autorizada_por)}</div>` : '')
+      : `<div style="font-size:11px;color:#b45309;font-weight:600;width:100%" title="La autorizan María o Sergio">⏳ Sin autorizar</div>`;
+    return `<div style="display:flex;gap:6px;flex-wrap:wrap">${estadoAut}${btnAutorizar}${btnDevuelta}${btnDeshacer}</div>`;
   };
   const accionBtn = (f) => {
-    if (soloLectura) return '';
     const estado = getEstadoReal(f);
     if (estado === 'SolicitudEnviada') return botonesSolicitud(getSolicitudPendiente(f.id));
-    // Pagada sin solicitud — María o admin pueden solicitar
-    if (estado === 'Pagada' && esCaja) {
+    // Pagada sin solicitud — comerciales, María o Sergio pueden solicitar
+    if (estado === 'Pagada' && puedeSolicitar) {
       return `<button onclick="solicitarDevolucionFianza(${Number(f.id)})" style="padding:5px 12px;background:#7c3aed;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">📋 Solicitar devolución</button>`;
     }
     return `<span style="color:var(--gray);font-size:12px">—</span>`;
@@ -2067,7 +2150,7 @@ function renderFianzas() {
       </div>
       ${pendientesVista.length === 0 ? `<div class="empty-state" style="padding:24px"><p>${q ? 'Ninguna solicitud pendiente coincide con la búsqueda' : 'No hay solicitudes pendientes 🎉'}</p></div>` : `
       <div class="tabla-scroll tabla-fija"><table>
-        <thead><tr><th>Proyecto</th><th>Cliente</th><th>A devolver</th><th>Fianza</th><th>Método</th><th>Nº op. cobro</th><th>Nº op. devolución</th><th>Pedida</th><th>Notas para Ana</th>${soloLectura?'':'<th>Acción</th>'}</tr></thead>
+        <thead><tr><th>Proyecto</th><th>Cliente</th><th>A devolver</th><th>Fianza</th><th>Devolver por</th><th>Nº op. cobro</th><th>Nº op. devolución</th><th>Pedida</th><th>Notas</th>${soloLectura?'':'<th>Acción</th>'}</tr></thead>
         <tbody>${pendientesVista.map(s => {
           const f = getFianza(s.proyecto_id);
           const av = avisosSolicitud(s);
@@ -2076,7 +2159,7 @@ function renderFianzas() {
             <td>${escF(s.cliente || (f && f.cliente) || '—')}</td>
             <td>${s.importe > 0 ? `<strong style="font-size:17px;color:#16a34a;white-space:nowrap">${fmt(s.importe)}</strong>` : '<strong style="font-size:13px;color:#b45309">0,00 € · Se retiene toda la fianza</strong>'}${av.map(a=>`<div style="font-size:11px;color:#b45309;font-weight:600;margin-top:2px">⚠ ${escF(a)}</div>`).join('')}</td>
             <td style="white-space:nowrap">${f ? fmt(f.importe) : '—'}</td>
-            <td>${metodoBadge(s.metodo || (f && f.metodo))}</td>
+            <td>${metodoBadge(s.metodo_devolucion || s.metodo || (f && f.metodo))}${s.metodo && s.metodo_devolucion && s.metodo !== s.metodo_devolucion ? `<div style="font-size:10px;color:var(--gray);margin-top:2px">Cobrada: ${escF(s.metodo)}</div>` : ''}</td>
             <td>${celdaOp(f, 'op_cobro')}</td>
             <td>${celdaOp(f, 'op_devolucion')}</td>
             <td style="font-size:12px;color:var(--gray);white-space:nowrap">${escF(s.solicitado_por || '—')}<br>${escF(fechaHoraES(s.fecha_solicitud))}</td>
@@ -2089,7 +2172,7 @@ function renderFianzas() {
   document.getElementById('fianzas-content').innerHTML = `
     <div class="kpi-grid" style="margin-bottom:16px">
       <div class="kpi-card"><div class="kpi-label">Total Fianzas</div><div class="kpi-value">${fmt(total)}</div><div class="kpi-sub">${fianzasData.length} proyectos</div></div>
-      <div class="kpi-card" style="border-left:4px solid #7c3aed"><div class="kpi-label">Solicitado por devolver</div><div class="kpi-value" style="color:#7c3aed">${fmt(totalSolPendiente)}</div><div class="kpi-sub">${solPendientes.length} solicitud${solPendientes.length!==1?'es':''} pendiente${solPendientes.length!==1?'s':''} de Ana</div></div>
+      <div class="kpi-card" style="border-left:4px solid #7c3aed"><div class="kpi-label">Solicitado por devolver</div><div class="kpi-value" style="color:#7c3aed">${fmt(totalSolPendiente)}</div><div class="kpi-sub">${solPendientes.length} solicitud${solPendientes.length!==1?'es':''} pendiente${solPendientes.length!==1?'s':''} · ${solPendientes.filter(s=>!s.autorizada).length} sin autorizar</div></div>
       <div class="kpi-card kpi-tpv"><div class="kpi-label">Cobradas / Retenidas</div><div class="kpi-value">${fmt(pagadas.reduce((s,f)=>s+f.importe,0))}</div><div class="kpi-sub">${pagadas.length} fianzas</div></div>
       <div class="kpi-card kpi-efectivo"><div class="kpi-label">Devueltas</div><div class="kpi-value">${fmt(devueltas.reduce((s,f)=>s+f.importe,0))}</div><div class="kpi-sub">${devueltas.length} fianzas</div></div>
     </div>
@@ -2178,11 +2261,17 @@ function solicitarDevolucionFianza(proyectoId) {
       <div style="margin-top:8px;font-size:12px;color:var(--gray)">Pon <strong>0</strong> si nos quedamos toda la fianza (indica el motivo en las notas).</div>
     </div>
     <div style="margin-bottom:16px">
-      <label style="font-size:12px;font-weight:600;color:var(--gray);display:block;margin-bottom:8px">Notas para Ana</label>
-      <textarea id="fianza-notas" placeholder="Ej: Transferencia a cuenta habitual, IBAN del cliente..." style="width:100%;padding:10px;border:1.5px solid var(--gray-light);border-radius:8px;font-size:14px;outline:none;resize:vertical;min-height:80px;font-family:inherit;box-sizing:border-box"></textarea>
+      <label style="font-size:12px;font-weight:600;color:var(--gray);display:block;margin-bottom:8px">Devolver por</label>
+      <select id="fianza-metodo-dev" style="width:100%;padding:10px;border:1.5px solid var(--gray-light);border-radius:8px;font-size:14px;outline:none">
+        ${['Transferencia Bancaria','Efectivo Marbella','Efectivo Monda','TPV Marbella','TPV Monda'].map(m=>`<option ${m===f.metodo?'selected':''}>${m}</option>`).join('')}
+      </select>
+    </div>
+    <div style="margin-bottom:16px">
+      <label style="font-size:12px;font-weight:600;color:var(--gray);display:block;margin-bottom:8px">Notas</label>
+      <textarea id="fianza-notas" placeholder="Ej: IBAN del cliente, motivo si se retiene una parte..." style="width:100%;padding:10px;border:1.5px solid var(--gray-light);border-radius:8px;font-size:14px;outline:none;resize:vertical;min-height:80px;font-family:inherit;box-sizing:border-box"></textarea>
     </div>
     <p style="color:var(--gray);font-size:12px;margin-bottom:16px">
-      Ana la verá al momento en "Solicitudes pendientes" y en el resumen del <strong>viernes a las 8:00</strong>.
+      Queda pendiente hasta que <strong>María o Sergio la autoricen</strong>. Después la ejecuta Ana o Isabel si es transferencia, o quien la devuelva si es efectivo o TPV.
     </p>
     <div style="display:flex;gap:10px">
       <button onclick="document.getElementById('modal-fianza').style.display='none'" style="flex:1;padding:11px;border:1.5px solid var(--gray-light);background:var(--white);border-radius:8px;font-size:14px;cursor:pointer">Cancelar</button>
@@ -2201,13 +2290,14 @@ async function ejecutarSolicitud(proyectoId) {
   if (!(importe >= 0)) { alert('El importe a devolver no puede estar vacío ni ser negativo'); return; }
   if (importe > f.importe + 0.005 && !confirm(`Vas a pedir devolver ${fmt(importe)} y la fianza cobrada es ${fmt(f.importe)}. ¿Seguro?`)) return;
   const notas = document.getElementById('fianza-notas')?.value || '';
+  const metodoDev = document.getElementById('fianza-metodo-dev')?.value || f.metodo;
   if (importe === 0) {
     if (!notas.trim()) { alert('Si no se devuelve nada, indica el motivo en las notas (ej: saldo pendiente, desperfectos...)'); return; }
     if (!confirm('No se devuelve nada: nos quedamos toda la fianza (' + fmt(f.importe) + '). ¿Seguro?')) return;
   }
   document.getElementById('modal-fianza').style.display = 'none';
   try {
-    await postFianzas('/api/fianzas/solicitar', { proyecto_id: f.id, numero_proyecto: f.numero, cliente: f.cliente, importe, metodo: f.metodo, fecha_evento: f.fecha_inicio, notas });
+    await postFianzas('/api/fianzas/solicitar', { proyecto_id: f.id, numero_proyecto: f.numero, cliente: f.cliente, importe, metodo: f.metodo, metodo_devolucion: metodoDev, fecha_evento: f.fecha_inicio, notas });
     await recargarSolicitudes();
     renderFianzas();
   } catch(e) { alert('Error: ' + e.message); }
@@ -2220,7 +2310,7 @@ function confirmarDevueltaFianza(solicitudId) {
   document.getElementById('modal-fianza-title').textContent = '✅ Confirmar Devolución Ejecutada';
   document.getElementById('modal-fianza-body').innerHTML = `
     <div style="background:var(--gray-bg);border-radius:10px;padding:16px;margin-bottom:16px">
-      <div style="font-size:13px;color:var(--gray);margin-bottom:12px">#${escF(s.numero_proyecto || '')} · <strong>${escF(s.cliente || (f && f.cliente) || '')}</strong> · ${escF(s.metodo || '')}</div>
+      <div style="font-size:13px;color:var(--gray);margin-bottom:12px">#${escF(s.numero_proyecto || '')} · <strong>${escF(s.cliente || (f && f.cliente) || '')}</strong> · Devolver por: <strong>${escF(s.metodo_devolucion || s.metodo || '')}</strong></div>
       <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--gray);margin-bottom:4px">Importe a devolver</div>
       <div style="font-size:${s.importe > 0 ? 36 : 22}px;font-weight:800;color:${s.importe > 0 ? '#16a34a' : '#b45309'};letter-spacing:-1px">${s.importe > 0 ? fmt(s.importe) : '0,00 € · Se retiene toda la fianza'}</div>
       ${f ? `<div style="font-size:12px;color:var(--gray)">Fianza cobrada: ${fmt(f.importe)}</div>` : ''}
@@ -2231,7 +2321,7 @@ function confirmarDevueltaFianza(solicitudId) {
       <div style="font-size:14px;white-space:pre-wrap">${escF(s.notas)}</div>
     </div>` : ''}
     <p style="color:var(--gray);font-size:13px;margin-bottom:16px">
-      ${s.importe > 0 ? 'Confirma que la transferencia ha sido ejecutada.' : 'No hay transferencia: confirma que nos quedamos toda la fianza.'}<br>
+      ${s.importe > 0 ? (/transferencia/i.test(s.metodo_devolucion || '') ? 'Confirma que la transferencia ha sido ejecutada.' : 'Confirma que has devuelto el importe al cliente (' + escF(s.metodo_devolucion || '') + ').') : 'No se devuelve nada: confirma que nos quedamos toda la fianza.'}<br>
       María la verá como devuelta para generar el documento en Rentman y avisar al cliente.
     </p>
     <div style="margin-bottom:16px">
@@ -2250,6 +2340,16 @@ async function ejecutarDevuelta(solicitudId) {
   try {
     await postFianzas('/api/fianzas/devolver', { solicitud_id: solicitudId, notas });
     // Solo cambian las solicitudes: las fianzas (Rentman) no se tocan aquí
+    await recargarSolicitudes();
+    renderFianzas();
+  } catch(e) { alert('Error: ' + e.message); }
+}
+async function autorizarSolicitudFianza(solicitudId) {
+  const s = getSolicitud(solicitudId);
+  if (!s) return;
+  if (!confirm(`¿Autorizar la devolución de ${s.importe > 0 ? fmt(s.importe) : '0 € (se retiene toda la fianza)'} a ${s.cliente || ''} (#${s.numero_proyecto || ''}) por ${s.metodo_devolucion || s.metodo || ''}?`)) return;
+  try {
+    await postFianzas('/api/fianzas/autorizar', { solicitud_id: solicitudId });
     await recargarSolicitudes();
     renderFianzas();
   } catch(e) { alert('Error: ' + e.message); }
