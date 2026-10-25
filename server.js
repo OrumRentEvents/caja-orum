@@ -13,7 +13,7 @@ const USERS = {
   // marina: { pass:'Orum2026#Mar', rol:'comercial',    nombre:'Marina' },
   danilo: { pass:'Orum2026#Dan', rol:'comercial',    nombre:'Danilo' },
   maria:  { pass:'Orum2026#Mia', rol:'caja',         nombre:'María' },
-  lucas:  { pass:'Orum2026#Luc', rol:'caja',         nombre:'Lucas' },
+  lucas:  { pass:'Orum2026#Luc', rol:'comercial',    nombre:'Lucas' },
   isabel: { pass:'Orum2026#Isa', rol:'contabilidad', nombre:'Isabel' },
   ana:    { pass:'Orum2026#Ana', rol:'contabilidad', nombre:'Ana' },
   sergio: { pass:'Orum2026#Ser', rol:'admin',        nombre:'Sergio' }
