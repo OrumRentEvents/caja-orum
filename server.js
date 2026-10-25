@@ -4,99 +4,9 @@ const path = require('path');
 const { createClient } = require('@supabase/supabase-js');
 const app = express();
 
-// Sincronización en tiempo real a Supabase (Caja no pasa por ORUM CENTRAL,
-// así que se engancha aquí directo). Si faltan las variables, se omite sin
-// romper nada - Caja sigue funcionando igual que siempre, solo que ese
-// registro no llegaría a Supabase hasta el próximo sync de 15 min (si
-// existe algún proceso que lo recoja desde ahí más adelante).
 const supabase = (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_KEY)
   ? createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
   : null;
-// Migración 1 sep 2026: una factura puede tener varias filas en caja_registros
-// (una por pago individual de Rentman) - la clave de identidad pasa a ser
-// pago_id para facturas oficiales, y sigue siendo factura_id (su UUID NC) para
-// No Confirmados, que no tiene pago_id real. Ver schema_caja_registros_pago_id.sql.
-//
-// FIX (2 sep 2026): los índices únicos que dejó esa migración son PARCIALES
-// (WHERE es_abrebotellas=true / WHERE pago_id is not null) - PostgREST no
-// puede usar un índice parcial como target de ON CONFLICT en un upsert
-// normal (necesitaría repetir ese WHERE, que supabase-js no expone), así que
-// esta función llevaba desde el 1 sep fallando en silencio (el error solo
-// se logueaba a consola, .catch(()=>{}) en la llamada - la app seguía
-// funcionando bien porque Sheets es la fuente real, pero esos registros no
-// llegaban a Supabase). Se borra la fila exacta y se reinserta en su lugar -
-// mismo patrón que ya usa guardarRegistroOficial() para los pagos partidos.
-async function supabaseCajaUpsert(row, esNC) {
-  if (!supabase) return;
-  try {
-    const q = esNC
-      ? supabase.from('caja_registros').delete().eq('factura_id', row.factura_id).eq('es_abrebotellas', true)
-      : supabase.from('caja_registros').delete().eq('pago_id', row.pago_id);
-    const { error: errDel } = await q;
-    if (errDel) console.error('[Supabase caja upsert] delete:', errDel.message);
-    const { error: errIns } = await supabase.from('caja_registros').insert(row);
-    if (errIns) console.error('[Supabase caja upsert] insert:', errIns.message);
-  } catch (e) {
-    console.error('[Supabase caja upsert] excepción:', e.message);
-  }
-}
-async function supabaseCajaDelete(facturaId, esNC, pagoId) {
-  if (!supabase) return;
-  try {
-    const q = esNC
-      ? supabase.from('caja_registros').delete().eq('factura_id', String(facturaId))
-      : supabase.from('caja_registros').delete().eq('pago_id', pagoId);
-    const { error } = await q;
-    if (error) console.error('[Supabase caja delete]', error.message);
-  } catch (e) {
-    console.error('[Supabase caja delete] excepción:', e.message);
-  }
-}
-// ── PAGOS PARTIDOS EN 2+ FORMAS DE PAGO (1 sep 2026) ──────────────────────
-// Un único pago de Rentman (1 pago_id, 1 importe fijo) puede en la realidad
-// haberse cobrado en 2+ formas distintas a la vez (ej. mitad efectivo, mitad
-// tarjeta) - hace falta partirlo a mano. split_idx (1, 2, 3...) identifica
-// cada trozo de un mismo pago_id. Esta función escribe SIEMPRE de golpe
-// (borra todo lo que hubiera de ese pago_id y reescribe limpio) - se usa
-// tanto para el flujo normal de 1 sola forma (splits de 1 elemento) como
-// para partir en 2+, así nunca quedan filas huérfanas de una partición
-// anterior si el usuario vuelve a un único método. No se usa para No
-// Confirmados (no tiene pago_id real, sigue con supabaseCajaUpsert/Delete).
-async function guardarRegistroOficial({ pagoId, facturaId, numero, cliente, fechaPago, usuario, splits }) {
-  const pagoKey = String(pagoId);
-  // Limpia cualquier resto en cache de este pago_id (cualquier split_idx)
-  Object.keys(cache.registros).forEach(k => {
-    if (k === pagoKey || k.startsWith(pagoKey + '_')) delete cache.registros[k];
-  });
-  const nowIso = new Date().toISOString();
-  splits.forEach((sp, idx) => {
-    const key = idx === 0 ? pagoKey : `${pagoKey}_${idx + 1}`;
-    cache.registros[key] = {
-      factura_id: String(facturaId), pago_id: pagoId, split_idx: idx + 1,
-      metodo_pago: sp.metodo_pago, ubicacion: sp.ubicacion, tipo: sp.tipo,
-      importe: sp.importe, cliente, numero, fecha_pago: fechaPago,
-      es_abrebotellas: false, usuario, num_operacion: sp.num_operacion || '', updated: nowIso
-    };
-  });
-  if (supabase) {
-    try {
-      const { error: errDel } = await supabase.from('caja_registros').delete().eq('pago_id', pagoId);
-      if (errDel) console.error('[Supabase caja partido] delete:', errDel.message);
-      if (splits.length) {
-        const rows = splits.map((sp, idx) => ({
-          factura_id: String(facturaId), pago_id: pagoId, split_idx: idx + 1,
-          metodo_pago: sp.metodo_pago, ubicacion: sp.ubicacion, tipo: sp.tipo,
-          importe: sp.importe, cliente, numero, es_abrebotellas: false, usuario,
-          num_operacion: sp.num_operacion || '', fecha_pago_raw: fechaPago, updated_raw: nowIso
-        }));
-        const { error: errIns } = await supabase.from('caja_registros').insert(rows);
-        if (errIns) console.error('[Supabase caja partido] insert:', errIns.message);
-      }
-    } catch (e) { console.error('[Supabase caja partido] excepción:', e.message); }
-  }
-  asPost({ token: CAJA_TOKEN, action: 'set_registro_partido', pago_id: pagoId, factura_id: facturaId, numero, cliente, fecha_pago: fechaPago, usuario, splits })
-    .catch(e => console.error('[BG registro partido]', e.message));
-}
 const PORT = process.env.PORT || 3000;
 const USERS = {
   // marina: excedencia desde 1 oct 2026 - descomentar para devolverle el acceso
@@ -111,20 +21,10 @@ const USERS = {
 const AS_RUTAS_URL   = 'https://script.google.com/macros/s/AKfycbxaSfXi-D3Sx8Lpek6pHPaA-2_NgrXW6CTM0d37LlCX-x0hqRLM6BwyH-BIinyiJlAi/exec';
 const AS_NC_URL      = 'https://script.google.com/macros/s/AKfycbx1ayolXUAmk95s8M2bUS_46O7HQrM4gmQgh1mQF9zOCuOvEQfp59K94TnDYpopE73QmA/exec';
 const AS_FIANZAS_URL = process.env.AS_FIANZAS_URL || 'PON_AQUI_URL_FIANZAS_SCRIPT';
-const CAJA_TOKEN     = 'ORUMx2026CajaStore';
 const RUTAS_TOKEN    = 'ORUMx2026CajaStats';
 const FIANZAS_TOKEN  = 'ORUMx2026#Fianzas$Secret';
 const RENTMAN_TOKEN  = process.env.RENTMAN_TOKEN || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpYXQiOjE3NzMxNTM0MjIsIm1lZGV3ZXJrZXIiOjIzNSwiYWNjb3VudCI6InNlcnZpY2lvc3lhbHF1aWxlcnBhcmFldmVudG9zc2wiLCJjbGllbnRfdHlwZSI6Im9wZW5hcGkiLCJjbGllbnQubmFtZSI6Im9wZW5hcGkiLCJleHAiOjIwODg3NzI2MjIsImlzcyI6IntcIm5hbWVcIjpcImJhY2tlbmRcIixcInZlcnNpb25cIjpcIjQuODI4LjAuNlwifSJ9.hyHIfRnBGkLunqFAzG40c95AjpkWJfywelT_RiTcXDs';
 const RENTMAN_URL    = 'https://api.rentman.net';
-// ── Caché en memoria ──────────────────────────────────────────
-const cache = {
-  registros:  {},
-  ticks:      {},
-  cierres:    {},
-  saldos:     {},
-  nc_confs:   {},
-  retiradas:  { marbella:[], monda:[], marbella_nc:[], monda_nc:[] }
-};
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(session({ secret:'orum-caja-2026-secret', resave:false, saveUninitialized:false, cookie:{ maxAge:8*60*60*1000 } }));
@@ -149,19 +49,6 @@ async function asGet(params) {
   try { return JSON.parse(text); }
   catch(e) { throw new Error('AS no JSON: ' + text.substring(0,300)); }
 }
-// ── Helper AS POST (sigue redirects) ─────────────────────────
-async function asPost(body) {
-  let url = AS_RUTAS_URL;
-  let r;
-  for (let i=0; i<6; i++) {
-    r = await fetch(url, { method:'POST', redirect:'manual', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
-    if ([301,302,307,308].includes(r.status)) { url = r.headers.get('location'); if (!url) break; }
-    else break;
-  }
-  const text = await r.text();
-  try { return JSON.parse(text); }
-  catch(e) { throw new Error('AS no JSON: ' + text.substring(0,300)); }
-}
 // ── Helper AS NC GET ──────────────────────────────────────────
 async function asGetNC(params) {
   const qs = new URLSearchParams(params).toString();
@@ -176,68 +63,6 @@ async function asGetNC(params) {
   try { return JSON.parse(text); }
   catch(e) { throw new Error('NC no JSON: ' + text.substring(0,300)); }
 }
-// ── Helper AS NC POST (sigue redirects) ────────────────────────
-async function asPostNC(body) {
-  let url = AS_NC_URL;
-  let r;
-  for (let i=0; i<6; i++) {
-    r = await fetch(url, { method:'POST', redirect:'manual', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
-    if ([301,302,307,308].includes(r.status)) { url = r.headers.get('location'); if (!url) break; }
-    else break;
-  }
-  const text = await r.text();
-  try { return JSON.parse(text); }
-  catch(e) { throw new Error('NC POST no JSON: ' + text.substring(0,300)); }
-}
-// ── Cargar caché desde Sheet ──────────────────────────────────
-async function recargarCache() {
-  try {
-    console.log('[Cache] Cargando...');
-    const [rReg, rTick, rCierres, rSaldos, rNC, rRet] = await Promise.all([
-      asGet({ token:RUTAS_TOKEN, action:'get_registros', desde:'', hasta:'' }),
-      asGet({ token:RUTAS_TOKEN, action:'get_ticks',     desde:'', hasta:'' }),
-      asGet({ token:RUTAS_TOKEN, action:'get_cierres' }),
-      asGet({ token:RUTAS_TOKEN, action:'get_saldos'  }),
-      asGet({ token:RUTAS_TOKEN, action:'get_nc_confs'}),
-      asGet({ token:RUTAS_TOKEN, action:'get_retiradas'}).catch(()=>({data:{marbella:[],monda:[],marbella_nc:[],monda_nc:[]}})),
-    ]);
-    // Registros: convertir array a objeto keyed por pago_id (facturas
-    // oficiales, +"_N" si split_idx>1 - ver pagos partidos) o factura_id
-    // (No Confirmados, sin pago_id real) - mismo criterio que
-    // guardarRegistroOficial, ver migración 1 sep 2026.
-    cache.registros = {};
-    (rReg.data||[]).forEach(r => {
-      const esNC = !!r.es_abrebotellas;
-      let key;
-      if (esNC) key = r.factura_id;
-      else {
-        const pagoKey = r.pago_id || r.factura_id;
-        const splitIdx = parseInt(r.split_idx) || 1;
-        key = splitIdx > 1 ? `${pagoKey}_${splitIdx}` : pagoKey;
-      }
-      if (key!==''&&key!=null) cache.registros[String(key)] = r;
-    });
-    // Ticks
-    cache.ticks = rTick.data || {};
-    // Cierres
-    cache.cierres = rCierres.data || {};
-    // Saldos
-    cache.saldos = rSaldos.data || {};
-    // NC Confirmaciones
-    cache.nc_confs = rNC.data || {};
-    // Retiradas pendientes (no cerradas aún)
-    const retData = rRet.data || {};
-    cache.retiradas = {
-      marbella:    Array.isArray(retData.marbella)    ? retData.marbella    : [],
-      monda:       Array.isArray(retData.monda)       ? retData.monda       : [],
-      marbella_nc: Array.isArray(retData.marbella_nc) ? retData.marbella_nc : [],
-      monda_nc:    Array.isArray(retData.monda_nc)    ? retData.monda_nc    : [],
-    };
-    console.log(`[Cache] OK — registros:${Object.keys(cache.registros).length} ticks:${Object.keys(cache.ticks).length} retiradas_marb:${cache.retiradas.marbella.length}`);
-  } catch(e) { console.error('[Cache] Error:', e.message); }
-}
-// Carga inicial al arrancar
-recargarCache();
 // ── AUTH ──────────────────────────────────────────────────────
 app.post('/api/login', (req,res) => {
   const { usuario, password } = req.body;
@@ -248,219 +73,13 @@ app.post('/api/login', (req,res) => {
 });
 app.post('/api/logout', (req,res) => { req.session.destroy(); res.json({ok:true}); });
 app.get('/api/me', auth, (req,res) => res.json(req.session.user));
-// ── TICKS ─────────────────────────────────────────────────────
-app.get('/api/ticks', auth, (req,res) => {
-  const { desde, hasta } = req.query;
-  if (!desde||!hasta) return res.json(cache.ticks);
-  const f = {};
-  Object.entries(cache.ticks).forEach(([k,v]) => {
-    const d = k.split('_')[0];
-    if (d>=desde&&d<=hasta) f[k]=v;
-  });
-  res.json(f);
-});
-app.post('/api/tick', authContab, async (req,res) => {
-  const { key, valor, nota, usuario } = req.body;
-  if (!key) return res.status(400).json({error:'key requerida'});
-  if (valor===null||valor===undefined) delete cache.ticks[key];
-  else cache.ticks[key] = { valor, nota:nota||'', usuario:usuario||'', fecha:new Date().toISOString() };
-  res.json({ok:true});
-  asPost({ token:CAJA_TOKEN, action:'set_tick', key, valor:valor??null, nota:nota||'', usuario:usuario||'' })
-    .catch(e => console.error('[BG tick]', e.message));
-});
-// ── REGISTROS CAJA ────────────────────────────────────────────
-app.get('/api/caja/registros', auth, (req,res) => {
-  const { desde, hasta } = req.query;
-  if (!desde||!hasta) return res.json(cache.registros);
-  const f = {};
-  Object.entries(cache.registros).forEach(([k,v]) => {
-    if (v.fecha_pago>=desde&&v.fecha_pago<=hasta) f[k]=v;
-  });
-  res.json(f);
-});
-app.post('/api/caja/registro', auth, async (req,res) => {
-  const { factura_id, pago_id, metodo_pago, ubicacion, tipo, importe, cliente, numero, fecha_pago, es_abrebotellas, usuario, num_operacion } = req.body;
-  if (!factura_id) return res.status(400).json({error:'factura_id requerido'});
-  const esNC = !!es_abrebotellas;
-  if (!esNC) {
-    // Facturas oficiales: delega en guardarRegistroOficial (borra cualquier
-    // resto de una partición anterior de este pago_id y reescribe limpio) -
-    // así el flujo normal de 1 sola forma y el de partir en 2+ usan siempre
-    // el mismo camino, sin dejar filas huérfanas de split_idx>1.
-    const splits = (metodo_pago===null||metodo_pago===undefined||metodo_pago==='')
-      ? []
-      : [{ importe, metodo_pago, ubicacion, tipo, num_operacion }];
-    try {
-      await guardarRegistroOficial({ pagoId: pago_id || factura_id, facturaId: factura_id, numero, cliente, fechaPago: fecha_pago, usuario, splits });
-      return res.json({ ok:true });
-    } catch(e) { return res.status(500).json({ ok:false, error: e.message }); }
-  }
-  // No Confirmados: sin cambios, sigue exactamente igual que siempre.
-  const key = String(factura_id);
-  if (metodo_pago===null||metodo_pago===undefined) {
-    delete cache.registros[key];
-    supabaseCajaDelete(factura_id, esNC, pago_id).catch(() => {}); // fire-and-forget, no bloquea la respuesta
-  } else {
-    const registro = { factura_id:String(factura_id), pago_id:null, metodo_pago, ubicacion, tipo, importe, cliente, numero, fecha_pago, es_abrebotellas, usuario, num_operacion:num_operacion||'', updated:new Date().toISOString() };
-    cache.registros[key] = registro;
-    supabaseCajaUpsert({
-      factura_id: registro.factura_id, pago_id: registro.pago_id, metodo_pago: registro.metodo_pago, ubicacion: registro.ubicacion,
-      tipo: registro.tipo, importe: registro.importe, cliente: registro.cliente, numero: registro.numero,
-      es_abrebotellas: !!registro.es_abrebotellas, usuario: registro.usuario, num_operacion: registro.num_operacion,
-      fecha_pago_raw: registro.fecha_pago, updated_raw: registro.updated
-    }, esNC).catch(() => {}); // fire-and-forget, no bloquea la respuesta
-  }
-  res.json({ok:true});
-  asPost({ token:CAJA_TOKEN, action:'set_registro', ...req.body })
-    .catch(e => console.error('[BG registro]', e.message));
-});
-// Pago partido en 2+ formas: 1 pago de Rentman (pago_id, importe fijo) pero
-// cobrado en la realidad en varias formas de pago distintas a la vez.
-// body: { factura_id, pago_id, numero, cliente, fecha_pago, usuario,
-//         splits: [{importe, metodo_pago, ubicacion, tipo, num_operacion}, ...] }
-// splits vacío = deshacer partición (igual que quitar el método).
-app.post('/api/caja/registro-partido', auth, async (req,res) => {
-  const { factura_id, pago_id, numero, cliente, fecha_pago, usuario, splits } = req.body;
-  if (!pago_id) return res.status(400).json({ ok:false, error:'pago_id requerido' });
-  if (!Array.isArray(splits)) return res.status(400).json({ ok:false, error:'splits requerido (array)' });
-  try {
-    await guardarRegistroOficial({ pagoId: pago_id, facturaId: factura_id, numero, cliente, fechaPago: fecha_pago, usuario, splits });
-    res.json({ ok:true });
-  } catch(e) { res.status(500).json({ ok:false, error: e.message }); }
-});
-// ── CIERRES ───────────────────────────────────────────────────
-app.get('/api/cierres', auth, (req,res) => res.json(cache.cierres));
-app.post('/api/cierre', auth, async (req,res) => {
-  const { caja, desde, hasta, total_ef, total_tpv, total_transf, retiradas, saldo_anterior, saldo_final, usuario } = req.body;
-  if (!caja||!desde||!hasta) return res.status(400).json({error:'caja, desde y hasta requeridos'});
-  const periodoKey = `${desde}_${hasta}`;
-  if (!cache.cierres[caja]) cache.cierres[caja] = {};
-  cache.cierres[caja][periodoKey] = { caja, desde, hasta, total_ef:total_ef||0, total_tpv:total_tpv||0, total_transf:total_transf||0, retiradas:retiradas||[], saldo_anterior:saldo_anterior||0, saldo_final:saldo_final||0, usuario:usuario||'', ts:new Date().toISOString() };
-  cache.saldos[caja] = { efectivo_final:saldo_final||0, fecha:hasta, usuario:usuario||'', updated:new Date().toISOString() };
-  res.json({ok:true});
-  asPost({ token:CAJA_TOKEN, action:'set_cierre', ...req.body })
-    .catch(e => console.error('[BG cierre]', e.message));
-});
-app.get('/api/cierre/verificar', auth, (req,res) => {
-  const { caja, desde } = req.query;
-  if (!caja||!desde) return res.status(400).json({error:'caja y desde requeridos'});
-  const cajaCierres = cache.cierres[caja]||{};
-  const periodoKey = Object.keys(cajaCierres).find(k => {
-    const [d,h] = k.split('_');
-    return d===desde || (d<=desde&&h>=desde);
-  });
-  if (periodoKey) {
-    const c = cajaCierres[periodoKey];
-    return res.json({ok:false, puede_cerrar:false, mensaje:`Esta caja ya fue cerrada el ${new Date(c.ts).toLocaleString('es-ES')} por ${c.usuario}`});
-  }
-  return res.json({ok:true, puede_cerrar:true, mensaje:null});
-});
-// ── RETIRADAS PERSISTENTES ───────────────────────────────────
-app.get('/api/retiradas', auth, (req,res) => res.json(cache.retiradas));
-app.post('/api/retirada', auth, async (req,res) => {
-  const { caja, esNC, importe, desc, tipo, usuario } = req.body;
-  if (!caja || !importe) return res.status(400).json({error:'caja e importe requeridos'});
-  const key = esNC ? caja+'_nc' : caja;
-  if (!cache.retiradas[key]) cache.retiradas[key] = [];
-  const reg = { importe: parseFloat(importe), desc: desc||'Retirada', tipo: tipo||'retirada', usuario: usuario||'', ts: new Date().toISOString() };
-  cache.retiradas[key].push(reg);
-  res.json({ok:true});
-  asPost({ token:CAJA_TOKEN, action:'add_retirada', caja, esNC:!!esNC, importe:reg.importe, desc:reg.desc, tipo:reg.tipo, usuario:reg.usuario, ts:reg.ts })
-    .catch(e => console.error('[BG retirada]', e.message));
-});
-app.delete('/api/retiradas/:caja', auth, async (req,res) => {
-  // Limpiar retiradas de una caja tras cierre
-  const { caja } = req.params;
-  const { esNC } = req.query;
-  const key = (esNC==='true') ? caja+'_nc' : caja;
-  cache.retiradas[key] = [];
-  res.json({ok:true});
-  asPost({ token:CAJA_TOKEN, action:'clear_retiradas', caja, esNC:esNC==='true' })
-    .catch(e => console.error('[BG clear_ret]', e.message));
-});
-// ── SALDOS ────────────────────────────────────────────────────
-app.get('/api/saldos', auth, (req,res) => res.json(cache.saldos));
-// ── HISTORIAL ─────────────────────────────────────────────────
-app.get('/api/historial', authAdmin, async (req,res) => {
-  try {
-    const { desde, hasta, limit } = req.query;
-    const data = await asGet({ token:RUTAS_TOKEN, action:'get_historial', desde:desde||'', hasta:hasta||'', limit:limit||200 });
-    const arr = data.data||[];
-    const obj = {};
-    arr.forEach((r,i) => { obj[String(Date.now()-i)] = r; });
-    res.json(obj);
-  } catch(e) { res.status(500).json({error:e.message}); }
-});
-// ── NC CONFIRMACIONES ─────────────────────────────────────────
-app.get('/api/nc/confirmaciones', auth, (req,res) => res.json(cache.nc_confs));
-app.post('/api/nc/confirmar', authContab, async (req,res) => {
-  const { nc_id, confirmar } = req.body;
-  if (!nc_id) return res.status(400).json({error:'nc_id requerido'});
-  const ncIdStr = String(nc_id);
-  if (confirmar===false) {
-    delete cache.nc_confs[ncIdStr];
-    if (supabase) supabase.from('caja_nc_confirmaciones').delete().eq('nc_id', ncIdStr).then(({error}) => { if (error) console.error('[Supabase nc_conf delete]', error.message); }).catch(() => {});
-  } else {
-    const ts = new Date().toISOString();
-    cache.nc_confs[ncIdStr] = { confirmado:true, usuario:req.body.usuario||'', ts, ...req.body };
-    if (supabase) supabase.from('caja_nc_confirmaciones').upsert({
-      nc_id: ncIdStr, confirmado: true, usuario: req.body.usuario || null, ts,
-      metodo: req.body.metodo || null, importe: req.body.importe ?? null,
-      cliente: req.body.cliente || null, numero: req.body.numero ?? null
-    }, { onConflict: 'nc_id' }).then(({error}) => { if (error) console.error('[Supabase nc_conf upsert]', error.message); }).catch(() => {});
-  }
-  res.json({ok:true});
-  asPost({ token:CAJA_TOKEN, action:'set_nc_conf', ...req.body })
-    .catch(e => console.error('[BG nc_conf]', e.message));
-});
-// ── PROXY NO CONFIRMADOS ──────────────────────────────────────
-app.get('/api/noconfirmados', auth, async (req,res) => {
-  try {
-    const data = await asGetNC({ token:'ORUMx2026CajaStats', action:'registros', desde:req.query.desde||'', hasta:req.query.hasta||'' });
-    res.json(data);
-  } catch(e) { res.status(500).json({error:e.message}); }
-});
-// ── ELIMINAR REGISTROS NC (borrado real, solo confirmados por Ana) ──
-app.post('/api/nc/eliminar', authCaja, async (req,res) => {
-  try {
-    const { caja, usuario } = req.body;
-    if (!caja || !['marbella','monda'].includes(caja)) return res.status(400).json({error:'caja inválida'});
-    const metodoId    = caja==='marbella' ? 'efectivo-marbella' : 'efectivo-monda';
-    const metodoLabel = caja==='marbella' ? 'Efectivo Marbella' : 'Efectivo Monda';
-    const esTrue = v => v===true || v==='true' || v==='TRUE' || v===1;
-    // Fuente de verdad del método en No Confirmados: la columna "Método" de la propia hoja NC
-    let registrosNC = [];
-    try {
-      const ncData = await asGetNC({ token: RUTAS_TOKEN, action:'registros', desde:'', hasta:'' });
-      registrosNC = ncData.registros || [];
-    } catch(e) { console.error('[nc_eliminar] Error leyendo hoja NC:', e.message); }
-    const idsDesdeNC = registrosNC.filter(r => r.metodo === metodoLabel).map(r => String(r.id));
-    // Por si el método fue reasignado manualmente en Caja (Caja Sheet) en vez de en la hoja NC
-    const idsDesdeCaja = Object.keys(cache.registros).filter(id => {
-      const r = cache.registros[id];
-      return r && r.metodo_pago === metodoId && String(id).startsWith('NC_');
-    });
-    const candidatos = [...new Set([...idsDesdeNC, ...idsDesdeCaja])];
-    // Solo los ids de esa sede que Ana ya marcó como "Recibido"
-    const ids = candidatos.filter(id => cache.nc_confs[id] && esTrue(cache.nc_confs[id].confirmado));
-    if (ids.length===0) return res.json({ok:true, eliminados:0});
-    // 1. Borrado de raíz en la hoja NO_CONFIRMADOS
-    const ncResp = await asPostNC({ token: RUTAS_TOKEN, action:'eliminar_registros', ids, usuario: usuario||'' });
-    if (!ncResp || !ncResp.ok) return res.status(500).json({error:'Error borrando en hoja NC: ' + (ncResp && ncResp.error ? ncResp.error : 'desconocido')});
-    // 2. Limpiar rastro en la Caja Sheet (memoria + persistencia)
-    ids.forEach(id => { delete cache.registros[id]; delete cache.nc_confs[id]; });
-    const keyRet = `${caja}_nc`;
-    cache.retiradas[keyRet] = [];
-    res.json({ok:true, eliminados: ids.length});
-    ids.forEach(id => {
-      asPost({ token:CAJA_TOKEN, action:'set_registro', factura_id:id, metodo_pago:null })
-        .catch(e => console.error('[BG nc_eliminar registro]', e.message));
-      asPost({ token:CAJA_TOKEN, action:'set_nc_conf', nc_id:id, confirmar:false })
-        .catch(e => console.error('[BG nc_eliminar conf]', e.message));
-    });
-    asPost({ token:CAJA_TOKEN, action:'clear_retiradas', caja, esNC:true })
-      .catch(e => console.error('[BG nc_eliminar retiradas]', e.message));
-  } catch(e) { res.status(500).json({error:e.message}); }
+// ── CAJA: registros, cierres, saldos, retiradas, ticks, historial y No
+// Confirmados, todo en Supabase - ver lib/caja.js. Las hojas solo se leen
+// para la importación (asGet / asGetNC).
+require('./lib/caja').registrar(app, {
+  supabase, auth, authAdmin, authContab, authCaja, authCobros,
+  leerHojaCaja: params => asGet({ token: RUTAS_TOKEN, ...params }),
+  leerHojaNC:   params => asGetNC({ token: RUTAS_TOKEN, ...params })
 });
 // ── FACTURAS/PAGOS (desde Supabase, sincronizado por ORUM CENTRAL) ──
 // Antes: paginaba /invoicepayments de Rentman en cada carga (10-18s).
@@ -536,11 +155,6 @@ app.get('/api/proyecto/:id', auth, async (req,res) => {
     const data = await r.json();
     res.json({ ok:true, data: data.data||null });
   } catch(e) { res.status(500).json({ok:false, error:e.message}); }
-});
-// ── RECARGAR CACHÉ (admin) ────────────────────────────────────
-app.post('/api/cache/reload', authAdmin, async (req,res) => {
-  res.json({ok:true, mensaje:'Recargando...'});
-  recargarCache();
 });
 // Fianzas: rutas y carga en lib/fianzas.js (registradas más abajo, junto al helper del Apps Script).
 

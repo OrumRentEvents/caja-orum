@@ -190,6 +190,7 @@ tr:hover td{background:var(--gray-bg)}
         <option value="efectivo-marbella">💵 Efectivo Marbella</option>
         <option value="efectivo-monda">💵 Efectivo Monda</option>
       </select>
+      <button id="btn-nc-registrar" onclick="abrirModalNC()" style="display:none;padding:9px 16px;border:none;background:var(--black);color:#fff;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">+ Registrar cobro</button>
     </div>
     <div id="noconf-content"><div class="empty-state"><div class="icon">🍾</div><p>Carga los cobros no confirmados</p></div></div>
   </div>
@@ -207,6 +208,8 @@ tr:hover td{background:var(--gray-bg)}
       <label>Desde</label><input type="date" id="hist-desde">
       <label>Hasta</label><input type="date" id="hist-hasta">
       <button class="btn-cargar" onclick="cargarHistorial()">↻ Cargar</button>
+      <button onclick="compararHoja()" style="padding:9px 16px;border:1.5px solid var(--gray-light);background:var(--white);border-radius:8px;font-size:13px;cursor:pointer">🔍 Comparar con la hoja</button>
+      <button onclick="importarDesdeHoja()" style="padding:9px 16px;border:1.5px solid var(--gray-light);background:var(--white);border-radius:8px;font-size:13px;cursor:pointer">⬇️ Importar desde la hoja</button>
     </div>
     <div id="historial-content"><div class="empty-state"><div class="icon">📋</div><p>Carga el historial</p></div></div>
   </div>
@@ -284,6 +287,31 @@ tr:hover td{background:var(--gray-bg)}
 <div id="modal-cierre" style="display:none" class="modal-overlay" onclick="if(event.target===this)cerrarModal()">
   <div class="modal"><div class="modal-header"><div class="modal-title" id="modal-title">Cierre</div><button class="btn-close" onclick="cerrarModal()">✕</button></div><div class="modal-body" id="modal-body"></div></div>
 </div>
+<!-- MODAL COBRO NO CONFIRMADO (sustituye al formulario de Google) -->
+<div id="modal-nc" style="display:none" class="modal-overlay" onclick="if(event.target===this)cerrarModalNC()">
+  <div class="modal modal-sm">
+    <div class="modal-header"><div class="modal-title">🍾 Registrar cobro No Confirmado</div><button class="btn-close" onclick="cerrarModalNC()">✕</button></div>
+    <div class="modal-body">
+      <label style="font-size:12px;color:var(--gray);display:block;margin-bottom:4px">Nº DE PROYECTO</label>
+      <input type="number" id="nc-f-numero" onchange="buscarProyectoNC()" style="width:100%;padding:10px;border:1.5px solid var(--gray-light);border-radius:8px;font-size:15px;outline:none">
+      <div id="nc-f-proyecto-info" style="font-size:12px;margin:4px 0 12px;min-height:16px"></div>
+      <label style="font-size:12px;color:var(--gray);display:block;margin-bottom:4px">CLIENTE</label>
+      <input type="text" id="nc-f-cliente" style="width:100%;padding:10px;border:1.5px solid var(--gray-light);border-radius:8px;font-size:15px;outline:none;margin-bottom:12px">
+      <label style="font-size:12px;color:var(--gray);display:block;margin-bottom:4px">IMPORTE (€) · en negativo si es una devolución</label>
+      <input type="number" step="0.01" id="nc-f-importe" style="width:100%;padding:10px;border:1.5px solid var(--gray-light);border-radius:8px;font-size:15px;outline:none;margin-bottom:12px">
+      <label style="font-size:12px;color:var(--gray);display:block;margin-bottom:4px">CAJA</label>
+      <div style="display:flex;gap:8px;margin-bottom:12px">
+        <label style="flex:1;display:flex;align-items:center;gap:6px;padding:10px;border:1.5px solid var(--gray-light);border-radius:8px;cursor:pointer"><input type="radio" name="nc-f-metodo" value="Efectivo Marbella"> 💵 Efectivo Marbella</label>
+        <label style="flex:1;display:flex;align-items:center;gap:6px;padding:10px;border:1.5px solid var(--gray-light);border-radius:8px;cursor:pointer"><input type="radio" name="nc-f-metodo" value="Efectivo Monda"> 💵 Efectivo Monda</label>
+      </div>
+      <div id="nc-f-error" style="display:none;color:var(--red);font-size:13px;margin-bottom:10px"></div>
+      <div style="display:flex;gap:10px">
+        <button onclick="cerrarModalNC()" style="flex:1;padding:11px;border:1.5px solid var(--gray-light);background:var(--white);border-radius:8px;font-size:14px;cursor:pointer">Cancelar</button>
+        <button id="nc-f-guardar" onclick="guardarCobroNC()" style="flex:1;padding:11px;background:var(--black);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">Guardar</button>
+      </div>
+    </div>
+  </div>
+</div>
 <!-- MODAL NUM OPERACION -->
 <div id="modal-numop" style="display:none" class="modal-overlay">
   <div class="modal modal-sm">
@@ -360,7 +388,6 @@ tr:hover td{background:var(--gray-bg)}
 const AS_FIANZAS_URL = 'https://script.google.com/macros/s/AKfycbywPrFiicFAK0f0ayIOa27JHqUXOviaAU_WlwmrDYNqq_g8Oe0ap14i8FDgXfYO5Is-wQ/exec';
 const FIANZAS_TOKEN = 'ORUMx2026#Fianzas$Secret';
 const API = 'https://orum-api.dashboardorum.workers.dev';
-const NC_URL = 'https://script.google.com/macros/s/AKfycbx1ayolXUAmk95s8M2bUS_46O7HQrM4gmQgh1mQF9zOCuOvEQfp59K94TnDYpopE73QmA/exec';
 const METODOS = [
   {id:'efectivo-marbella',label:'💵 Ef. Marbella',ubicacion:'marbella',tipo:'efectivo',nombre:'Efectivo Marbella',esTpv:false},
   {id:'tpv-marbella',label:'💳 TPV Marbella',ubicacion:'marbella',tipo:'tpv',nombre:'TPV Marbella',esTpv:true},
@@ -425,6 +452,8 @@ function iniciarApp(){
   document.getElementById('tab-caja').style.display='';
   // No Confirmados: todos
   document.getElementById('tab-noconf').style.display='';
+  // Registrar cobro No Confirmado: comerciales y caja (antes, formulario de Google)
+  if(['comercial','caja','admin'].includes(userInfo.rol)) document.getElementById('btn-nc-registrar').style.display='';
   // Contabilidad: caja, contabilidad, admin
   if(['caja','contabilidad','admin'].includes(userInfo.rol)) document.getElementById('tab-contabilidad').style.display='';
   // Historial: solo admin
@@ -899,11 +928,18 @@ async function guardarRegistro(fId,mId,m,f,esNC,numOp){
   // No Confirmados: sigue igual que siempre, fId es el UUID de la confirmación NC.
   const facturaId=(!esNC && f?.factura_id)?f.factura_id:fId;
   const pagoId=esNC?null:(f?.pago_id||fId);
-  await fetch('/api/caja/registro',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+  const r=await fetch('/api/caja/registro',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
     factura_id:facturaId,pago_id:pagoId,metodo_pago:mId||null,ubicacion:m?.ubicacion,tipo:m?.tipo,
     importe:f?.total_pagado||f?.importe||0,cliente:f?.cliente||'',numero:f?.numero||'',
     fecha_pago:f?.fecha_pago||'',es_abrebotellas:esNC,usuario:userInfo?.nombre||'',num_operacion:numOp||''
-  })});
+  })}).catch(e=>({ok:false,json:async()=>({error:e.message})}));
+  if(!r.ok)avisarErrorGuardado(r,'la forma de pago');
+}
+// Antes la app respondía "ok" al momento y guardaba en la hoja por detrás;
+// ahora guarda en Supabase antes de responder, así que un fallo se ve.
+async function avisarErrorGuardado(r,que){
+  let msg='';try{msg=(await r.json()).error||'';}catch(e){}
+  alert(`⚠️ No se ha podido guardar ${que}.${msg?'\n\n'+msg:''}\n\nVuelve a cargar la pantalla y repítelo.`);
 }
 // ── RETIRADAS ─────────────────────────────────────────────────
 let _retiradaCtx = null; // {caja, esNC, tipo}
@@ -1024,13 +1060,13 @@ function generarCierre(caja){
 }
 async function confirmarCierre(caja,desde,hasta,ef,tpv,transf,ret,saldoAnt,efFinal){
   const firma=document.getElementById('firma-nombre')?.value||userInfo?.nombre||'';
-  await fetch('/api/cierre',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+  const rc=await fetch('/api/cierre',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
     caja,desde,hasta,total_ef:ef,total_tpv:tpv,total_transf:transf,
     retiradas:retiradaActual[caja],saldo_anterior:saldoAnt,saldo_final:efFinal,usuario:firma
-  })});
+  })}).catch(e=>({ok:false,json:async()=>({error:e.message})}));
+  if(!rc.ok){avisarErrorGuardado(rc,'el cierre');return;}
   cerrarModal();
-  // Limpiar retiradas persistidas para esta caja (ya quedaron registradas en el cierre)
-  fetch(`/api/retiradas/${caja}?esNC=false`, {method:'DELETE'}).catch(()=>{});
+  // Las retiradas pendientes de esta caja ya quedaron dentro del cierre (el servidor las marca cerradas).
   // Recargar cierres y saldos
   const[rS,rC]=await Promise.all([fetch('/api/saldos').then(r=>r.json()),fetch('/api/cierres').then(r=>r.json())]);
   saldos=rS;cierres=rC;
@@ -1087,6 +1123,7 @@ async function cargarNoConf(){
       fecha_pago: reg.fecha,
       metodo_guardado: reg.metodo,
       email: reg.email,
+      registrado_por: reg.registrado_por,
     }));
     // Aplicar métodos guardados
     noConfs.forEach(f => {
@@ -1199,12 +1236,72 @@ function renderNoConf(){
             ?`<button onclick="toggleNcConf('${k}',false,'${mid}',${imp},'${(f.cliente||'').replace(/'/g,"\'")}','${f.numero||''}')" style="background:#fee2e2;color:#991b1b;border:none;border-radius:8px;padding:6px 12px;cursor:pointer;font-size:13px;font-weight:600">↩ Quitar</button>`
             :`<button onclick="toggleNcConf('${k}',true,'${mid}',${imp},'${(f.cliente||'').replace(/'/g,"\'")}','${f.numero||''}')" style="background:#22c55e;color:#fff;border:none;border-radius:8px;padding:6px 14px;cursor:pointer;font-size:14px;font-weight:700">✅ Recibido</button>`
             :'';
-          return`<tr style="${conf?.confirmado?'background:#f0fdf4':''}"><td><strong>${f.numero||f.id}</strong></td><td>${f.cliente||'—'}</td><td style="color:var(--gray)">${f.fecha_pago||'—'}</td><td><span class="imp ${imp>=0?'pos':'neg'}">${fmt(imp)}</span></td><td><div class="noconf-btns">${bots}</div></td><td>${estadoBadge}</td>${esContab?`<td>${checkBtn}</td>`:''}</tr>`;
+          const anularBtn=puedeVerCajasNC&&!conf?.confirmado?`<button onclick="anularNC('${k}')" title="Anular este cobro (mal registrado)" style="margin-left:6px;border:none;background:none;color:var(--red);cursor:pointer;font-size:14px">✕</button>`:'';
+          const porQuien=f.registrado_por?`<div style="font-size:10px;color:var(--gray)">${f.registrado_por}</div>`:'';
+          return`<tr style="${conf?.confirmado?'background:#f0fdf4':''}"><td><strong>${f.numero||f.id}</strong></td><td>${f.cliente||'—'}${porQuien}</td><td style="color:var(--gray)">${f.fecha_pago||'—'}</td><td><span class="imp ${imp>=0?'pos':'neg'}">${fmt(imp)}</span></td><td><div class="noconf-btns">${bots}</div></td><td>${estadoBadge}${anularBtn}</td>${esContab?`<td>${checkBtn}</td>`:''}</tr>`;
         }).join('')}</tbody>
       </table></div>`}
     </div>`;
 }
 function registrarRetiradaNC(caja){ _abrirModalRetirada(caja, true); }
+// ── FORMULARIO DE COBRO NO CONFIRMADO ────────────────────────────
+function abrirModalNC(){
+  ['nc-f-numero','nc-f-cliente','nc-f-importe'].forEach(id=>document.getElementById(id).value='');
+  document.querySelectorAll('input[name="nc-f-metodo"]').forEach(x=>x.checked=false);
+  document.getElementById('nc-f-proyecto-info').innerHTML='';
+  document.getElementById('nc-f-error').style.display='none';
+  document.getElementById('nc-f-guardar').disabled=false;
+  document.getElementById('modal-nc').style.display='flex';
+  setTimeout(()=>document.getElementById('nc-f-numero').focus(),100);
+}
+function cerrarModalNC(){document.getElementById('modal-nc').style.display='none';}
+async function buscarProyectoNC(){
+  const n=document.getElementById('nc-f-numero').value.trim();
+  const info=document.getElementById('nc-f-proyecto-info');
+  if(!n){info.innerHTML='';return;}
+  info.innerHTML='<span style="color:var(--gray)">Buscando proyecto...</span>';
+  try{
+    const r=await fetch(`/api/nc/proyecto/${encodeURIComponent(n)}`).then(r=>r.json());
+    const p=r.proyecto;
+    if(!p){info.innerHTML='<span style="color:var(--orange)">⚠️ No encuentro ese nº de proyecto. Revisa el número (puedes guardar igual).</span>';return;}
+    const cli=document.getElementById('nc-f-cliente');
+    if(!cli.value.trim())cli.value=p.cliente||'';
+    const avisos=[];
+    if(p.cancelado)avisos.push('está cancelado');
+    if(!p.es_abrebotellas)avisos.push('no está marcado como No Confirmado en Rentman');
+    info.innerHTML=`<span style="color:var(--gray)">${p.nombre||''}</span>`+(avisos.length?`<br><span style="color:var(--orange)">⚠️ Este proyecto ${avisos.join(' y ')}.</span>`:'');
+  }catch(e){info.innerHTML='';}
+}
+async function guardarCobroNC(){
+  const err=document.getElementById('nc-f-error');
+  const metodo=(document.querySelector('input[name="nc-f-metodo"]:checked')||{}).value||'';
+  const body={
+    numero_proyecto:document.getElementById('nc-f-numero').value.trim(),
+    cliente:document.getElementById('nc-f-cliente').value.trim(),
+    importe:document.getElementById('nc-f-importe').value,
+    metodo
+  };
+  const falta=!body.numero_proyecto?'Falta el nº de proyecto':!body.cliente?'Falta el cliente':!(parseFloat(body.importe))?'Falta el importe':!metodo?'Elige la caja':'';
+  if(falta){err.textContent=falta;err.style.display='block';return;}
+  const btn=document.getElementById('nc-f-guardar');btn.disabled=true;
+  try{
+    const r=await fetch('/api/nc/registro',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(r=>r.json());
+    if(!r.ok){err.textContent=r.error||'No se ha podido guardar';err.style.display='block';btn.disabled=false;return;}
+    cerrarModalNC();
+    // Que el cobro recién metido se vea: el rango incluye hoy
+    const hoy=r.registro?.fecha;
+    if(hoy){const h=document.getElementById('nc-hasta');if(!h.value||h.value<hoy)h.value=hoy;const d=document.getElementById('nc-desde');if(!d.value||d.value>hoy)d.value=hoy;}
+    cargarNoConf();
+  }catch(e){err.textContent='Error: '+e.message;err.style.display='block';btn.disabled=false;}
+}
+async function anularNC(ncId){
+  const f=noConfs.find(x=>String(x.id)===String(ncId));
+  if(!confirm(`¿Anular el cobro de ${f?.cliente||''} (${fmt(f?.total_pagado||0)})?\n\nÚsalo solo si se registró por error. Sale de la lista y no cuenta en la caja.`))return;
+  const r=await fetch('/api/nc/anular',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nc_id:ncId})}).then(r=>r.json()).catch(e=>({ok:false,error:e.message}));
+  if(!r.ok){alert('Error: '+(r.error||'desconocido'));return;}
+  delete estado[String(ncId)];
+  cargarNoConf();
+}
 async function vaciarRetiradasNC(caja){
   const nombreSede = caja==='marbella'?'Marbella':'Monda';
   const total = (retiradaNC[caja]||[]).reduce((s,r)=>s+r.importe,0);
@@ -1266,7 +1363,8 @@ function confirmarRetirada(){
     method:'POST',
     headers:{'Content-Type':'application/json'},
     body: JSON.stringify({ caja, esNC, importe:imp, desc:labelDesc, tipo:tipoMov, usuario:userInfo?.nombre||'' })
-  }).catch(e=>console.error('[retirada]', e));
+  }).then(r=>{ if(!r.ok) avisarErrorGuardado(r,'la retirada'); })
+    .catch(e=>alert('⚠️ No se ha podido guardar la retirada: '+e.message));
   if(esNC){
     if(!retiradaNC[caja]) retiradaNC[caja]=[];
     retiradaNC[caja].push({importe:imp, desc:labelDesc});
@@ -1666,6 +1764,26 @@ async function toggleTick(key,el){
   if(r.ok){el.classList.toggle('checked');el.textContent=el.classList.contains('checked')?'✓':'';ticksC[key]=el.classList.contains('checked')?true:null;renderContab();}
 }
 // ── HISTORIAL ─────────────────────────────────────────────────
+// ── PASO A SUPABASE (admin) ──────────────────────────────────────
+// Importar: trae de la hoja lo que aún no está en Supabase (cierres,
+// retiradas pendientes, ticks, historial, cobros NC). Se puede repetir.
+async function importarDesdeHoja(){
+  if(!confirm('¿Importar desde la hoja de Google lo que aún no esté en Supabase?\n\nNo pisa nada de lo ya guardado; se puede repetir.'))return;
+  const c=document.getElementById('historial-content');
+  c.innerHTML='<div class="loading"><div class="spinner"></div><p>Importando (tarda un poco)...</p></div>';
+  try{
+    const r=await fetch('/api/caja/importar-desde-hoja',{method:'POST'}).then(r=>r.json());
+    c.innerHTML=`<div class="tabla-section" style="padding:16px"><pre style="white-space:pre-wrap;font-size:12px">${JSON.stringify(r,null,2)}</pre></div>`;
+  }catch(e){c.innerHTML=`<div class="empty-state"><p>Error: ${e.message}</p></div>`;}
+}
+async function compararHoja(){
+  const c=document.getElementById('historial-content');
+  c.innerHTML='<div class="loading"><div class="spinner"></div><p>Comparando hoja y Supabase...</p></div>';
+  try{
+    const r=await fetch('/api/caja/comparar-hoja').then(r=>r.json());
+    c.innerHTML=`<div class="tabla-section" style="padding:16px"><pre style="white-space:pre-wrap;font-size:12px">${JSON.stringify(r,null,2)}</pre></div>`;
+  }catch(e){c.innerHTML=`<div class="empty-state"><p>Error: ${e.message}</p></div>`;}
+}
 async function cargarHistorial(){
   if(userInfo?.rol!=='admin')return;
   const desde=document.getElementById('hist-desde').value;
@@ -1682,6 +1800,12 @@ async function cargarHistorial(){
       'cierre_caja':          { icon:'🔒', label:'Cierre de caja',         color:'#7c3aed' },
       'nc_confirmar_recepcion':{ icon:'✅', label:'NC Recibido por Ana',   color:'#16a34a' },
       'nc_quitar_confirmacion':{ icon:'↩', label:'NC Quitó confirmación',  color:'#f59e0b' },
+      'add_retirada':         { icon:'💸', label:'Retirada',               color:'#dc2626' },
+      'clear_retiradas':      { icon:'🗑️', label:'Vació retiradas',        color:'#6b7280' },
+      'nc_registro':          { icon:'🍾', label:'NC Registró cobro',      color:'#2563eb' },
+      'nc_anular':            { icon:'✕', label:'NC Anuló cobro',          color:'#dc2626' },
+      'nc_eliminar':          { icon:'🗑️', label:'NC Eliminó confirmados', color:'#6b7280' },
+      'importar_hoja':        { icon:'⬇️', label:'Importó desde la hoja',  color:'#6b7280' },
     };
     const METODO_NOMBRES = {
       'efectivo-marbella':'Ef. Marbella','efectivo-monda':'Ef. Monda',
